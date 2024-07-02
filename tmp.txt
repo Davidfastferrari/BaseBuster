@@ -1,0 +1,36 @@
+sol!{
+    #[derive(Debug)]
+    #[sol(rpc)]
+    contract EventDecoder {
+        event Swap(address indexed,uint256,uint256,uint256,address indexed);
+    }
+}
+    // log sender
+    let (sender, mut receiver) = mpsc::channel::<Log>(1000);
+
+
+    tokio::task::spawn(swap_scanner(ws_provider.clone(), sender.clone()));
+
+    while let Some(swap_event) = receiver.recv().await {
+        let decoded_log = EventDecoder::Swap::decode_log(&swap_event.inner, false);
+        println!("{:?}", decoded_log);
+    }
+    Ok(())
+
+}
+
+pub async fn swap_scanner(ws_provider: Arc<RootProvider<PubSubFrontend, AnyNetwork>>, sender: Sender<Log>)  {
+    let filter = Filter::new()
+        .event("Swap(address,uint256,uint256,uint256,uint256,address)");
+
+    let sub = ws_provider.subscribe_logs(&filter).await.unwrap();
+    let mut stream = sub.into_stream();
+
+    while let Some(log) = stream.next().await {
+        match sender.send(log).await {
+            Err(e) => error!("Unable to send the log"),
+            _ => {}
+        }
+    }
+    panic!("should not reach here");
+}

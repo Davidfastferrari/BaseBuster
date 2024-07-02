@@ -1,11 +1,87 @@
+
+
+use crate::types::Token;
+use crate::edge::Edge;
+
+/// Struct of an arbitrage path
+#[derive(Debug)]
+pub enum Path {
+    // Reflextive 2 hop path A/B -> B/A
+    // Both hops will be different dexs
+    Reflexive {
+        path: [(Token, Token); 2], swap_id: Edge 
+    },
+    Triangle {
+        path: [(Token, Token); 3], swap_id: Edge 
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
 use crate::types::Token;
 
 
 // The number or tokens we are searching over
-const NUM_TOKENS: usize = Token::VARIANT_COUNT;
-const _: () assert!(N <= 64, "update pair idendity hash");
-
-
+// Make sure we are searching over less than 64 tokens
+pub const NUM_TOKENS: usize = Token::VARIANT_COUNT;
+const _: () = assert!(NUM_TOKENS <= 64, "update pair idendity hash");
 
 // A reflexive path type. A/B -> B/A
 pub type Reflexive = [(usize, usize); 2] ;
@@ -23,3 +99,4 @@ pub enum Path {
 }
 
 
+*/

@@ -1,0 +1,2 @@
+For an edge, you can just use a "hash", which you just encode the info in 32 bits
+  - see price_graph, hash function
