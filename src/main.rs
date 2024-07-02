@@ -13,6 +13,10 @@ use tokio::sync::mpsc::{Sender, Receiver};
 use anyhow::Result;
 use env_logger;
 
+mod path;
+mod price_graph;
+mod types;
+
 sol!{
     #[derive(Debug)]
     #[sol(rpc)]
@@ -43,9 +47,6 @@ async fn main() -> Result<()> {
     Ok(())
 
 }
-
-
-
 
 pub async fn swap_scanner(ws_provider: Arc<RootProvider<PubSubFrontend, AnyNetwork>>, sender: Sender<Log>)  {
     let filter = Filter::new()
