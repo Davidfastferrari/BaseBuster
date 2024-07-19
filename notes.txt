@@ -1,2 +1,15 @@
-For an edge, you can just use a "hash", which you just encode the info in 32 bits
-  - see price_graph, hash function
+todo
+- need to build grpah with the pools from pool-sync
+- need to be able to update the reserves on each block
+
+
+
+- load in all the pools
+- generate all teh paths
+- on new block get touched reserves
+- simulate all paths that use those puts
+- put 0.1 eth in to see if profitable then optimzei
+
+
+
+weth 3 hop arb cycles

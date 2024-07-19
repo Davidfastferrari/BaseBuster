@@ -1,208 +1,95 @@
-
-
-use crate::price_graph::PriceGraph;
-use crate::edge::*;
-use std::sync::Arc;
-
-mod price_graph;
-mod path;
-mod edge;
-mod types;
-
+use petgraph::dot::{Config, Dot};
+use petgraph::{algo, prelude::*};
+use rand::Rng;
+use std::fs::File;
+use std::io::Write;
 
 fn main() {
-    let mut graph = PriceGraph::new();
-    graph.add_edge(0, 1, 1, 30, Arc::new(UniswapV2Edge { 
-        reserve_in: 1_000_000, 
-        reserve_out: 1_000_000, 
-        fee: 30, 
-        exchange: 1 
-    }));
-    graph.add_edge(0, 1, 2, 30, Arc::new(UniswapV2Edge { 
-        reserve_in: 990_000, 
-        reserve_out: 1_010_000, 
-        fee: 30, 
-        exchange: 2 
-    }));
-    graph.add_edge(1, 2, 1, 500, Arc::new(UniswapV3Edge { 
-        sqrt_price_x96: 1u128 << 96, 
-        liquidity: 1_000_000, 
-        fee: 500, 
-        exchange: 1,
-        zero_for_one: true 
-    }));
-    graph.add_edge(2, 0, 1, 30, Arc::new(UniswapV2Edge { 
-        reserve_in: 1_000_000, 
-        reserve_out: 990_000, 
-        fee: 30, 
-        exchange: 1 
-    }));
+    let mut graph = UnGraph::<&str, i32>::with_capacity(5, 6);
+    let weth = graph.add_node("weth");
+    let usdc = graph.add_node("usdc");
+    let bonk = graph.add_node("bonk");
+    let tromp = graph.add_node("tromp");
+    let a = graph.add_node("a");
+    let b = graph.add_node("b");
+    let c = graph.add_node("c");
+    let d = graph.add_node("d");
+    let e = graph.add_node("e");
+    let f = graph.add_node("f");
+    let h = graph.add_node("h");
+    let i = graph.add_node("h");
+    let j = graph.add_node("h");
+    let k = graph.add_node("h");
+    let l = graph.add_node("h");
+    let m = graph.add_node("h");
+    let n = graph.add_node("h");
+    let o = graph.add_node("h");
+    let p = graph.add_node("h");
+
+
+
+
+
+
+
+
+    let nodes = [weth, usdc, bonk, tromp, a, b, c, d, e, f, h, i, j, k, l, m, n, o, p];
+
+    // Generate a large number of random edges
+    let mut rng = rand::thread_rng();
+    for _ in 0..200 {
+        let from = nodes[rng.gen_range(0..nodes.len())];
+        let to = nodes[rng.gen_range(0..nodes.len())];
+        let weight = rng.gen_range(1..10);
+        graph.add_edge(from, to, weight);
+    }
+
+    // Add some specific edges to ensure connectivity
+    graph.extend_with_edges([
+        (weth, usdc, 1),
+        (weth, bonk, 1),
+        (weth, tromp, 1),
+        (tromp, usdc, 1),
+        (usdc, bonk, 1),
+        (usdc, weth, 2),
+        (usdc, a, 2),
+        (a, weth, 2),
+        (b, c, 3),
+        (c, d, 4),
+        (d, e, 5),
+        (e, f, 6),
+        (f, h, 7),
+        (h, weth, 8),
+    ]);
+
+    let cycles: Vec<Vec<NodeIndex>> =
+        algo::all_simple_paths::<Vec<_>, _>(&graph, weth, weth, 0,Some( 3)).collect();
+    //println!("cycles {}", cycles.len());
 
-    graph.set_block_number();
-
-
-
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/*
-use crate::types::Pair;
-use crate::types::*;
-use alloy::primitives::{address, Address};
-use alloy::providers::{Provider, ProviderBuilder, RootProvider, WsConnect};
-use anyhow::Result;
-use log::{debug, info, LevelFilter};
-use pool_sync::{Pool, PoolInfo, PoolSync, PoolType};
-use price_graph::*;
-use std::sync::Arc;
-
-mod constants;
-mod path;
-mod price_graph;
-mod types;
-
-#[tokio::main]
-async fn main() -> Result<()> {
-    // logger and env config
-    dotenv::dotenv().ok();
-    env_logger::builder()
-        .filter_level(LevelFilter::Info)
-        .build();
-
-    info!("Welcome to base buster");
-
-    debug!("Starting providers");
-    // construct the providers
-    let ws = WsConnect::new(std::env::var("WSS_URL")?);
-    let ws_provider = Arc::new(
-        ProviderBuilder::new()
-            .network::<alloy::network::AnyNetwork>()
-            .on_ws(ws)
-            .await?,
-    );
-    let http_provider = Arc::new(
-        ProviderBuilder::new()
-            .network::<alloy::network::AnyNetwork>()
-            .on_http(std::env::var("HTTP_URL")?.parse()?),
-    );
-    debug!("Providers started sucessfully");
-
-    // sync the pools
     /*
-    let pool_sync = PoolSync::builder()
-        .add_pool(PoolType::UniswapV2)
-        .rate_limit(10)
-        .build()?;
-    let pools = pool_sync.sync_pools(http_provider.clone()).await;
+    println!("Cycles starting and ending at weth:");
+    for (i, cycle) in cycles.iter().enumerate() {
+        let cycle_str: Vec<String> = cycle
+            .windows(2)
+            .map(|pair| {
+                let from = graph[pair[0]];
+                let to = graph[pair[1]];
+                let weight = graph
+                    .edge_weight(graph.find_edge(pair[0], pair[1]).unwrap())
+                    .unwrap();
+                format!("{} --({})-> {}", from, weight, to)
+            })
+            .collect();
+        println!("Cycle {}: {}", i + 1, cycle_str.join(" "));
+    }
     */
 
-    let pairs = load_pairs();
-    let pairs: Vec<Pair> = pairs.iter().map(|(p, _)| *p).collect(); 
-                                                                               // create path graph
-    PriceGraph::find_paths(Token::WETH, pairs.as_slice());
-    //
-
-    Ok(())
+    // Custom configuration to include edge weights
+    /*
+    let dot = Dot::with_config(&graph, &[Config::EdgeIndexLabel]);
+    let mut file = File::create("graph.dot").expect("Could not create file");
+    write!(file, "{:?}", dot).expect("Could not write to file");
+    println!("DOT file 'graph.dot' has been generated.");
+    */
 }
 
-// load all the pairs in, mapping of the pair to its facotyr address, need to migrate to pools
-fn load_pairs() -> Vec<(Pair, Address)> {
-    let pairs: &[(Pair, Address)] = &[
-        (
-            Pair::new(Token::WETH, Token::USDC, 300, ExchangeId::UniswapV2),
-            address!("88A43bbDF9D098eEC7bCEda4e2494615dfD9bB9C"),
-        ),
-        (
-            Pair::new(Token::WETH, Token::DAI, 300, ExchangeId::UniswapV2),
-            address!("b2839134B8151964f19f6f3c7D59C70ae52852F5"),
-        ),
-        (
-            Pair::new(Token::DAI, Token::USDC, 300, ExchangeId::Basescan),
-            address!("8b7cc11ff640a494e5a31a82415bb0d831e62363"),
-        ),
-        (
-            Pair::new(Token::WETH, Token::BRETT, 300, ExchangeId::UniswapV3),
-            address!("76bf0abd20f1e0155ce40a62615a90a709a6c3d8 "),
-        ),
-        (
-            Pair::new(Token::AERO, Token::USDC, 300, ExchangeId::Aerodome),
-            address!("6cdcb1c4a4d1c3c6d054b27ac5b77e89eafb971d"),
-        ),
-        (
-            Pair::new(Token::WETH, Token::USDC, 300, ExchangeId::Aerodome),
-            address!("b2cc224c1c9fee385f8ad6a55b4d94e92359dc59"),
-        ),
-    ];
-    pairs.to_vec()
-}
-*/
