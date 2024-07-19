@@ -1,95 +1,52 @@
+use alloy::primitives::address;
+use alloy::primitives::Address;
+use alloy::providers::ProviderBuilder;
 use petgraph::dot::{Config, Dot};
 use petgraph::{algo, prelude::*};
+use pool_sync::filter::filter_top_volume;
+use pool_sync::*;
 use rand::Rng;
+use std::collections::HashMap;
+use std::collections::HashSet;
 use std::fs::File;
 use std::io::Write;
+use std::sync::Arc;
+use crate::build_graph::{construct_graph, find_best_arbitrage_path};
 
-fn main() {
-    let mut graph = UnGraph::<&str, i32>::with_capacity(5, 6);
-    let weth = graph.add_node("weth");
-    let usdc = graph.add_node("usdc");
-    let bonk = graph.add_node("bonk");
-    let tromp = graph.add_node("tromp");
-    let a = graph.add_node("a");
-    let b = graph.add_node("b");
-    let c = graph.add_node("c");
-    let d = graph.add_node("d");
-    let e = graph.add_node("e");
-    let f = graph.add_node("f");
-    let h = graph.add_node("h");
-    let i = graph.add_node("h");
-    let j = graph.add_node("h");
-    let k = graph.add_node("h");
-    let l = graph.add_node("h");
-    let m = graph.add_node("h");
-    let n = graph.add_node("h");
-    let o = graph.add_node("h");
-    let p = graph.add_node("h");
+#[tokio::main]
+async fn main() {
+    dotenv::dotenv().ok();
 
+    let provider = ProviderBuilder::new().on_http("http://69.67.151.138:8545".parse().unwrap());
+    let provider = Arc::new(provider);
 
+    let pool_sync = PoolSync::builder()
+        .add_pools(&[PoolType::UniswapV2])
+        .chain(Chain::Ethereum)
+        .rate_limit(100)
+        .build()
+        .unwrap();
 
+    let pools = pool_sync.sync_pools(provider.clone()).await.unwrap();
+    let filtered_pools = filter_top_volume(&pools, 2000).await.unwrap();
+    let mut token_to_node: HashMap<Address, NodeIndex> = HashMap::new();
+    let graph = construct_graph(&pools, &filtered_pools, &mut token_to_node);
 
+    println!("Number of nodes (tokens): {}", graph.node_count());
+    println!("Number of edges (pools): {}", graph.edge_count());
 
+    let weth_address = address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
+    let input_amount = 1_000_000_000_000_000_000u128; // 1 WETH (18 decimals)
+    let max_depth = 3;
 
-
-
-    let nodes = [weth, usdc, bonk, tromp, a, b, c, d, e, f, h, i, j, k, l, m, n, o, p];
-
-    // Generate a large number of random edges
-    let mut rng = rand::thread_rng();
-    for _ in 0..200 {
-        let from = nodes[rng.gen_range(0..nodes.len())];
-        let to = nodes[rng.gen_range(0..nodes.len())];
-        let weight = rng.gen_range(1..10);
-        graph.add_edge(from, to, weight);
+    if let Some((path, output_amount)) = find_best_arbitrage_path(&graph, weth_address, input_amount, max_depth) {
+        println!("Best arbitrage opportunity:");
+        println!("Path: {:?}", path.iter().map(|&node| graph[node]).collect::<Vec<_>>());
+        println!("Input amount: {} WETH", input_amount as f64 / 1e18);
+        println!("Output amount: {} WETH", output_amount as f64 / 1e18);
+        let profit_percentage = (output_amount as f64 / input_amount as f64 - 1.0) * 100.0;
+        println!("Profit: {:.2}%", profit_percentage);
+    } else {
+        println!("No profitable arbitrage opportunity found.");
     }
-
-    // Add some specific edges to ensure connectivity
-    graph.extend_with_edges([
-        (weth, usdc, 1),
-        (weth, bonk, 1),
-        (weth, tromp, 1),
-        (tromp, usdc, 1),
-        (usdc, bonk, 1),
-        (usdc, weth, 2),
-        (usdc, a, 2),
-        (a, weth, 2),
-        (b, c, 3),
-        (c, d, 4),
-        (d, e, 5),
-        (e, f, 6),
-        (f, h, 7),
-        (h, weth, 8),
-    ]);
-
-    let cycles: Vec<Vec<NodeIndex>> =
-        algo::all_simple_paths::<Vec<_>, _>(&graph, weth, weth, 0,Some( 3)).collect();
-    //println!("cycles {}", cycles.len());
-
-    /*
-    println!("Cycles starting and ending at weth:");
-    for (i, cycle) in cycles.iter().enumerate() {
-        let cycle_str: Vec<String> = cycle
-            .windows(2)
-            .map(|pair| {
-                let from = graph[pair[0]];
-                let to = graph[pair[1]];
-                let weight = graph
-                    .edge_weight(graph.find_edge(pair[0], pair[1]).unwrap())
-                    .unwrap();
-                format!("{} --({})-> {}", from, weight, to)
-            })
-            .collect();
-        println!("Cycle {}: {}", i + 1, cycle_str.join(" "));
-    }
-    */
-
-    // Custom configuration to include edge weights
-    /*
-    let dot = Dot::with_config(&graph, &[Config::EdgeIndexLabel]);
-    let mut file = File::create("graph.dot").expect("Could not create file");
-    write!(file, "{:?}", dot).expect("Could not write to file");
-    println!("DOT file 'graph.dot' has been generated.");
-    */
 }
-
