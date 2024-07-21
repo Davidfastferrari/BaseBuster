@@ -2,6 +2,8 @@
 use alloy::primitives::address;
 use alloy::primitives::Address;
 use alloy::providers::ProviderBuilder;
+use env_logger;
+use std::sync::RwLock;
 use petgraph::algo;
 use petgraph::prelude::*;
 use pool_sync::filter::filter_top_volume;
@@ -17,8 +19,10 @@ use std::sync::Arc;
 use std::time::Instant;
 use crate::graph::*;
 use stream::*;
+use crate::concurrent_pool::ConcurrentPool;
 
 mod graph;
+mod concurrent_pool;
 mod stream;
 
 #[derive(Serialize, Deserialize)]
@@ -40,18 +44,18 @@ fn read_addresses_from_file(filename: &str) -> std::io::Result<HashSet<Address>>
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
-    // load in the dot env
+    // initializations
     dotenv::dotenv().ok();
+    env_logger::builder().default_format().build();
 
-    // construct http provider
-    let provider =
-        Arc::new(ProviderBuilder::new().on_http("http://69.67.151.138:8545".parse().unwrap()));
+    // construct the providers
+    let http_url = std::env::var("HTTP").unwrap();
+    let ws_url = WsConnect::new(std::env::var("WS").unwrap());
+    let http_provider = Arc::new(ProviderBuilder::new().on_http(http_url.parse().unwrap()));
+    let ws_provider = Arc::new(ProviderBuilder::new().on_ws(ws_url).await.unwrap());
 
-    let ws = WsConnect::new("ws://69.67.151.138:8546");
-    let ws = Arc::new(ProviderBuilder::new().on_ws(ws).await.unwrap());
-
-    tokio::task::spawn(stream_blocks(ws));
-
+    // concurrent pool mapping
+    let address_to_pool = Arc::new(ConcurrentPool::new());
 
     // load in all the pools
     let pool_sync = PoolSync::builder()
@@ -62,13 +66,20 @@ async fn main() -> std::io::Result<()> {
         .unwrap();
 
     // sync all the pools and get the top tokens
-    let pools = pool_sync.sync_pools(provider.clone()).await.unwrap();
+    let pools = pool_sync.sync_pools(http_provider.clone()).await.unwrap();
     let top_volume_tokens = read_addresses_from_file("addresses.json")?;
 
     // mapping from addresses to node indexes in the grpah
     let mut address_to_node: FxHashMap<Address, NodeIndex> = FxHashMap::default();
-    let mut index_to_pool: FxHashMap<EdgeIndex, Pool> = FxHashMap::default();
-    let graph = build_graph(&pools, top_volume_tokens, &mut address_to_node, &mut index_to_pool);
+    let mut index_to_pool: FxHashMap<EdgeIndex, RwLock<Pool>> = FxHashMap::default();
+    let mut token_to_edge: FxHashMap<(NodeIndex, NodeIndex), EdgeIndex> = FxHashMap::default();
+    let graph = build_graph(
+        &pools, 
+        top_volume_tokens, 
+        &mut address_to_node, 
+        &mut index_to_pool,
+        &mut token_to_edge
+    );
 
 
     // fetch the weth node index
@@ -94,12 +105,13 @@ async fn main() -> std::io::Result<()> {
             for window in cycle.windows(2) {
                 let node1 = window[0];
                 let node2 = window[1];
-                let edge = graph.find_edge(node1, node2).unwrap();
-                let res = graph[edge];
+                let edge = token_to_edge.get(&(node1, node2));
+                //let edge = graph.find_edge(node1, node2).unwrap();
+                //let res = graph[edge];
 
-                let reserves = pool_reserves.read().unwrap();
+                //let pool = edge_to_pool.read().unwrap();
                 // we have the pool here, we can do some the calulactions
-                let pool = reserves.get(&res);
+                //let pool = pool.get(&res);
 
             }
             // Here you can do something with cycle_pools if needed
@@ -108,6 +120,11 @@ async fn main() -> std::io::Result<()> {
     }
 
     println!("Total traversal time: {:?}", start_traversal.elapsed());
+
+
+    //
+    // start the block stream
+    //tokio::task::spawn(stream_blocks(ws, tracked_pool.clone()));
 
     loop {
     }
