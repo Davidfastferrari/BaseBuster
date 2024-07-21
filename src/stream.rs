@@ -5,9 +5,11 @@ use pool_sync::PoolInfo;
 use log::info;
 use alloy::pubsub::PubSubFrontend;
 use alloy::rpc::types::Filter;
+use tokio::sync::mpsc::Sender;
 use alloy::sol;
 use futures::StreamExt;
 use crate::concurrent_pool::ConcurrentPool;
+use crate::events::Events;
 
 sol!(
     #[derive(Debug)]
@@ -18,7 +20,8 @@ sol!(
 
 pub async fn stream_blocks(
     ws: Arc<RootProvider<PubSubFrontend>>,
-    tracked_pools: Arc<ConcurrentPool>
+    tracked_pools: Arc<ConcurrentPool>,
+    new_log_sender: Sender<Events>
 ) {
     let filter = Filter::new().event(SyncEvent::Sync::SIGNATURE);
 
@@ -35,5 +38,6 @@ pub async fn stream_blocks(
         if tracked_pools.exists(&pool_address) {
             tracked_pools.update(&pool_address, reserve0, reserve1);
         }
+        new_log_sender.send(Events::ReserveUpdate).await;
     }
 }

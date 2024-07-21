@@ -2,6 +2,8 @@ use alloy::primitives::Address;
 use petgraph::algo;
 use std::sync::RwLock;
 use std::time::Instant;
+use tokio::sync::mpsc::Receiver;
+use crate::events::Events;
 use rayon::prelude::*;
 use std::sync::Arc;
 use petgraph::prelude::*;
@@ -65,25 +67,30 @@ pub async fn search_paths(
     graph: Arc<Graph<Address, Address, Undirected>>, 
     cycles: Vec<Vec<NodeIndex>>,
     address_to_pool: Arc<ConcurrentPool>,
-    token_to_edge: FxHashMap<(NodeIndex, NodeIndex), EdgeIndex>
+    token_to_edge: FxHashMap<(NodeIndex, NodeIndex), EdgeIndex>,
+    mut log_receiver: Receiver<Events>
 ) {
     info!("Traversing all cycles...");
-    let start = Instant::now();
-    // search all the cycles
-    cycles.par_iter().for_each(|cycle| {
-        // go though the elements in pairs
-        for window in cycle.windows(2) {
-            // get the info we need
-            let token0 = window[0];
-            let token1 = window[1];
-            let edge = token_to_edge.get(&(token0, token1)).unwrap();
-            let pool_addr = graph[*edge];
 
-            // get read access to the reserves
-            if address_to_pool.exists(&pool_addr) {
-                // do our work here
+    while let Some(event) = log_receiver.recv().await {
+        let start = Instant::now();
+        // search all the cycles
+        cycles.par_iter().for_each(|cycle| {
+            // go though the elements in pairs
+            for window in cycle.windows(2) {
+                // get the info we need
+                let token0 = window[0];
+                let token1 = window[1];
+                let edge = token_to_edge.get(&(token0, token1)).unwrap();
+                let pool_addr = graph[*edge];
+
+                // get read access to the reserves
+                if address_to_pool.exists(&pool_addr) {
+                    // do our work here
+                }
             }
-        }
-    });
-    println!("Traversal took {:?}", start.elapsed());
+        });
+        println!("Traversal took {:?}", start.elapsed());
+
+    }
 }

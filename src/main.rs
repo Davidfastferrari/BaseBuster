@@ -8,6 +8,7 @@ use petgraph::algo;
 use petgraph::prelude::*;
 use pool_sync::filter::filter_top_volume;
 use pool_sync::*;
+use tokio::sync::mpsc;
 use alloy::providers::WsConnect;
 use rayon::prelude::*;
 use rustc_hash::FxHashMap;
@@ -20,8 +21,10 @@ use std::time::Instant;
 use crate::graph::*;
 use stream::*;
 use crate::concurrent_pool::ConcurrentPool;
+use crate::events::Events;
 
 mod graph;
+mod events;
 mod concurrent_pool;
 mod stream;
 
@@ -94,9 +97,11 @@ async fn main() -> std::io::Result<()> {
     let cycles = construct_cycles(&graph, node);
     println!("Found {} cycles", cycles.len());
 
+
+    let (log_sender, mut log_receiver) = mpsc::channel(10);
     // spawn our tasks
-    tokio::task::spawn(search_paths(graph, cycles, address_to_pool.clone(), token_to_edge));
-    tokio::task::spawn(stream_blocks(ws_provider, address_to_pool.clone()));
+    tokio::task::spawn(stream_blocks(ws_provider, address_to_pool.clone(), log_sender));
+    tokio::task::spawn(search_paths(graph, cycles, address_to_pool.clone(), token_to_edge, log_receiver));
 
     loop {
 
