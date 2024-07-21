@@ -1,15 +1,16 @@
 //use crate::build_graph::{construct_graph, find_best_arbitrage_path};
+use crate::concurrent_pool::ConcurrentPool;
+use crate::events::Events;
+use crate::graph::*;
 use alloy::primitives::address;
 use alloy::primitives::Address;
 use alloy::providers::ProviderBuilder;
+use alloy::providers::WsConnect;
 use env_logger;
-use std::sync::RwLock;
 use petgraph::algo;
 use petgraph::prelude::*;
 use pool_sync::filter::filter_top_volume;
 use pool_sync::*;
-use tokio::sync::mpsc;
-use alloy::providers::WsConnect;
 use rayon::prelude::*;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
@@ -17,16 +18,16 @@ use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{BufReader, BufWriter};
 use std::sync::Arc;
+use std::sync::RwLock;
 use std::time::Instant;
-use crate::graph::*;
 use stream::*;
-use crate::concurrent_pool::ConcurrentPool;
-use crate::events::Events;
+use tokio::sync::mpsc;
 
-mod graph;
-mod events;
 mod concurrent_pool;
+mod events;
+mod graph;
 mod stream;
+mod optimizer;
 
 #[derive(Serialize, Deserialize)]
 struct AddressSet(HashSet<Address>);
@@ -57,7 +58,6 @@ async fn main() -> std::io::Result<()> {
     let http_provider = Arc::new(ProviderBuilder::new().on_http(http_url.parse().unwrap()));
     let ws_provider = Arc::new(ProviderBuilder::new().on_ws(ws_url).await.unwrap());
 
-
     // load in all the pools
     let pool_sync = PoolSync::builder()
         .add_pools(&[PoolType::UniswapV2])
@@ -77,15 +77,14 @@ async fn main() -> std::io::Result<()> {
 
     // build the graph and populate the mappings
     let graph = Arc::new(build_graph(
-        &pools, 
-        top_volume_tokens, 
-        &mut address_to_node, 
+        &pools,
+        top_volume_tokens,
+        &mut address_to_node,
         &mut address_to_pool,
-        &mut token_to_edge
+        &mut token_to_edge,
     ));
 
-
-    // rewrap it 
+    // rewrap it
     let address_to_pool = Arc::new(address_to_pool);
 
     // fetch the weth node index
@@ -97,19 +96,25 @@ async fn main() -> std::io::Result<()> {
     let cycles = construct_cycles(&graph, node);
     println!("Found {} cycles", cycles.len());
 
-
     let (log_sender, mut log_receiver) = mpsc::channel(10);
     // spawn our tasks
-    tokio::task::spawn(stream_sync_events(ws_provider, address_to_pool.clone(), log_sender));
-    tokio::task::spawn(search_paths(graph, cycles, address_to_pool.clone(), token_to_edge, log_receiver));
+    tokio::task::spawn(stream_sync_events(
+        ws_provider,
+        address_to_pool.clone(),
+        log_sender,
+    ));
+    tokio::task::spawn(search_paths(
+        graph,
+        cycles,
+        address_to_pool.clone(),
+        token_to_edge,
+        log_receiver,
+    ));
     tokio::task::spawn(stream_new_blocks(ws_provider.clone()));
 
     loop {
-
         tokio::time::sleep(std::time::Duration::from_secs(10)).await;
     }
 
     Ok(())
 }
-
-
