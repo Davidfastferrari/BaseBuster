@@ -31,6 +31,11 @@ impl ConcurrentPool {
         write.insert(address, pool);
     }
 
+
+    pub fn get(&self, address: &Address) -> Pool {
+        self.addr_to_pool.read().unwrap()[address].clone()
+    }
+
     // check if this exists
     pub fn exists(&self, address: &Address) -> bool {
         self.pool_addrs.contains(address)

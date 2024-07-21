@@ -1,6 +1,8 @@
 use alloy::providers::{Provider, RootProvider};
 use alloy_sol_types::SolEvent;
 use std::sync::Arc;
+use pool_sync::PoolInfo;
+use log::info;
 use alloy::pubsub::PubSubFrontend;
 use alloy::rpc::types::Filter;
 use alloy::sol;
