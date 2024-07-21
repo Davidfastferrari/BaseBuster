@@ -19,6 +19,7 @@ use crate::concurrent_pool::ConcurrentPool;
 // inital bootstrap of reserves
 pub fn bootstrap_reserves(pools: &Vec<Pool>, address_to_pool: &mut ConcurrentPool) {
     // do through all the pools and update the reserves
+    pool_sync.update_reserves(pools);
 }
 
 pub fn build_graph(

@@ -105,7 +105,6 @@ async fn main() -> std::io::Result<()> {
     tokio::task::spawn(stream_new_blocks(ws_provider.clone()));
 
     loop {
-
         tokio::time::sleep(std::time::Duration::from_secs(10)).await;
     }
 
