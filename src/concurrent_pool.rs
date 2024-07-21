@@ -31,7 +31,7 @@ impl ConcurrentPool {
         write.insert(address, pool);
     }
 
-
+    // get the pool for an address
     pub fn get(&self, address: &Address) -> Pool {
         self.addr_to_pool.read().unwrap()[address].clone()
     }

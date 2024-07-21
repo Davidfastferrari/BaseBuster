@@ -100,11 +100,13 @@ async fn main() -> std::io::Result<()> {
 
     let (log_sender, mut log_receiver) = mpsc::channel(10);
     // spawn our tasks
-    tokio::task::spawn(stream_blocks(ws_provider, address_to_pool.clone(), log_sender));
+    tokio::task::spawn(stream_sync_events(ws_provider, address_to_pool.clone(), log_sender));
     tokio::task::spawn(search_paths(graph, cycles, address_to_pool.clone(), token_to_edge, log_receiver));
+    tokio::task::spawn(stream_new_blocks(ws_provider.clone()));
 
     loop {
 
+        tokio::time::sleep(std::time::Duration::from_secs(10)).await;
     }
 
     Ok(())

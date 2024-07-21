@@ -18,7 +18,8 @@ sol!(
     }
 );
 
-pub async fn stream_blocks(
+// Stream all the sync events from block pudates
+pub async fn stream_sync_events(
     ws: Arc<RootProvider<PubSubFrontend>>,
     tracked_pools: Arc<ConcurrentPool>,
     new_log_sender: Sender<Events>
@@ -39,5 +40,14 @@ pub async fn stream_blocks(
             tracked_pools.update(&pool_address, reserve0, reserve1);
         }
         new_log_sender.send(Events::ReserveUpdate).await;
+    }
+}
+
+// Stream all of the new blocks
+pub async fn stream_new_blocks(ws: Arc<RootProvider<PubSubFrontend>>) {
+    let sub = ws.subscribe_blocks().await.unwrap();
+    let mut stream = sub.into_stream();
+    while let Some(block) = stream.next().await {
+        println!("New block: {:?}", block);
     }
 }

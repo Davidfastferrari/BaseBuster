@@ -16,6 +16,10 @@ use log::info;
 
 use crate::concurrent_pool::ConcurrentPool;
 
+// inital bootstrap of reserves
+pub fn bootstrap_reserves(pools: &Vec<Pool>, address_to_pool: &mut ConcurrentPool) {
+    // do through all the pools and update the reserves
+}
 
 pub fn build_graph(
     pools: &Vec<Pool>,
@@ -56,6 +60,7 @@ pub fn build_graph(
     graph
 }
 
+
 pub fn construct_cycles(
     graph: &Graph<Address, Address, Undirected>,
     node: NodeIndex,
@@ -72,25 +77,73 @@ pub async fn search_paths(
 ) {
     info!("Traversing all cycles...");
 
+    // save the successufl paths that will be optimized
+    let mut successful_paths: Vec<Vec<NodeIndex>> = Vec::new();
+
+    // when we get a pool reserves update event, we will check all the cycles
     while let Some(event) = log_receiver.recv().await {
         let start = Instant::now();
         // search all the cycles
         cycles.par_iter().for_each(|cycle| {
-            // go though the elements in pairs
-            for window in cycle.windows(2) {
-                // get the info we need
-                let token0 = window[0];
-                let token1 = window[1];
-                let edge = token_to_edge.get(&(token0, token1)).unwrap();
-                let pool_addr = graph[*edge];
+            // default amount in, 0.1 weth to check if it is profitable
+            let mut current_amount = 1e18;
 
-                // get read access to the reserves
-                if address_to_pool.exists(&pool_addr) {
-                    // do our work here
-                }
+            for window in cycle.windows(2) {
+                // get the info we need for the cycle
+                let token0 = window[0]; // token0 is the first token in the cycle
+                let token1 = window[1]; // token1 is the second token in the cycle
+                let edge = token_to_edge.get(&(token0, token1)).unwrap(); // get the edge index
+                let pool_addr = graph[*edge]; // get the pool address
+                let pool = address_to_pool.get(&pool_addr); // get the pool for token0, tokene
+
+                // uniswapv2 pool have a constant product formula
+                // using the reserves and the decimals, calculate the amount out based on the current amount in
+                let reserves0 = pool.token0_reserves();
+                let reserves1 = pool.token1_reserves();
+                let amount_out = calculate_amount_out(reserves0, reserves1, current_amount);
+                let current_amount = amount_out;
+            }
+
+            // at the end of the cycles, check if the current amount is greater than 0.1weth
+            // if it is, then we have found a successful path
+            if current_amount > 1e18 {
+                successful_paths.push(cycle.clone());
             }
         });
         println!("Traversal took {:?}", start.elapsed());
+    }
 
+    // for each path in successful paths, calculate the optimal amount in and then construct a transaction to send
+    // then send the transaction
+    // then save the path to the database
+    // then update the reserves
+
+}
+
+
+// given a list of profitable paths, optimize the greatest amount in
+pub fn optimize_paths(paths: Vec<Vec<NodeIndex>>) {
+    // find the greatest amount in
+    let mut greatest_amount_in = 0;
+    for path in paths {
+        let amount_in = calculate_amount_in(path[0], path[1], 1e18);
+        if amount_in > greatest_amount_in {
+            greatest_amount_in = amount_in;
+        }
     }
 }
+
+pub fn calculate_amount_in(token0: NodeIndex, token1: NodeIndex, amount_out: u128) -> u128 {
+    unimplemented!()
+}
+
+
+// uninswapv2, given the reserves and the amount in calculate the amount out
+pub fn calculate_amount_out(reserves0: u128, reserves1: u128, amount_in: u128) -> u128 {
+    let amount_in_with_fee = amount_in * 997;
+    let numerator = amount_in_with_fee * reserves1;
+    let denominator = reserves0 * 1000 + amount_in_with_fee;
+    numerator / denominator
+}
+
+
