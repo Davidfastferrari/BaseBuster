@@ -68,7 +68,7 @@ async fn main() -> std::io::Result<()> {
     // mapping from addresses to node indexes in the grpah
     let mut address_to_node: FxHashMap<Address, NodeIndex> = FxHashMap::default();
     let mut index_to_pool: FxHashMap<EdgeIndex, Pool> = FxHashMap::default();
-    let graph = build_graph(&pools, top_volume_tokens, &mut address_to_node &mut index_to_pool);
+    let graph = build_graph(&pools, top_volume_tokens, &mut address_to_node, &mut index_to_pool);
 
 
     // fetch the weth node index
@@ -90,13 +90,17 @@ async fn main() -> std::io::Result<()> {
     for i in 0..10 {
         let iteration_start = Instant::now();
         cycles.par_iter().for_each(|cycle| {
-            let mut cycle_pools = Vec::with_capacity(3);
-            for i in 0..3 {
-                let node1 = cycle[i];
-                let node2 = cycle[(i + 1) % 3];
-                if let Some(edge) = graph.find_edge(node1, node2) {
-                    cycle_pools.push(graph[edge]);
-                }
+            // state before the calc
+            for window in cycle.windows(2) {
+                let node1 = window[0];
+                let node2 = window[1];
+                let edge = graph.find_edge(node1, node2).unwrap();
+                let res = graph[edge];
+
+                let reserves = pool_reserves.read().unwrap();
+                // we have the pool here, we can do some the calulactions
+                let pool = reserves.get(&res);
+
             }
             // Here you can do something with cycle_pools if needed
         });
