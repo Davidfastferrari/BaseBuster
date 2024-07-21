@@ -13,7 +13,7 @@ futures = "0.3.30"
 log = "0.4.21"
 tokio = { version = "1.38.0", features = ["full"] }
 alloy-chains = {git = "https://github.com/alloy-rs/chains" }
-alloy-sol-types = { version = "0.7.4", features = ["json"]}
+alloy-sol-types = { version = "0.7.7" }
 alloy-contract = { git = "https://github.com/alloy-rs/alloy" }
 dotenv = "0.15.0"
 pool-sync = "0.1.5"
