@@ -2,7 +2,10 @@
 use crate::concurrent_pool::ConcurrentPool;
 use crate::events::Events;
 use crate::graph::*;
-use alloy::primitives::{U128, U256};
+use alloy::hex::FromHex;
+use alloy::network::EthereumWallet;
+use alloy::primitives::{FixedBytes, U128, U256};
+use alloy::signers::local::PrivateKeySigner;
 use alloy::sol;
 use log::info;
 use alloy::primitives::address;
@@ -23,12 +26,15 @@ use std::sync::Arc;
 use stream::*;
 use tokio::sync::mpsc;
 use log::LevelFilter;
+use crate::tx_sender::send_transactions;
 
 mod concurrent_pool;
+mod gas_manager;
 mod events;
 mod graph;
 mod stream;
 mod optimizer;
+mod tx_sender;
 
 
 sol!(
@@ -77,11 +83,22 @@ async fn main() -> std::io::Result<()> {
         .filter_level(LevelFilter::Info)  // or Info, Warn, etc.
         .init();
 
+    let private_key_hex = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
+    
+    // Convert the hex string to FixedBytes<32>
+    let private_key_bytes = FixedBytes::<32>::from_hex(private_key_hex).unwrap();
+    
+    // Create a PrivateKeySigner from the private key bytes
+    let signer = PrivateKeySigner::from_bytes(&private_key_bytes).unwrap();
+    let wallet = EthereumWallet::from(signer);
+
+
     // construct the providers
     info!("Constructing providers...");
     let http_url = std::env::var("HTTP").unwrap();
     let ws_url = WsConnect::new(std::env::var("WS").unwrap());
     let http_provider = Arc::new(ProviderBuilder::new().on_http(http_url.parse().unwrap()));
+    let signer_provider = Arc::new(ProviderBuilder::new().wallet(wallet).on_http("http://localhost:8545".parse().unwrap()));
     let ws_provider = Arc::new(ProviderBuilder::new().on_ws(ws_url).await.unwrap());
 
     // load in all the pools
@@ -128,6 +145,7 @@ async fn main() -> std::io::Result<()> {
     info!("Found {} cycles", cycles.len());
 
     let (log_sender, mut log_receiver) = mpsc::channel(10);
+    let (tx_sender, mut tx_receiver) = mpsc::channel(10);
     let token_to_edge = Arc::new(token_to_edge);
     // spawn our tasks
     tokio::task::spawn(stream_sync_events(
@@ -142,7 +160,10 @@ async fn main() -> std::io::Result<()> {
         address_to_pool.clone(),
         token_to_edge,
         log_receiver,
+        tx_sender
     ));
+    tokio::task::spawn(send_transactions(signer_provider, tx_receiver));
+    //tokio::task::spawn(send_transactions(signer_provider.clone());
     //tokio::task::spawn(stream_new_blocks(ws_provider.clone()));
 
     loop {

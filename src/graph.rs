@@ -1,10 +1,11 @@
 use alloy::primitives::Address;
 use alloy::primitives::{U128, U256};
+use alloy::signers::k256::elliptic_curve::consts::U25;
 use petgraph::algo;
 use alloy::primitives::address;
 use std::time::Instant;
 use alloy::providers::ProviderBuilder;
-use tokio::sync::mpsc::Receiver;
+use tokio::sync::mpsc::{Receiver, Sender};
 use crate::events::Events;
 use rayon::prelude::*;
 use std::sync::Arc;
@@ -16,6 +17,7 @@ use std::collections::HashSet;
 use log::info;
 use crate::concurrent_pool::ConcurrentPool;
 use alloy::sol;
+use crate::events::ArbPath;
 
 sol!(
     #[derive(Debug)]
@@ -97,7 +99,8 @@ pub async fn search_paths(
     cycles: Vec<Vec<NodeIndex>>,
     address_to_pool: Arc<ConcurrentPool>,
     token_to_edge: Arc<FxHashMap<(NodeIndex, NodeIndex), EdgeIndex>>,
-    mut log_receiver: Receiver<Events>
+    mut log_receiver: Receiver<Events>,
+    mut tx_sender: Sender<ArbPath>,
 ) {
     while let Some(event) = log_receiver.recv().await {
         info!("Searching for arbs...");
@@ -135,206 +138,13 @@ pub async fn search_paths(
             .collect();
 
         info!("Found {} profitable paths in {:?} {:?}", profitable_paths.len(), start.elapsed(), profitable_paths);
+        for path in profitable_paths {
+            let path = path.2.clone();
+            let amount_in = U256::from(1e17 as u64);
+            let arb_path = ArbPath { path, amount_in };
+            tx_sender.send(arb_path).await.unwrap();
+        }
 
         // Process profitable paths here...
     }
 }
-/* 
-
-pub async fn search_paths(
-    graph: Arc<Graph<Address, Address, Undirected>>, 
-    cycles: Vec<Vec<NodeIndex>>,
-    address_to_pool: Arc<ConcurrentPool>,
-    token_to_edge: Arc<FxHashMap<(NodeIndex, NodeIndex), EdgeIndex>>,
-    mut log_receiver: Receiver<Events>
-) {
-    while let Some(event) = log_receiver.recv().await {
-        info!("Searching for arbs...");
-        let start = std::time::Instant::now();
-        
-        let profitable_paths: Vec<_> = cycles.par_iter()
-            .filter_map(|cycle| {
-                let mut current_amount = U256::from(1e17);
-                let mut swap_path = vec![graph[cycle[0]]];
-
-                for window in cycle.windows(2) {
-                    let (token0, token1) = (window[0], window[1]);
-                    let edge = token_to_edge.get(&(token0, token1)).unwrap();
-                    let pool_addr = graph[*edge];
-                    let pool = address_to_pool.get(&pool_addr);
-                    let token0_address = graph[token0];
-                    let pool_token0 = pool.token0_address();
-                    let (reserves0, reserves1) = address_to_pool.get_reserves(&pool_addr);
-                    
-                    current_amount = if token0_address == pool_token0 {
-                        calculate_amount_out(reserves0, reserves1, current_amount)
-                    } else {
-                        calculate_amount_out(reserves1, reserves0, current_amount)
-                    };
-
-                    swap_path.push(graph[token1]);
-                }
-
-                if current_amount > U256::from(1e17) {
-                    Some((cycle.clone(), current_amount, swap_path))
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        info!("Found {} profitable paths in {:?}, {:?}", profitable_paths.len(), start.elapsed(), profitable_paths.get(400));
-
-        // Process profitable paths here...
-    }
-}
-
-#[inline]
-pub fn calculate_amount_out(reserves_in: U128, reserves_out: U128, amount_in: U256) -> U256 {
-    let amount_in_with_fee = amount_in.saturating_mul(U256::from(997));
-    let numerator = amount_in_with_fee.saturating_mul(U256::from(reserves_out));
-    let denominator = U256::from(reserves_in).saturating_mul(U256::from(1000)).saturating_add(amount_in_with_fee);
-    saturating_div(numerator, denominator)
-}
-
-fn saturating_div(a: U256, b: U256) -> U256 {
-    if b.is_zero() {
-        U256::MAX
-    } else {
-        a.checked_div(b).unwrap_or(U256::MAX)
-    }
-}
-fn format_eth(wei: U256) -> String {
-    let wei_str = wei.to_string();
-    let eth_value = if wei_str.len() <= 18 {
-        format!("0.{:0>18}", wei_str)
-    } else {
-        format!("{}.{:0>18}", &wei_str[..wei_str.len()-18], &wei_str[wei_str.len()-18..])
-    };
-    eth_value.trim_end_matches('0').trim_end_matches('.').to_string()
-}
-
-pub async fn search_paths(
-    graph: Arc<Graph<Address, Address, Undirected>>, 
-    cycles: Vec<Vec<NodeIndex>>,
-    address_to_pool: Arc<ConcurrentPool>,
-    token_to_edge: FxHashMap<(NodeIndex, NodeIndex), EdgeIndex>,
-    mut log_receiver: Receiver<Events>
-) {
-    let mut successful_paths: Vec<Vec<NodeIndex>> = Vec::new();
-
-    while let Some(event) = log_receiver.recv().await {
-        info!("Seaching for arbs...");
-        let start = Instant::now();
-        
-        cycles.par_iter().for_each(|cycle| {
-            let graph = graph.clone();
-            let address_to_pool = address_to_pool.clone();
-            let token_to_edge = token_to_edge.clone();
-            
-            //let mut current_amount: U256 = U256::from(1e17);
-            //let mut profitable: Vec<(Pool, U256)> = Vec::new();
-            //let mut swap_path: Vec<Address> = vec![graph[cycle[0]]];
-
-            for window in cycle.windows(2) {
-                let token0 = window[0];
-                let token1 = window[1];
-                let edge = token_to_edge.get(&(token0, token1)).unwrap();
-                
-                //let t1_addr = graph[token1];
-                //swap_path.push(t1_addr);
-                
-                let pool_addr = graph[*edge];
-                let pool = address_to_pool.get(&pool_addr);
-                let token0_address = graph[token0];
-                let pool_token0 = pool.token0_address();
-                let (reserves0, reserves1) = address_to_pool.get_reserves(&pool_addr);
-                
-                current_amount = if token0_address == pool_token0 {
-                    calculate_amount_out(reserves0, reserves1, current_amount)
-                } else {
-                    calculate_amount_out(reserves1, reserves0, current_amount)
-                };
-                    
-
-            }
-        });
-        info!("Traversal took {:?}", start.elapsed());
-    }
-
-
-                /* 
-                if current_amount > U256::from(1e17) {
-                    //profitable.push((pool.clone(), current_amount));
-                    //let amount_in = U256::from(1e17);
-                    //let expected_amount_out = router.getAmountsOut(amount_in, swap_path).call().await.unwrap();
-                    println!("Found profitable path:");
-                    for (pool, amount) in profitable {
-                        println!("{:?} {:?} {:?} -> ", pool.address(), pool.reserves(), amount);
-                    }
-                    //println!("Expected amount out: {:?}", expected_amount_out);
-                    Some(cycle.clone())
-                } else {
-                    None
-                }
-                */
-        //let results = futures::future::join_all(futures).await;
-        //successful_paths.extend(results.into_iter().filter_map(|x| x));
-
-
-    // Process successful_paths here...
-}
-
-fn format_eth(wei: U256) -> String {
-    let wei_str = wei.to_string();
-    let eth_value = if wei_str.len() <= 18 {
-        format!("0.{:0>18}", wei_str)
-    } else {
-        format!("{}.{:0>18}", &wei_str[..wei_str.len()-18], &wei_str[wei_str.len()-18..])
-    };
-    // Trim trailing zeros after the decimal point
-    eth_value.trim_end_matches('0').trim_end_matches('.').to_string()
-}
-
-pub fn calculate_amount_out(reserves0: U128, reserves1: U128, amount_in: U256) -> U256 {
-    let amount_in_with_fee = match amount_in.checked_mul(U256::from(997)) {
-        Some(val) => val,
-        None => {
-            //println!("Warning: Overflow in fee calculation. amount_in: {}", amount_in);
-            return U256::ZERO;
-        }
-    };
-
-    let reserves1_u256 = U256::from(reserves1);
-    let numerator = match amount_in_with_fee.checked_mul(reserves1_u256) {
-        Some(val) => val,
-        None => {
-            //println!("Warning: Overflow in numerator calculation. amount_in_with_fee: {}, reserves1: {}", amount_in_with_fee, reserves1);
-            return U256::ZERO;
-        }
-    };
-
-    let reserves0_u256 = U256::from(reserves0);
-    let denominator = match reserves0_u256.checked_mul(U256::from(1000)) {
-        Some(val) => match val.checked_add(amount_in_with_fee) {
-            Some(sum) => sum,
-            None => {
-                //println!("Warning: Overflow in denominator addition. reserves0 * 1000: {}, amount_in_with_fee: {}", val, amount_in_with_fee);
-                return U256::ZERO;
-            }
-        },
-        None => {
-            //println!("Warning: Overflow in denominator multiplication. reserves0: {}", reserves0);
-            return U256::ZERO;
-        }
-    };
-
-    match numerator.checked_div(denominator) {
-        Some(amount_out) => amount_out,
-        None => {
-            //println!("Warning: Division by zero or overflow. numerator: {}, denominator: {}", numerator, denominator);
-            U256::ZERO
-        }
-    }
-}
-*/
