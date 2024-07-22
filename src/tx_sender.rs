@@ -1,7 +1,7 @@
 
 use alloy::{network::{Ethereum, EthereumWallet}, providers::{fillers::{FillProvider, JoinFill, WalletFiller}, Identity, RootProvider}, sol, transports::http::{Client, Http}};
 use std::sync::Arc;
-use tokio::sync::mpsc::Receiver;
+use tokio::sync::broadcast::Receiver;
 use log::info;
 use alloy::primitives::address;
 use crate::events::ArbPath;
@@ -19,7 +19,7 @@ pub async fn send_transactions(
     provider: Arc<FillProvider<JoinFill<Identity, WalletFiller<EthereumWallet>>, RootProvider<Http<Client>>, Http<Client>, Ethereum>>,
     mut tx_receiver: Receiver<ArbPath>
 ) {
-    while let Some(arb_path) = tx_receiver.recv().await {
+    while let Ok(arb_path) = tx_receiver.recv().await {
         info!("Received arb path: {:?}", arb_path);
         let path = arb_path.path;
         let amount_in = arb_path.amount_in;

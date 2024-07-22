@@ -1,4 +1,38 @@
 
+
+use alloy::primitives::{U256, U128};
+use num_bigint::BigInt;
+use num_traits::ToPrimitive;
+
+/// Calculates the optimal input amount for a given pair of reserves
+/// 
+/// This function uses the formula derived from the constant product formula:
+/// optimal_x = sqrt((r0 * r1 * 1000) / 997) - r0
+/// where r0 is the input reserve and r1 is the output reserve
+/// 
+/// Parameters:
+/// - reserves_in: The reserves of the input token
+/// - reserves_out: The reserves of the output token
+/// 
+/// Returns:
+/// - The optimal input amount as a U256
+fn calculate_optimal_input(reserves_in: U128, reserves_out: U128) -> U256 {
+    let r0 = BigInt::from(reserves_in.as_u128());
+    let r1 = BigInt::from(reserves_out.as_u128());
+    
+    let numerator = r0.clone() * r1 * 1000;
+    let denominator = BigInt::from(997);
+    
+    let sqrt_result = numerator.div(denominator).sqrt();
+    
+    let optimal_x = sqrt_result - r0;
+    
+    U256::from(optimal_x.to_u128().unwrap_or(u128::MAX))
+}
+
+
+
+/* 
 /// Mirror router 'getAmountOut' calculation
 pub fn get_amount_out(fee: u16, amount_in: u128, reserve_in: u128, reserve_out: u128) -> u128 {
     let amount_in_with_fee = U256::from(amount_in * (FEE_DENOMINATOR - fee as u128));
@@ -259,3 +293,4 @@ pub fn fee_from_path_bytes(buf: &[u8]) -> u32 {
     // ((unsafe { *buf.get_unchecked(0) } as u32) << 16) +
     ((unsafe { *buf.get_unchecked(1) } as u32) << 8) + (unsafe { *buf.get_unchecked(2) } as u32)
 }
+    */

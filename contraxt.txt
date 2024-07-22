@@ -1,0 +1,142 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
+interface IUniswapV3Pool {
+    function token0() external view returns (address);
+    function token1() external view returns (address);
+    function swap(
+        address recipient,
+        bool zeroForOne,
+        int256 amountSpecified,
+        uint160 sqrtPriceLimitX96,
+        bytes calldata data
+    ) external returns (int256, int256);
+}
+
+interface IWETH {
+    function deposit() external payable;
+    function withdraw(uint256 amount) external;
+}
+
+contract TStoreExecutor {
+    struct Payload {
+        address target;
+        bytes calldata;
+        bool willCallback;
+    }
+
+    address public immutable OWNER_ADDR;
+    address public immutable WETH_ADDR;
+
+    uint256 private constant MAX_PAYLOADS = 8;
+    uint256 private constant MAX_PAYLOAD_BYTES = 196; // Maximum for a V3 swap
+
+    bool private t_allPayloadsDelivered;
+    mapping(address => bool) private t_allowedCallbackAddresses;
+    uint256 private t_lastPayloadIndex;
+    Payload[MAX_PAYLOADS] private t_payloads;
+    uint256 private t_queuedPayloadIndex;
+
+    constructor(address weth) payable {
+        OWNER_ADDR = msg.sender;
+        WETH_ADDR = weth;
+        if (msg.value > 0) {
+            // Wrap initial Ether deposit to WETH
+            IWETH(WETH_ADDR).deposit{value: msg.value}();
+        }
+    }
+
+    function deliverQueuedPayload() private {
+        uint256 payloadIndex = t_queuedPayloadIndex;
+        Payload storage payload = t_payloads[payloadIndex];
+        if (payload.willCallback) {
+            t_allowedCallbackAddresses[payload.target] = true;
+        }
+        if (payloadIndex == t_lastPayloadIndex) {
+            t_allPayloadsDelivered = true;
+        } else {
+            // Queue the next payload
+            t_queuedPayloadIndex = payloadIndex + 1;
+        }
+        (bool success,) = payload.target.call(payload.calldata);
+        require(success, "Payload execution failed");
+    }
+
+    function withdraw(uint256 amount, address destination) external {
+        require(msg.sender == OWNER_ADDR, "Owner address mismatch");
+        if (amount > address(this).balance) {
+            IWETH(WETH_ADDR).withdraw(amount - address(this).balance);
+        }
+        (bool success,) = destination.call{value: amount}("");
+        require(success, "ETH transfer failed");
+    }
+
+    function executePayloads(Payload[] calldata payloads) external payable {
+        require(msg.sender == OWNER_ADDR, "Owner address mismatch");
+        require(payloads.length <= MAX_PAYLOADS, "Too many payloads");
+
+        for (uint256 i = 0; i < payloads.length; i++) {
+            t_payloads[i] = payloads[i];
+        }
+        t_lastPayloadIndex = payloads.length - 1;
+
+        uint256 wethBalanceBefore = IERC20(WETH_ADDR).balanceOf(address(this));
+
+        for (uint256 i = 0; i < MAX_PAYLOADS; i++) {
+            if (t_allPayloadsDelivered) break;
+            deliverQueuedPayload();
+        }
+
+        require(IERC20(WETH_ADDR).balanceOf(address(this)) >= wethBalanceBefore, "WETH balance reduction");
+    }
+
+    function v2SwapCallback() private {
+        for (uint256 i = 0; i < MAX_PAYLOADS; i++) {
+            if (t_allPayloadsDelivered) break;
+            deliverQueuedPayload();
+        }
+    }
+
+    function pancakeCall(address sender, uint256 amount0Out, uint256 amount1Out, bytes calldata data) external payable {
+        require(t_allowedCallbackAddresses[msg.sender], "V2 callback address not registered");
+        v2SwapCallback();
+    }
+
+    function uniswapV2Call(address sender, uint256 amount0Out, uint256 amount1Out, bytes calldata data) external payable {
+        require(t_allowedCallbackAddresses[msg.sender], "V2 callback address not registered");
+        v2SwapCallback();
+    }
+
+    function v3SwapCallback(int256 amount0Delta, int256 amount1Delta) private {
+        for (uint256 i = 0; i < MAX_PAYLOADS; i++) {
+            if (t_allPayloadsDelivered) break;
+            deliverQueuedPayload();
+        }
+
+        // Optimization: assume only WETH will be transferred in callback, so skip balance check
+        // and just compare token0/token1 address against WETH
+        if (amount1Delta > 0) {
+            if (IUniswapV3Pool(msg.sender).token1() == WETH_ADDR) {
+                require(IERC20(WETH_ADDR).transfer(msg.sender, uint256(amount1Delta)), "WETH transfer failed");
+            }
+        } else if (amount0Delta > 0) {
+            if (IUniswapV3Pool(msg.sender).token0() == WETH_ADDR) {
+                require(IERC20(WETH_ADDR).transfer(msg.sender, uint256(amount0Delta)), "WETH transfer failed");
+            }
+        }
+    }
+
+    function uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data) external payable {
+        require(t_allowedCallbackAddresses[msg.sender], "V3 callback address not registered");
+        v3SwapCallback(amount0Delta, amount1Delta);
+    }
+
+    function pancakeV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data) external payable {
+        require(t_allowedCallbackAddresses[msg.sender], "V3 callback address not registered");
+        v3SwapCallback(amount0Delta, amount1Delta);
+    }
+
+    receive() external payable {}
+}

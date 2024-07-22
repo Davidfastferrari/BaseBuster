@@ -5,8 +5,8 @@ use petgraph::algo;
 use alloy::primitives::address;
 use std::time::Instant;
 use alloy::providers::ProviderBuilder;
-use tokio::sync::mpsc::{Receiver, Sender};
-use crate::events::Events;
+use tokio::sync::broadcast::{Receiver, Sender};
+use crate::events::Event;
 use rayon::prelude::*;
 use std::sync::Arc;
 use petgraph::prelude::*;
@@ -99,10 +99,10 @@ pub async fn search_paths(
     cycles: Vec<Vec<NodeIndex>>,
     address_to_pool: Arc<ConcurrentPool>,
     token_to_edge: Arc<FxHashMap<(NodeIndex, NodeIndex), EdgeIndex>>,
-    mut log_receiver: Receiver<Events>,
+    mut reserve_update_receiver: Receiver<Event>,
     mut tx_sender: Sender<ArbPath>,
 ) {
-    while let Some(event) = log_receiver.recv().await {
+    while let Some(event) = reserve_update_receiver.recv().await {
         info!("Searching for arbs...");
         let start = std::time::Instant::now();
         
@@ -142,7 +142,7 @@ pub async fn search_paths(
             let path = path.2.clone();
             let amount_in = U256::from(1e17 as u64);
             let arb_path = ArbPath { path, amount_in };
-            tx_sender.send(arb_path).await.unwrap();
+            tx_sender.send(arb_path).unwrap();
         }
 
         // Process profitable paths here...

@@ -1,19 +1,19 @@
-use alloy::primitives::BlockNumber;
 use alloy::providers::{Provider, RootProvider};
-use alloy::transports::http::{Http, Client};
-use alloy_sol_types::SolEvent;
-use std::sync::Arc;
-use alloy::eips::BlockId;
-use pool_sync::PoolInfo;
-use log::info;
 use alloy::pubsub::PubSubFrontend;
 use alloy::rpc::types::Filter;
-use tokio::sync::mpsc::Sender;
 use alloy::sol;
+use alloy::transports::http::{Client, Http};
+use alloy_sol_types::SolEvent;
 use futures::StreamExt;
-use crate::concurrent_pool::ConcurrentPool;
-use crate::events::Events;
+use log::info;
+use std::sync::Arc;
+use tokio::sync::broadcast::Receiver;
+use tokio::sync::broadcast::Sender;
 
+use crate::concurrent_pool::ConcurrentPool;
+use crate::events::Event;
+
+// The sync event is emitted whenever a pool is synced
 sol!(
     #[derive(Debug)]
     contract SyncEvent {
@@ -21,35 +21,54 @@ sol!(
     }
 );
 
-// Stream all of the new blocks
-pub async fn stream_sync_events(
-    ws: Arc<RootProvider<PubSubFrontend>>,
-    http: Arc<RootProvider<Http<Client>>>,
-    tracked_pools: Arc<ConcurrentPool>,
-    new_log_sender: Sender<Events>
-) {
+// stream in new blocks
+pub async fn stream_new_blocks(ws: Arc<RootProvider<PubSubFrontend>>, block_sender: Sender<Event>) {
     let sub = ws.subscribe_blocks().await.unwrap();
     let mut stream = sub.into_stream();
     while let Some(block) = stream.next().await {
         info!("New block: {:?}", block.header.number.unwrap());
+        match block_sender.send(Event::NewBlock(block)) {
+            Ok(_) => info!("Block sent"),
+            Err(e) => info!("Block send failed: {:?}", e),
+        }
+    }
+}
+
+// on each block update, get all the sync events and update pool reserves
+pub async fn stream_sync_events(
+    http: Arc<RootProvider<Http<Client>>>, // the http provider to fetch logs from
+    tracked_pools: Arc<ConcurrentPool>,    // mapping of the pools we are seaching over
+    mut block_receiver: Receiver<Event>,   // block receiver
+    reserve_update_sender: Sender<Event>,  // reserve update sender
+) {
+    // wait for a new block
+    while let Ok(Event::NewBlock(block)) = block_receiver.recv().await {
+        // create our filter for the sync events
         let filter = Filter::new()
             .event(SyncEvent::Sync::SIGNATURE)
             .from_block(block.header.number.unwrap());
-    
+
+        // fetch all the logs
         info!("Fetching logs...");
         let logs = http.get_logs(&filter).await.unwrap();
+
+        // update all the pool reserves based on the sync events
         info!("Updating reserves...");
         for log in logs {
             let decoded_log = SyncEvent::Sync::decode_log(&log.inner, false).unwrap();
             let pool_address = decoded_log.address;
-            let SyncEvent::Sync {reserve0, reserve1} = decoded_log.data;
+            let SyncEvent::Sync { reserve0, reserve1 } = decoded_log.data;
 
             // update the reserves if we are tracking the pool
             if tracked_pools.exists(&pool_address) {
                 tracked_pools.update(&pool_address, reserve0, reserve1);
             }
         }
-        info!("Reserves updates");
-        let _ = new_log_sender.send(Events::ReserveUpdate).await;
+
+        // send notification saying that we have updated the reserves
+        match reserve_update_sender.send(Event::ReserveUpdate) {
+            Ok(_) => info!("Reserves updated"),
+            Err(e) => info!("Reserves update failed: {:?}", e),
+        }
     }
 }
