@@ -102,7 +102,7 @@ pub async fn search_paths(
     mut reserve_update_receiver: Receiver<Event>,
     mut tx_sender: Sender<ArbPath>,
 ) {
-    while let Some(event) = reserve_update_receiver.recv().await {
+    while let Ok(event) = reserve_update_receiver.recv().await {
         info!("Searching for arbs...");
         let start = std::time::Instant::now();
         

@@ -32,7 +32,6 @@ fn calculate_optimal_input(reserves_in: U128, reserves_out: U128) -> U256 {
 
 
 
-/* 
 /// Mirror router 'getAmountOut' calculation
 pub fn get_amount_out(fee: u16, amount_in: u128, reserve_in: u128, reserve_out: u128) -> u128 {
     let amount_in_with_fee = U256::from(amount_in * (FEE_DENOMINATOR - fee as u128));
@@ -293,4 +292,3 @@ pub fn fee_from_path_bytes(buf: &[u8]) -> u32 {
     // ((unsafe { *buf.get_unchecked(0) } as u32) << 16) +
     ((unsafe { *buf.get_unchecked(1) } as u32) << 8) + (unsafe { *buf.get_unchecked(2) } as u32)
 }
-    */
