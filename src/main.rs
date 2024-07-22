@@ -4,6 +4,7 @@ use crate::events::Events;
 use crate::graph::*;
 use alloy::primitives::{U128, U256};
 use alloy::sol;
+use log::info;
 use alloy::primitives::address;
 use alloy::primitives::Address;
 use alloy::providers::ProviderBuilder;
@@ -13,17 +14,15 @@ use petgraph::algo;
 use petgraph::prelude::*;
 use pool_sync::filter::filter_top_volume;
 use pool_sync::*;
-use rayon::prelude::*;
 use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::{BufReader, BufWriter};
 use std::sync::Arc;
-use std::sync::RwLock;
-use std::time::Instant;
 use stream::*;
 use tokio::sync::mpsc;
+use log::LevelFilter;
 
 mod concurrent_pool;
 mod events;
@@ -39,6 +38,19 @@ sol!(
         function getAmountsOut(uint amountIn, address[] memory path) external view returns (uint[] memory amounts);
     }
 );
+
+// Pair contract to get reserves
+sol!(
+    #[derive(Debug)]
+    #[sol(rpc)]
+    contract UniswapV2Pair {
+        function reserves() external view returns (uint112 reserve0, uint112 reserve1);
+    }
+);
+
+
+// function that will take in a pool and update the reserves address and return the reserves
+
 
 #[derive(Serialize, Deserialize)]
 struct AddressSet(HashSet<Address>);
@@ -61,15 +73,19 @@ fn read_addresses_from_file(filename: &str) -> std::io::Result<HashSet<Address>>
 async fn main() -> std::io::Result<()> {
     // initializations
     dotenv::dotenv().ok();
-    env_logger::builder().default_format().build();
+    env_logger::Builder::new()
+        .filter_level(LevelFilter::Debug)  // or Info, Warn, etc.
+        .init();
 
     // construct the providers
+    info!("Constructing providers...");
     let http_url = std::env::var("HTTP").unwrap();
     let ws_url = WsConnect::new(std::env::var("WS").unwrap());
     let http_provider = Arc::new(ProviderBuilder::new().on_http(http_url.parse().unwrap()));
     let ws_provider = Arc::new(ProviderBuilder::new().on_ws(ws_url).await.unwrap());
 
     // load in all the pools
+    info!("Loading pools...");
     let pool_sync = PoolSync::builder()
         .add_pools(&[PoolType::UniswapV2])
         .chain(Chain::Ethereum)
@@ -78,7 +94,9 @@ async fn main() -> std::io::Result<()> {
         .unwrap();
 
     // sync all the pools and get the top tokens
+    info!("Syncing pools...");
     let pools = pool_sync.sync_pools(http_provider.clone()).await.unwrap();
+    info!("Loading top volume tokens...");
     let top_volume_tokens = read_addresses_from_file("addresses.json")?;
 
     // all our mappings
@@ -94,6 +112,7 @@ async fn main() -> std::io::Result<()> {
         &mut address_to_pool,
         &mut token_to_edge,
     ));
+    address_to_pool.sync_pools(http_provider.clone()).await;
 
     // rewrap it
     let address_to_pool = Arc::new(address_to_pool);
@@ -105,39 +124,6 @@ async fn main() -> std::io::Result<()> {
 
     // build all of the cycles
     let cycles = construct_cycles(&graph, node);
-
-    /* 
-    let mut cycles_as_pools: Vec<Vec<Address>> = Vec::new();
-
-    for cycle in cycles {
-        let pools = cycle.iter().map(|node_idx| graph[*node_idx]).collect();
-        cycles_as_pools.push(pools);
-    }
-
-    // for each cycle, call getAmountsOut on the router
-    let provider = Arc::new(ProviderBuilder::new().on_http(http_url.parse().unwrap()));
-    let contract = UniswapV2Router::new(address!("7a250d5630B4cF539739dF2C5dAcb4c659F2488D"), provider);
-    let cycle = cycles_as_pools[0].clone();
-    let current_amount = U256::from(1e18);
-    // print the cycle
-    println!("Cycle: {:?}", cycle);
-    let out = contract.getAmountsOut(current_amount, cycle).call().await.unwrap();
-    println!("{:?}", out);
-
-    let reserve0 = U128::from(167385924544892_u128);
-    let reserve1 = U128::from(90000720412818444114276719345255_u128);
-    let amount_in_with_fee = U256::from(current_amount.checked_mul(U256::from(997)).unwrap());
-    let numerator = amount_in_with_fee.checked_mul(U256::from(reserve1)).unwrap();
-    let denominator = U256::from(reserve0).checked_mul(U256::from(1000)).unwrap() + amount_in_with_fee;
-    let amount_out = numerator / denominator;
-    println!("{:?}", amount_out);
-    */
-
-
-    /* 
-    for cycle in cycles_as_pools {
-    }
-    */
 
     println!("Found {} cycles", cycles.len());
 
