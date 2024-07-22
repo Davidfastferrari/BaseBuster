@@ -2,6 +2,8 @@
 use crate::concurrent_pool::ConcurrentPool;
 use crate::events::Events;
 use crate::graph::*;
+use alloy::primitives::{U128, U256};
+use alloy::sol;
 use alloy::primitives::address;
 use alloy::primitives::Address;
 use alloy::providers::ProviderBuilder;
@@ -28,6 +30,15 @@ mod events;
 mod graph;
 mod stream;
 mod optimizer;
+
+
+sol!(
+    #[derive(Debug)]
+    #[sol(rpc)]
+    contract UniswapV2Router {
+        function getAmountsOut(uint amountIn, address[] memory path) external view returns (uint[] memory amounts);
+    }
+);
 
 #[derive(Serialize, Deserialize)]
 struct AddressSet(HashSet<Address>);
@@ -94,12 +105,47 @@ async fn main() -> std::io::Result<()> {
 
     // build all of the cycles
     let cycles = construct_cycles(&graph, node);
+
+    /* 
+    let mut cycles_as_pools: Vec<Vec<Address>> = Vec::new();
+
+    for cycle in cycles {
+        let pools = cycle.iter().map(|node_idx| graph[*node_idx]).collect();
+        cycles_as_pools.push(pools);
+    }
+
+    // for each cycle, call getAmountsOut on the router
+    let provider = Arc::new(ProviderBuilder::new().on_http(http_url.parse().unwrap()));
+    let contract = UniswapV2Router::new(address!("7a250d5630B4cF539739dF2C5dAcb4c659F2488D"), provider);
+    let cycle = cycles_as_pools[0].clone();
+    let current_amount = U256::from(1e18);
+    // print the cycle
+    println!("Cycle: {:?}", cycle);
+    let out = contract.getAmountsOut(current_amount, cycle).call().await.unwrap();
+    println!("{:?}", out);
+
+    let reserve0 = U128::from(167385924544892_u128);
+    let reserve1 = U128::from(90000720412818444114276719345255_u128);
+    let amount_in_with_fee = U256::from(current_amount.checked_mul(U256::from(997)).unwrap());
+    let numerator = amount_in_with_fee.checked_mul(U256::from(reserve1)).unwrap();
+    let denominator = U256::from(reserve0).checked_mul(U256::from(1000)).unwrap() + amount_in_with_fee;
+    let amount_out = numerator / denominator;
+    println!("{:?}", amount_out);
+    */
+
+
+    /* 
+    for cycle in cycles_as_pools {
+    }
+    */
+
     println!("Found {} cycles", cycles.len());
 
     let (log_sender, mut log_receiver) = mpsc::channel(10);
     // spawn our tasks
     tokio::task::spawn(stream_sync_events(
         ws_provider,
+        http_provider,
         address_to_pool.clone(),
         log_sender,
     ));
@@ -110,7 +156,7 @@ async fn main() -> std::io::Result<()> {
         token_to_edge,
         log_receiver,
     ));
-    tokio::task::spawn(stream_new_blocks(ws_provider.clone()));
+    //tokio::task::spawn(stream_new_blocks(ws_provider.clone()));
 
     loop {
         tokio::time::sleep(std::time::Duration::from_secs(10)).await;

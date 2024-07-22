@@ -1,6 +1,6 @@
 use alloy::primitives::Address;
+use alloy::primitives::{U128, U256};
 use petgraph::algo;
-use std::sync::RwLock;
 use std::time::Instant;
 use tokio::sync::mpsc::Receiver;
 use crate::events::Events;
@@ -13,14 +13,7 @@ use rustc_hash::FxHashMap;
 use std::collections::HashSet;
 use log::info;
 
-
 use crate::concurrent_pool::ConcurrentPool;
-
-// inital bootstrap of reserves
-pub fn bootstrap_reserves(pools: &Vec<Pool>, address_to_pool: &mut ConcurrentPool) {
-    // do through all the pools and update the reserves
-    pool_sync.update_reserves(pools);
-}
 
 pub fn build_graph(
     pools: &Vec<Pool>,
@@ -86,8 +79,9 @@ pub async fn search_paths(
         let start = Instant::now();
         // search all the cycles
         cycles.par_iter().for_each(|cycle| {
-            // default amount in, 0.1 weth to check if it is profitable
-            let mut current_amount = 1e18;
+            // default amount in, 1 weth to check if it is profitable
+            let mut current_amount : U256 = U256::from(1e17);
+            let mut profitable: Vec<(Pool, U256)> = Vec::new();
 
             for window in cycle.windows(2) {
                 // get the info we need for the cycle
@@ -97,18 +91,26 @@ pub async fn search_paths(
                 let pool_addr = graph[*edge]; // get the pool address
                 let pool = address_to_pool.get(&pool_addr); // get the pool for token0, tokene
 
-                // uniswapv2 pool have a constant product formula
-                // using the reserves and the decimals, calculate the amount out based on the current amount in
-                let reserves0 = pool.token0_reserves();
-                let reserves1 = pool.token1_reserves();
-                let amount_out = calculate_amount_out(reserves0, reserves1, current_amount);
-                let current_amount = amount_out;
+                let token0_address = graph[token0];
+                let pool_token0 = pool.token0_address();
+
+                let (reserves0, reserves1) = pool.reserves();
+                if token0_address == pool_token0 {
+                    current_amount = calculate_amount_out(reserves0, reserves1, current_amount);
+                } else {
+                    current_amount = calculate_amount_out(reserves1, reserves0, current_amount);
+                }
+
+                profitable.push((pool.clone(), current_amount));
             }
 
-            // at the end of the cycles, check if the current amount is greater than 0.1weth
-            // if it is, then we have found a successful path
-            if current_amount > 1e18 {
-                successful_paths.push(cycle.clone());
+            // if at the end, the current amount is greater than 0.1wth, then we have found a successful path
+            if current_amount > U256::from(1e17) {
+                // for each path, pretty print the pool addrress and the reserves and then an arrow to the next pool
+                println!("Found profitable path:");
+                for (pool, amount) in profitable {
+                    println!("{:?} {:?} {:?} -> ", pool.address(), pool.reserves(), format_eth(amount));
+                }
             }
         });
         println!("Traversal took {:?}", start.elapsed());
@@ -121,30 +123,55 @@ pub async fn search_paths(
 
 }
 
+fn format_eth(wei: U256) -> String {
+    let wei_str = wei.to_string();
+    let eth_value = if wei_str.len() <= 18 {
+        format!("0.{:0>18}", wei_str)
+    } else {
+        format!("{}.{:0>18}", &wei_str[..wei_str.len()-18], &wei_str[wei_str.len()-18..])
+    };
+    // Trim trailing zeros after the decimal point
+    eth_value.trim_end_matches('0').trim_end_matches('.').to_string()
+}
 
-// given a list of profitable paths, optimize the greatest amount in
-pub fn optimize_paths(paths: Vec<Vec<NodeIndex>>) {
-    // find the greatest amount in
-    let mut greatest_amount_in = 0;
-    for path in paths {
-        let amount_in = calculate_amount_in(path[0], path[1], 1e18);
-        if amount_in > greatest_amount_in {
-            greatest_amount_in = amount_in;
+pub fn calculate_amount_out(reserves0: U128, reserves1: U128, amount_in: U256) -> U256 {
+    let amount_in_with_fee = match amount_in.checked_mul(U256::from(997)) {
+        Some(val) => val,
+        None => {
+            //println!("Warning: Overflow in fee calculation. amount_in: {}", amount_in);
+            return U256::ZERO;
+        }
+    };
+
+    let reserves1_u256 = U256::from(reserves1);
+    let numerator = match amount_in_with_fee.checked_mul(reserves1_u256) {
+        Some(val) => val,
+        None => {
+            //println!("Warning: Overflow in numerator calculation. amount_in_with_fee: {}, reserves1: {}", amount_in_with_fee, reserves1);
+            return U256::ZERO;
+        }
+    };
+
+    let reserves0_u256 = U256::from(reserves0);
+    let denominator = match reserves0_u256.checked_mul(U256::from(1000)) {
+        Some(val) => match val.checked_add(amount_in_with_fee) {
+            Some(sum) => sum,
+            None => {
+                //println!("Warning: Overflow in denominator addition. reserves0 * 1000: {}, amount_in_with_fee: {}", val, amount_in_with_fee);
+                return U256::ZERO;
+            }
+        },
+        None => {
+            //println!("Warning: Overflow in denominator multiplication. reserves0: {}", reserves0);
+            return U256::ZERO;
+        }
+    };
+
+    match numerator.checked_div(denominator) {
+        Some(amount_out) => amount_out,
+        None => {
+            //println!("Warning: Division by zero or overflow. numerator: {}, denominator: {}", numerator, denominator);
+            U256::ZERO
         }
     }
 }
-
-pub fn calculate_amount_in(token0: NodeIndex, token1: NodeIndex, amount_out: u128) -> u128 {
-    unimplemented!()
-}
-
-
-// uninswapv2, given the reserves and the amount in calculate the amount out
-pub fn calculate_amount_out(reserves0: u128, reserves1: u128, amount_in: u128) -> u128 {
-    let amount_in_with_fee = amount_in * 997;
-    let numerator = amount_in_with_fee * reserves1;
-    let denominator = reserves0 * 1000 + amount_in_with_fee;
-    numerator / denominator
-}
-
-
