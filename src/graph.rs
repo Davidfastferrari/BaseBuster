@@ -65,6 +65,7 @@ pub fn build_graph(
 }
 
 
+
 pub fn construct_cycles(
     graph: &Graph<Address, Address, Undirected>,
     node: NodeIndex,
@@ -72,40 +73,92 @@ pub fn construct_cycles(
     algo::all_simple_paths(&graph, node, node, 0, Some(3)).collect()
 }
 
+#[inline]
+pub fn calculate_amount_out(reserves_in: U128, reserves_out: U128, amount_in: U256) -> Option<U256> {
+    if reserves_in.is_zero() || reserves_out.is_zero() {
+        return None;
+    }
+
+    let amount_in_with_fee = amount_in.checked_mul(U256::from(997))?;
+    let numerator = amount_in_with_fee.checked_mul(U256::from(reserves_out))?;
+    let denominator = U256::from(reserves_in)
+        .checked_mul(U256::from(1000))?
+        .checked_add(amount_in_with_fee)?;
+
+    if denominator.is_zero() {
+        None
+    } else {
+        numerator.checked_div(denominator)
+    }
+}
+
 pub async fn search_paths(
     graph: Arc<Graph<Address, Address, Undirected>>, 
     cycles: Vec<Vec<NodeIndex>>,
     address_to_pool: Arc<ConcurrentPool>,
-    token_to_edge: FxHashMap<(NodeIndex, NodeIndex), EdgeIndex>,
+    token_to_edge: Arc<FxHashMap<(NodeIndex, NodeIndex), EdgeIndex>>,
     mut log_receiver: Receiver<Events>
 ) {
-    info!("Traversing all cycles...");
-    let mut successful_paths: Vec<Vec<NodeIndex>> = Vec::new();
-
     while let Some(event) = log_receiver.recv().await {
-        let start = Instant::now();
+        info!("Searching for arbs...");
+        let start = std::time::Instant::now();
         
-        let futures = cycles.iter().map(|cycle| {
-            let graph = graph.clone();
-            let address_to_pool = address_to_pool.clone();
-            let token_to_edge = token_to_edge.clone();
-            
-            async move {
-                let http_url = std::env::var("HTTP").unwrap();
-                let provider = Arc::new(ProviderBuilder::new().on_http(http_url.parse().unwrap()));
-                let router = UniswapV2Router::new(address!("7a250d5630B4cF539739dF2C5dAcb4c659F2488D"), provider);
-                
-                let mut current_amount: U256 = U256::from(1e17);
-                let mut profitable: Vec<(Pool, U256)> = Vec::new();
-                let mut swap_path: Vec<Address> = vec![graph[cycle[0]]];
+        let profitable_paths: Vec<_> = cycles.par_iter()
+            .filter_map(|cycle| {
+                let mut current_amount = U256::from(1e17 as u64);
+                let mut swap_path = vec![graph[cycle[0]]];
 
                 for window in cycle.windows(2) {
-                    let token0 = window[0];
-                    let token1 = window[1];
+                    let (token0, token1) = (window[0], window[1]);
+                    let edge = token_to_edge.get(&(token0, token1))?;
+                    let pool_addr = graph[*edge];
+                    let pool = address_to_pool.get(&pool_addr);
+                    let token0_address = graph[token0];
+                    let pool_token0 = pool.token0_address();
+                    let (reserves0, reserves1) = address_to_pool.get_reserves(&pool_addr);
                     
-                    let t1_addr = graph[token1];
-                    swap_path.push(t1_addr);
-                    
+                    current_amount = if token0_address == pool_token0 {
+                        calculate_amount_out(reserves0, reserves1, current_amount)?
+                    } else {
+                        calculate_amount_out(reserves1, reserves0, current_amount)?
+                    };
+
+                    swap_path.push(graph[token1]);
+                }
+
+                if current_amount > U256::from(1e17 as u64) {
+                    Some((cycle.clone(), current_amount, swap_path))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        info!("Found {} profitable paths in {:?} {:?}", profitable_paths.len(), start.elapsed(), profitable_paths);
+
+        // Process profitable paths here...
+    }
+}
+/* 
+
+pub async fn search_paths(
+    graph: Arc<Graph<Address, Address, Undirected>>, 
+    cycles: Vec<Vec<NodeIndex>>,
+    address_to_pool: Arc<ConcurrentPool>,
+    token_to_edge: Arc<FxHashMap<(NodeIndex, NodeIndex), EdgeIndex>>,
+    mut log_receiver: Receiver<Events>
+) {
+    while let Some(event) = log_receiver.recv().await {
+        info!("Searching for arbs...");
+        let start = std::time::Instant::now();
+        
+        let profitable_paths: Vec<_> = cycles.par_iter()
+            .filter_map(|cycle| {
+                let mut current_amount = U256::from(1e17);
+                let mut swap_path = vec![graph[cycle[0]]];
+
+                for window in cycle.windows(2) {
+                    let (token0, token1) = (window[0], window[1]);
                     let edge = token_to_edge.get(&(token0, token1)).unwrap();
                     let pool_addr = graph[*edge];
                     let pool = address_to_pool.get(&pool_addr);
@@ -118,32 +171,116 @@ pub async fn search_paths(
                     } else {
                         calculate_amount_out(reserves1, reserves0, current_amount)
                     };
-                    
-                    profitable.push((pool.clone(), current_amount));
+
+                    swap_path.push(graph[token1]);
                 }
 
-
-
                 if current_amount > U256::from(1e17) {
-                    let amount_in = U256::from(1e17);
-                    let expected_amount_out = router.getAmountsOut(amount_in, swap_path).call().await.unwrap();
+                    Some((cycle.clone(), current_amount, swap_path))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        info!("Found {} profitable paths in {:?}, {:?}", profitable_paths.len(), start.elapsed(), profitable_paths.get(400));
+
+        // Process profitable paths here...
+    }
+}
+
+#[inline]
+pub fn calculate_amount_out(reserves_in: U128, reserves_out: U128, amount_in: U256) -> U256 {
+    let amount_in_with_fee = amount_in.saturating_mul(U256::from(997));
+    let numerator = amount_in_with_fee.saturating_mul(U256::from(reserves_out));
+    let denominator = U256::from(reserves_in).saturating_mul(U256::from(1000)).saturating_add(amount_in_with_fee);
+    saturating_div(numerator, denominator)
+}
+
+fn saturating_div(a: U256, b: U256) -> U256 {
+    if b.is_zero() {
+        U256::MAX
+    } else {
+        a.checked_div(b).unwrap_or(U256::MAX)
+    }
+}
+fn format_eth(wei: U256) -> String {
+    let wei_str = wei.to_string();
+    let eth_value = if wei_str.len() <= 18 {
+        format!("0.{:0>18}", wei_str)
+    } else {
+        format!("{}.{:0>18}", &wei_str[..wei_str.len()-18], &wei_str[wei_str.len()-18..])
+    };
+    eth_value.trim_end_matches('0').trim_end_matches('.').to_string()
+}
+
+pub async fn search_paths(
+    graph: Arc<Graph<Address, Address, Undirected>>, 
+    cycles: Vec<Vec<NodeIndex>>,
+    address_to_pool: Arc<ConcurrentPool>,
+    token_to_edge: FxHashMap<(NodeIndex, NodeIndex), EdgeIndex>,
+    mut log_receiver: Receiver<Events>
+) {
+    let mut successful_paths: Vec<Vec<NodeIndex>> = Vec::new();
+
+    while let Some(event) = log_receiver.recv().await {
+        info!("Seaching for arbs...");
+        let start = Instant::now();
+        
+        cycles.par_iter().for_each(|cycle| {
+            let graph = graph.clone();
+            let address_to_pool = address_to_pool.clone();
+            let token_to_edge = token_to_edge.clone();
+            
+            //let mut current_amount: U256 = U256::from(1e17);
+            //let mut profitable: Vec<(Pool, U256)> = Vec::new();
+            //let mut swap_path: Vec<Address> = vec![graph[cycle[0]]];
+
+            for window in cycle.windows(2) {
+                let token0 = window[0];
+                let token1 = window[1];
+                let edge = token_to_edge.get(&(token0, token1)).unwrap();
+                
+                //let t1_addr = graph[token1];
+                //swap_path.push(t1_addr);
+                
+                let pool_addr = graph[*edge];
+                let pool = address_to_pool.get(&pool_addr);
+                let token0_address = graph[token0];
+                let pool_token0 = pool.token0_address();
+                let (reserves0, reserves1) = address_to_pool.get_reserves(&pool_addr);
+                
+                current_amount = if token0_address == pool_token0 {
+                    calculate_amount_out(reserves0, reserves1, current_amount)
+                } else {
+                    calculate_amount_out(reserves1, reserves0, current_amount)
+                };
+                    
+
+            }
+        });
+        info!("Traversal took {:?}", start.elapsed());
+    }
+
+
+                /* 
+                if current_amount > U256::from(1e17) {
+                    //profitable.push((pool.clone(), current_amount));
+                    //let amount_in = U256::from(1e17);
+                    //let expected_amount_out = router.getAmountsOut(amount_in, swap_path).call().await.unwrap();
                     println!("Found profitable path:");
                     for (pool, amount) in profitable {
                         println!("{:?} {:?} {:?} -> ", pool.address(), pool.reserves(), amount);
                     }
-                    println!("Expected amount out: {:?}", expected_amount_out);
+                    //println!("Expected amount out: {:?}", expected_amount_out);
                     Some(cycle.clone())
                 } else {
                     None
                 }
-            }
-        });
+                */
+        //let results = futures::future::join_all(futures).await;
+        //successful_paths.extend(results.into_iter().filter_map(|x| x));
 
-        let results = futures::future::join_all(futures).await;
-        successful_paths.extend(results.into_iter().filter_map(|x| x));
-
-        println!("Traversal took {:?}", start.elapsed());
-    }
 
     // Process successful_paths here...
 }
@@ -200,3 +337,4 @@ pub fn calculate_amount_out(reserves0: U128, reserves1: U128, amount_in: U256) -
         }
     }
 }
+*/

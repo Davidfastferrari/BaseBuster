@@ -31,11 +31,14 @@ pub async fn stream_sync_events(
     let sub = ws.subscribe_blocks().await.unwrap();
     let mut stream = sub.into_stream();
     while let Some(block) = stream.next().await {
+        info!("New block: {:?}", block.header.number.unwrap());
         let filter = Filter::new()
             .event(SyncEvent::Sync::SIGNATURE)
             .from_block(block.header.number.unwrap());
-
+    
+        info!("Fetching logs...");
         let logs = http.get_logs(&filter).await.unwrap();
+        info!("Updating reserves...");
         for log in logs {
             let decoded_log = SyncEvent::Sync::decode_log(&log.inner, false).unwrap();
             let pool_address = decoded_log.address;
@@ -46,7 +49,7 @@ pub async fn stream_sync_events(
                 tracked_pools.update(&pool_address, reserve0, reserve1);
             }
         }
-        new_log_sender.send(Events::ReserveUpdate).await;
-        println!("New block: {:?}", block);
+        info!("Reserves updates");
+        let _ = new_log_sender.send(Events::ReserveUpdate).await;
     }
 }

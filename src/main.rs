@@ -123,11 +123,12 @@ async fn main() -> std::io::Result<()> {
         .unwrap();
 
     // build all of the cycles
+    info!("Building cycles...");
     let cycles = construct_cycles(&graph, node);
-
-    println!("Found {} cycles", cycles.len());
+    info!("Found {} cycles", cycles.len());
 
     let (log_sender, mut log_receiver) = mpsc::channel(10);
+    let token_to_edge = Arc::new(token_to_edge);
     // spawn our tasks
     tokio::task::spawn(stream_sync_events(
         ws_provider,
