@@ -34,11 +34,11 @@ def get_amount_out(amount_in, reserve_in, reserve_out):
 #0xfd0a40bc83c5fae4203dec7e5929b446b07d1c76 (8093669447489852655550, 2314085254173546191) 138964530663267816 -> 
 
 
-amount_in = 518645846138489857162  # 1 million tokens
-reserve_in =  8093669447489852655550 # 5 billion tokens
-reserve_out =  2314085254173546191  # 2.5 million tokens
+amount_in = 1e17  # 1 million tokens
+reserve_in =  350647400207015589546 # 5 billion tokens
+reserve_out =  3833216667147255   # 2.5 million tokens
 
 
 
 amount_out = get_amount_out(amount_in, reserve_in, reserve_out)
-print(f"Amount out: {amount_out / 1e18}")
+print(f"Amount out: {amount_out }")

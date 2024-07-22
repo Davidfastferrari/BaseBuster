@@ -1,6 +1,8 @@
 use alloy::primitives::Address;
 use alloy::providers::RootProvider;
-use log::info;
+use log::debug;
+use alloy::primitives::address;
+use alloy::primitives::U128;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 use tokio::sync::Semaphore;
@@ -28,7 +30,8 @@ sol!(
 // Other than that we will have only reads
 pub struct ConcurrentPool {
     addr_to_pool: RwLock<FxHashMap<Address, Pool>>,
-    pool_addrs: FxHashSet<Address>
+    pool_addrs: FxHashSet<Address>,
+    reserves: RwLock<FxHashMap<Address, (U128, U128)>>
 }
 
 impl ConcurrentPool {
@@ -36,10 +39,12 @@ impl ConcurrentPool {
     pub fn new() -> Self {
         Self {
             addr_to_pool: RwLock::new(FxHashMap::default()),
-            pool_addrs: FxHashSet::default()
+            pool_addrs: FxHashSet::default(),
+            reserves: RwLock::new(FxHashMap::default())
         }
     }
 
+    /// Batch sync resreves for tracked pools upon startup
     pub async fn sync_pools(&self, http: Arc<RootProvider<Http<Client>>>) -> Result<(), Box<dyn std::error::Error>> {
         // Create a semaphore to limit concurrent requests
         let semaphore = Arc::new(Semaphore::new(100)); // Adjust this number based on your system limits
@@ -63,7 +68,7 @@ impl ConcurrentPool {
         for result in results {
             match result {
                 Ok((addr, UniswapV2Pair::getReservesReturn { reserve0, reserve1, .. })) => {
-                    info!("Updated reserves for pool {}", addr);
+                    debug!("Updated reserves for pool {}, reserves: {:?}, {:?}", addr, reserve0, reserve1);
                     self.update(&addr, reserve0, reserve1);
                 },
                 Err((addr, e)) => {
@@ -91,6 +96,10 @@ impl ConcurrentPool {
         self.addr_to_pool.read().unwrap()[address].clone()
     }
 
+    pub fn get_reserves(&self, address: &Address) -> (U128, U128) {
+        self.reserves.read().unwrap()[address].clone()
+    }
+
     // check if this exists
     pub fn exists(&self, address: &Address) -> bool {
         self.pool_addrs.contains(address)
@@ -98,8 +107,8 @@ impl ConcurrentPool {
 
     // update the reserves of a pool
     pub fn update(&self, address: &Address, reserve1: u128, reserve2: u128) {
-        let pool = self.addr_to_pool.write().unwrap();
-        // need to update the pool sync code for this
+        let mut reserves = self.reserves.write().unwrap();
+        reserves.insert(*address, (U128::from(reserve1), U128::from(reserve2)));
     }
 }
 

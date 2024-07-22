@@ -74,7 +74,7 @@ async fn main() -> std::io::Result<()> {
     // initializations
     dotenv::dotenv().ok();
     env_logger::Builder::new()
-        .filter_level(LevelFilter::Debug)  // or Info, Warn, etc.
+        .filter_level(LevelFilter::Info)  // or Info, Warn, etc.
         .init();
 
     // construct the providers

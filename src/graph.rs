@@ -1,7 +1,9 @@
 use alloy::primitives::Address;
 use alloy::primitives::{U128, U256};
 use petgraph::algo;
+use alloy::primitives::address;
 use std::time::Instant;
+use alloy::providers::ProviderBuilder;
 use tokio::sync::mpsc::Receiver;
 use crate::events::Events;
 use rayon::prelude::*;
@@ -12,8 +14,16 @@ use pool_sync::PoolInfo;
 use rustc_hash::FxHashMap;
 use std::collections::HashSet;
 use log::info;
-
 use crate::concurrent_pool::ConcurrentPool;
+use alloy::sol;
+
+sol!(
+    #[derive(Debug)]
+    #[sol(rpc)]
+    contract UniswapV2Router {
+        function getAmountsOut(uint amountIn, address[] memory path) external view returns (uint[] memory amounts);
+    }
+);
 
 pub fn build_graph(
     pools: &Vec<Pool>,
@@ -70,57 +80,72 @@ pub async fn search_paths(
     mut log_receiver: Receiver<Events>
 ) {
     info!("Traversing all cycles...");
-
-    // save the successufl paths that will be optimized
     let mut successful_paths: Vec<Vec<NodeIndex>> = Vec::new();
 
-    // when we get a pool reserves update event, we will check all the cycles
     while let Some(event) = log_receiver.recv().await {
         let start = Instant::now();
-        // search all the cycles
-        cycles.par_iter().for_each(|cycle| {
-            // default amount in, 1 weth to check if it is profitable
-            let mut current_amount : U256 = U256::from(1e17);
-            let mut profitable: Vec<(Pool, U256)> = Vec::new();
+        
+        let futures = cycles.iter().map(|cycle| {
+            let graph = graph.clone();
+            let address_to_pool = address_to_pool.clone();
+            let token_to_edge = token_to_edge.clone();
+            
+            async move {
+                let http_url = std::env::var("HTTP").unwrap();
+                let provider = Arc::new(ProviderBuilder::new().on_http(http_url.parse().unwrap()));
+                let router = UniswapV2Router::new(address!("7a250d5630B4cF539739dF2C5dAcb4c659F2488D"), provider);
+                
+                let mut current_amount: U256 = U256::from(1e17);
+                let mut profitable: Vec<(Pool, U256)> = Vec::new();
+                let mut swap_path: Vec<Address> = vec![graph[cycle[0]]];
 
-            for window in cycle.windows(2) {
-                // get the info we need for the cycle
-                let token0 = window[0]; // token0 is the first token in the cycle
-                let token1 = window[1]; // token1 is the second token in the cycle
-                let edge = token_to_edge.get(&(token0, token1)).unwrap(); // get the edge index
-                let pool_addr = graph[*edge]; // get the pool address
-                let pool = address_to_pool.get(&pool_addr); // get the pool for token0, tokene
-
-                let token0_address = graph[token0];
-                let pool_token0 = pool.token0_address();
-
-                let (reserves0, reserves1) = pool.reserves();
-                if token0_address == pool_token0 {
-                    current_amount = calculate_amount_out(reserves0, reserves1, current_amount);
-                } else {
-                    current_amount = calculate_amount_out(reserves1, reserves0, current_amount);
+                for window in cycle.windows(2) {
+                    let token0 = window[0];
+                    let token1 = window[1];
+                    
+                    let t1_addr = graph[token1];
+                    swap_path.push(t1_addr);
+                    
+                    let edge = token_to_edge.get(&(token0, token1)).unwrap();
+                    let pool_addr = graph[*edge];
+                    let pool = address_to_pool.get(&pool_addr);
+                    let token0_address = graph[token0];
+                    let pool_token0 = pool.token0_address();
+                    let (reserves0, reserves1) = address_to_pool.get_reserves(&pool_addr);
+                    
+                    current_amount = if token0_address == pool_token0 {
+                        calculate_amount_out(reserves0, reserves1, current_amount)
+                    } else {
+                        calculate_amount_out(reserves1, reserves0, current_amount)
+                    };
+                    
+                    profitable.push((pool.clone(), current_amount));
                 }
 
-                profitable.push((pool.clone(), current_amount));
-            }
 
-            // if at the end, the current amount is greater than 0.1wth, then we have found a successful path
-            if current_amount > U256::from(1e17) {
-                // for each path, pretty print the pool addrress and the reserves and then an arrow to the next pool
-                println!("Found profitable path:");
-                for (pool, amount) in profitable {
-                    println!("{:?} {:?} {:?} -> ", pool.address(), pool.reserves(), format_eth(amount));
+
+                if current_amount > U256::from(1e17) {
+                    let amount_in = U256::from(1e17);
+                    let expected_amount_out = router.getAmountsOut(amount_in, swap_path).call().await.unwrap();
+                    println!("Found profitable path:");
+                    for (pool, amount) in profitable {
+                        println!("{:?} {:?} {:?} -> ", pool.address(), pool.reserves(), amount);
+                    }
+                    println!("Expected amount out: {:?}", expected_amount_out);
+                    Some(cycle.clone())
+                } else {
+                    None
                 }
             }
         });
+
+        let results = futures::future::join_all(futures).await;
+        successful_paths.extend(results.into_iter().filter_map(|x| x));
+
         println!("Traversal took {:?}", start.elapsed());
     }
 
-    // for each path in successful paths, calculate the optimal amount in and then construct a transaction to send
-    // then send the transaction
-    // then save the path to the database
-    // then update the reserves
-
+    // Process successful_paths here...
 }
 
 fn format_eth(wei: U256) -> String {
