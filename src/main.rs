@@ -95,21 +95,23 @@ async fn main() -> std::io::Result<()> {
 
     // construct the providers
     info!("Constructing providers...");
-    let http_url = std::env::var("HTTP").unwrap();
-    let ws_url = WsConnect::new(std::env::var("WS").unwrap());
+    let http_url = std::env::var("BASE_HTTP").unwrap();
+    let ws_url = WsConnect::new(std::env::var("BASE_WS").unwrap());
     let http_provider = Arc::new(ProviderBuilder::new().on_http(http_url.parse().unwrap()));
+    /* 
     let signer_provider = Arc::new(
         ProviderBuilder::new()
             .wallet(wallet)
             .on_http("http://localhost:8545".parse().unwrap()),
     );
+*/
     let ws_provider = Arc::new(ProviderBuilder::new().on_ws(ws_url).await.unwrap());
 
     // load in all the pools
     info!("Loading pools...");
     let pool_sync = PoolSync::builder()
         .add_pools(&[PoolType::UniswapV2])
-        .chain(Chain::Ethereum)
+        .chain(Chain::Base)
         .rate_limit(100)
         .build()
         .unwrap();
@@ -118,7 +120,12 @@ async fn main() -> std::io::Result<()> {
     info!("Syncing pools...");
     let pools = pool_sync.sync_pools(http_provider.clone()).await.unwrap();
     info!("Loading top volume tokens...");
-    let top_volume_tokens = read_addresses_from_file("addresses.json")?;
+    //let top_volume_tokens = read_addresses_from_file("addresses.json")?;
+    //let top_volume_tokens = filter_top_volume(pools.clone(), 4000, Chain::Base).await;
+    //let top_volume_tokens = HashSet::from_iter(top_volume_tokens.into_iter());
+    //write_addresses_to_file(&top_volume_tokens, "addresses.json").unwrap();
+    //let top_volume_tokens = read_addresses_from_file("addresses.json").unwrap();
+    let top_volume_tokens :HashSet<Address> = pools.clone().into_iter().map(|pool| pool.token0_address()).collect();
 
     // all our mappings
     let mut address_to_pool = ConcurrentPool::new(); // for pool data
@@ -140,7 +147,7 @@ async fn main() -> std::io::Result<()> {
 
     // fetch the weth node index
     let node = *address_to_node
-        .get(&address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"))
+        .get(&address!("4200000000000000000000000000000000000006"))
         .unwrap();
 
     // build all of the cycles
@@ -152,10 +159,15 @@ async fn main() -> std::io::Result<()> {
     let (block_sender, mut block_receiver) = broadcast::channel(10);
     tokio::spawn(stream_new_blocks(ws_provider.clone(), block_sender));
 
+    let log_http = std::env::var("LOG").unwrap();
+    let log_provider = Arc::new(
+        ProviderBuilder::new().on_http(log_http.parse().unwrap())
+    );
+
     // sync events stream
     let (reserve_update_sender, mut reserve_update_receiver) = broadcast::channel(10);
     tokio::spawn(stream_sync_events(
-        http_provider.clone(),
+        log_provider.clone(),
         address_to_pool.clone(),
         block_receiver.resubscribe(),
         reserve_update_sender,
@@ -172,10 +184,12 @@ async fn main() -> std::io::Result<()> {
 
     // start the tx sender
     let (tx_sender, mut tx_receiver) = broadcast::channel(10);
+    /* 
     tokio::spawn(send_transactions(
         signer_provider,
         tx_receiver.resubscribe(),
     ));
+    */
 
     // finally.... start the searcher!!!!!
     tokio::spawn(search_paths(

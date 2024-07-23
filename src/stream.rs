@@ -1,3 +1,4 @@
+use alloy::eips::BlockId;
 use alloy::providers::{Provider, RootProvider};
 use alloy::pubsub::PubSubFrontend;
 use alloy::rpc::types::Filter;
@@ -47,6 +48,7 @@ pub async fn stream_sync_events(
         let filter = Filter::new()
             .event(SyncEvent::Sync::SIGNATURE)
             .from_block(block.header.number.unwrap());
+            //.from_block(block.header.number.unwrap());
 
         // fetch all the logs
         info!("Fetching logs...");
