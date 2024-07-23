@@ -5,106 +5,133 @@ import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
 import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
 import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "forge-std/console.sol";
 
-contract UniswapV2FlashSwap {
-    using SafeERC20 for IERC20;
-
+contract FlashSwapper {
     IUniswapV2Factory public immutable factory;
     IUniswapV2Router02 public immutable router;
-    
-    address[] public path;
-    uint256 public amountIn;
-    address public initiator;
-
-    event FlashSwapInitiated(address tokenBorrow, uint256 amount, address[] path);
-    event ProfitGenerated(uint256 profit);
-    event SwapCompleted(uint256 amountOut);
+    address public constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
     constructor() {
         factory = IUniswapV2Factory(0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f);
-        router = IUniswapV2Router02(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D); 
+        router = IUniswapV2Router02(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
     }
 
-    function initiateFlashSwap(
-        address _tokenBorrow,
-        uint256 _amount,
-        address[] calldata _path
-    ) external {
-        require(_path.length >= 2, "Path must have at least 2 tokens");
-        require(_path[0] == _tokenBorrow, "First token in path must be borrowed token");
+    function flashSwap(uint256 amountIn, address[] calldata path) external {
+        console.log("Initiating flash swap with amount", amountIn);
+        console.log("First token:", path[0]);
+        console.log("Last token:", path[path.length - 1]);
+        console.log("Sender:", msg.sender);
 
-        amountIn = _amount;
-        path = _path;
-        initiator = msg.sender;
-
-        address pair = factory.getPair(_tokenBorrow, _path[1]);
-        require(pair != address(0), "Pair does not exist");
-
-        address token0 = IUniswapV2Pair(pair).token0();
-        address token1 = IUniswapV2Pair(pair).token1();
-
-        uint256 amount0Out = _tokenBorrow == token0 ? _amount : 0;
-        uint256 amount1Out = _tokenBorrow == token1 ? _amount : 0;
-
-        bytes memory data = abi.encode(_tokenBorrow, _amount, _path);
-
-        emit FlashSwapInitiated(_tokenBorrow, _amount, _path);
+        address pair = factory.getPair(path[0], path[1]);  // Fixed this line
+        bytes memory data = abi.encode(msg.sender, amountIn, path);
+        uint256 amount0Out = path[0] < path[1] ? amountIn : 0;
+        uint256 amount1Out = path[0] < path[1] ? 0 : amountIn;
 
         IUniswapV2Pair(pair).swap(amount0Out, amount1Out, address(this), data);
     }
 
+    // This function needs to be implemented to handle the flash swap callback
     function uniswapV2Call(
         address sender,
         uint256 amount0,
         uint256 amount1,
         bytes calldata data
     ) external {
+        // Decode the flash swap data
+        (address initiator, uint256 amountIn, address[] memory path) = abi
+            .decode(data, (address, uint256, address[]));
+
+        // Verify the caller is a valid pair
         address token0 = IUniswapV2Pair(msg.sender).token0();
         address token1 = IUniswapV2Pair(msg.sender).token1();
-        address pair = factory.getPair(token0, token1);
-        require(msg.sender == pair, "Unauthorized");
-        require(sender == address(this), "Sender must be this contract");
+        require(
+            msg.sender == IUniswapV2Factory(factory).getPair(token0, token1),
+            "Unauthorized"
+        );
 
-        (address tokenBorrow, uint256 amountBorrow, address[] memory swapPath) = abi.decode(data, (address, uint256, address[]));
+        // Calculate the amount borrowed
+        uint256 amountBorrowed = amount0 > 0 ? amount0 : amount1;
 
-        // Perform the multi-hop swap
-        uint256 amountOut = _swap(amountBorrow, swapPath);
-
-        emit SwapCompleted(amountOut);
+        // Execute swaps along the path
+        for (uint i = 1; i < path.length - 1; i++) {
+            (address input, address output) = (path[i], path[i + 1]);
+            (uint256 reserveInput, uint256 reserveOutput, ) = IUniswapV2Pair(
+                IUniswapV2Factory(factory).getPair(input, output)
+            ).getReserves();
+            console.log("Input: ", input);
+            console.log("Output: ", output);
+            console.log("Reserve Input: ", reserveInput);
+            console.log("Reserve Output: ", reserveOutput);
+            uint256 amountOut = getAmountOut(
+                amountBorrowed,
+                reserveInput,
+                reserveOutput
+            );
+            console.log("Amount Out: ", amountOut);
+            _swap(amountBorrowed, amountOut, path[i], path[i + 1]);
+            amountBorrowed = amountOut;
+        }
 
         // Calculate the amount to repay
-        uint256 fee = ((amountBorrow * 3) / 997) + 1;
-        uint256 amountToRepay = amountBorrow + fee;
+        (uint256 reserveIn, uint256 reserveOut, ) = IUniswapV2Pair(msg.sender)
+            .getReserves();
+        uint256 amountToRepay = getAmountIn(
+            amountBorrowed,
+            reserveIn,
+            reserveOut
+        );
 
         // Repay the flash swap
-        IERC20(tokenBorrow).safeTransfer(msg.sender, amountToRepay);
+        IERC20(path[path.length - 1]).transfer(msg.sender, amountToRepay);
 
         // Transfer any profit to the initiator
-        if (amountOut > amountToRepay) {
-            uint256 profit = amountOut - amountToRepay;
-            IERC20(swapPath[swapPath.length - 1]).safeTransfer(initiator, profit);
-            emit ProfitGenerated(profit);
+        uint256 profit = IERC20(path[path.length - 1]).balanceOf(address(this));
+        if (profit > 0) {
+            IERC20(path[path.length - 1]).transfer(initiator, profit);
         }
     }
 
-    function _swap(uint256 _amountIn, address[] memory _path) internal returns (uint256) {
-        require(_path.length >= 2, "Invalid path");
-        
-        uint256[] memory amounts = router.swapExactTokensForTokens(
-            _amountIn,
-            0, // Accept any amount of output tokens
-            _path,
-            address(this),
-            block.timestamp
-        );
-
-        return amounts[amounts.length - 1];
+    // Helper function to calculate amount out based on xy=k formula
+    function getAmountOut(
+        uint256 amountIn,
+        uint256 reserveIn,
+        uint256 reserveOut
+    ) internal pure returns (uint256) {
+        uint256 amountInWithFee = amountIn * 997;
+        uint256 numerator = amountInWithFee * reserveOut;
+        uint256 denominator = reserveIn * 1000 + amountInWithFee;
+        return numerator / denominator;
     }
 
-    // Function to rescue tokens sent to the contract by mistake
-    function rescueTokens(address _token, uint256 _amount) external {
-        require(msg.sender == initiator, "Only initiator can rescue tokens");
-        IERC20(_token).safeTransfer(initiator, _amount);
+    // Helper function to calculate amount in based on xy=k formula
+    function getAmountIn(
+        uint256 amountOut,
+        uint256 reserveIn,
+        uint256 reserveOut
+    ) internal pure returns (uint256) {
+        uint256 numerator = reserveIn * amountOut * 1000;
+        uint256 denominator = (reserveOut - amountOut) * 997;
+        return (numerator / denominator) + 1;
+    }
+
+    // Helper function to execute a single swap
+    function _swap(
+        uint256 amountIn,
+        uint256 amountOut,
+        address tokenIn,
+        address tokenOut
+    ) internal {
+        address pair = IUniswapV2Factory(factory).getPair(tokenIn, tokenOut);
+        (uint256 amount0Out, uint256 amount1Out) = tokenIn < tokenOut
+            ? (uint256(0), amountOut)
+            : (amountOut, uint256(0));
+        IERC20(tokenIn).transfer(pair, amountIn);
+        IUniswapV2Pair(pair).swap(
+            amount0Out,
+            amount1Out,
+            address(this),
+            new bytes(0)
+        );
     }
 }

@@ -2,6 +2,10 @@
 use crate::concurrent_pool::ConcurrentPool;
 use crate::events::Event;
 use crate::gas_manager::GasPriceManager;
+use alloy_sol_types::SolCall;
+use revm::Database;
+use revm::EvmContext;
+use simulation::simulate_quote;
 use crate::graph::*;
 use crate::tx_sender::send_transactions;
 use alloy::hex::FromHex;
@@ -9,8 +13,8 @@ use alloy::network::EthereumWallet;
 use alloy::primitives::address;
 use alloy::primitives::Address;
 use alloy::primitives::{FixedBytes, U128, U256};
-use alloy::providers::ProviderBuilder;
-use alloy::providers::WsConnect;
+use alloy_sol_types::SolValue;
+use alloy::providers::{ProviderBuilder, Provider, RootProvider, WsConnect};
 use alloy::signers::local::PrivateKeySigner;
 use alloy::sol;
 use env_logger;
@@ -30,6 +34,12 @@ use stream::*;
 use tokio::sync::broadcast;
 use tokio::sync::mpsc;
 
+
+use alloy::node_bindings::Anvil;
+// Define a custom tracer
+
+
+
 mod concurrent_pool;
 mod events;
 mod gas_manager;
@@ -39,6 +49,11 @@ mod market;
 mod optimizer;
 mod stream;
 mod tx_sender;
+mod simulation;
+
+use alloy::transports::http::{Client, Http};
+use alloy::transports::Transport;
+use alloy::network::Ethereum;
 
 sol!(
     #[derive(Debug)]
@@ -57,7 +72,6 @@ sol!(
     }
 );
 
-// function that will take in a pool and update the reserves address and return the reserves
 
 #[derive(Serialize, Deserialize)]
 struct AddressSet(HashSet<Address>);
@@ -83,6 +97,9 @@ async fn main() -> std::io::Result<()> {
     env_logger::Builder::new()
         .filter_level(LevelFilter::Info) // or Info, Warn, etc.
         .init();
+    //simulate_quote().await;
+
+
 
     let private_key_hex = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
 
@@ -95,37 +112,55 @@ async fn main() -> std::io::Result<()> {
 
     // construct the providers
     info!("Constructing providers...");
-    let http_url = std::env::var("BASE_HTTP").unwrap();
-    let ws_url = WsConnect::new(std::env::var("BASE_WS").unwrap());
-    let http_provider = Arc::new(ProviderBuilder::new().on_http(http_url.parse().unwrap()));
-    /* 
-    let signer_provider = Arc::new(
-        ProviderBuilder::new()
-            .wallet(wallet)
-            .on_http("http://localhost:8545".parse().unwrap()),
-    );
-*/
+
+    //let http_url = "http://localhost:8545";
+    //let http_url = std::env::var("HTTP").unwrap();
+    //let http_provider = Arc::new(ProviderBuilder::new().on_http(http_url.parse().unwrap()));
+    let ws_url = WsConnect::new(std::env::var("WS").unwrap());
     let ws_provider = Arc::new(ProviderBuilder::new().on_ws(ws_url).await.unwrap());
+    //let signer_provider = Arc::new(
+    //    ProviderBuilder::new()
+    //        .wallet(wallet)
+    //        .on_http("http://localhost:8545".parse().unwrap()),
+    //);
+
+
+
+
+
+    // start the avnil instance and get anvil provider
+    let url = std::env::var("HTTP").unwrap();
+    let provider = ProviderBuilder::new().on_http(url.parse().unwrap());
+    let base_fee = provider.get_gas_price().await.unwrap();
+    let fork_block = provider.get_block_number().await.unwrap();
+    let anvil = Anvil::new()
+        .fork(url)
+        .fork_block_number(fork_block)
+        .try_spawn()
+        .unwrap();
+    let anvil_provider = Arc::new(ProviderBuilder::new().on_http(anvil.endpoint_url()));
+
 
     // load in all the pools
     info!("Loading pools...");
     let pool_sync = PoolSync::builder()
-        .add_pools(&[PoolType::UniswapV2])
-        .chain(Chain::Base)
+        .add_pools(&[PoolType::UniswapV2, PoolType::SushiSwap])
+        .chain(Chain::Ethereum)
         .rate_limit(100)
         .build()
         .unwrap();
 
     // sync all the pools and get the top tokens
     info!("Syncing pools...");
-    let pools = pool_sync.sync_pools(http_provider.clone()).await.unwrap();
+    let pools = pool_sync.sync_pools(anvil_provider.clone()).await.unwrap();
     info!("Loading top volume tokens...");
+
     //let top_volume_tokens = read_addresses_from_file("addresses.json")?;
-    //let top_volume_tokens = filter_top_volume(pools.clone(), 4000, Chain::Base).await;
-    //let top_volume_tokens = HashSet::from_iter(top_volume_tokens.into_iter());
-    //write_addresses_to_file(&top_volume_tokens, "addresses.json").unwrap();
-    //let top_volume_tokens = read_addresses_from_file("addresses.json").unwrap();
-    let top_volume_tokens :HashSet<Address> = pools.clone().into_iter().map(|pool| pool.token0_address()).collect();
+    //let top_volume_tokens = filter_top_volume(pools.clone(), 3000, Chain::Ethereum).await;
+    //let mut top_volume_tokens = HashSet::from_iter(top_volume_tokens.into_iter());
+    //top_volume_tokens.insert(address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"));
+    //write_addresses_to_file(&top_volume_tokens, "eth_addresses.json").unwrap();
+    let top_volume_tokens = read_addresses_from_file("eth_addresses.json").unwrap();
 
     // all our mappings
     let mut address_to_pool = ConcurrentPool::new(); // for pool data
@@ -140,14 +175,14 @@ async fn main() -> std::io::Result<()> {
         &mut address_to_pool,
         &mut token_to_edge,
     ));
-    address_to_pool.sync_pools(http_provider.clone()).await;
+    address_to_pool.sync_pools(anvil_provider.clone()).await;
 
     // rewrap it
     let address_to_pool = Arc::new(address_to_pool);
 
     // fetch the weth node index
     let node = *address_to_node
-        .get(&address!("4200000000000000000000000000000000000006"))
+        .get(&address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"))
         .unwrap();
 
     // build all of the cycles
@@ -174,7 +209,7 @@ async fn main() -> std::io::Result<()> {
     ));
 
     // start the gas manager
-    let gas_manager = Arc::new(GasPriceManager::new(http_provider.clone(), 0.1, 100));
+    let gas_manager = Arc::new(GasPriceManager::new(anvil_provider.clone(), 0.1, 100));
     let (gas_sender, mut gas_receiver) = broadcast::channel(10);
     tokio::spawn(async move {
         gas_manager
@@ -183,18 +218,19 @@ async fn main() -> std::io::Result<()> {
     });
 
     // start the tx sender
-    let (tx_sender, mut tx_receiver) = broadcast::channel(10);
-    /* 
+    let (tx_sender, mut tx_receiver) = broadcast::channel(1000);
+
+    
     tokio::spawn(send_transactions(
-        signer_provider,
+        //signer_provider,
         tx_receiver.resubscribe(),
     ));
-    */
 
     // finally.... start the searcher!!!!!
     tokio::spawn(search_paths(
         graph,
         cycles,
+        anvil_provider.clone(),
         address_to_pool,
         Arc::new(token_to_edge),
         reserve_update_receiver,
@@ -206,4 +242,5 @@ async fn main() -> std::io::Result<()> {
     }
 
     Ok(())
+
 }

@@ -1,10 +1,12 @@
 use alloy::primitives::Address;
 use alloy::primitives::{U128, U256};
 use alloy::signers::k256::elliptic_curve::consts::U25;
+use alloy::transports::http::Http;
+use alloy::transports::http::Client;
 use petgraph::algo;
 use alloy::primitives::address;
 use std::time::Instant;
-use alloy::providers::ProviderBuilder;
+use alloy::providers::{ProviderBuilder, RootProvider};
 use tokio::sync::broadcast::{Receiver, Sender};
 use crate::events::Event;
 use rayon::prelude::*;
@@ -97,11 +99,13 @@ pub fn calculate_amount_out(reserves_in: U128, reserves_out: U128, amount_in: U2
 pub async fn search_paths(
     graph: Arc<Graph<Address, Address, Undirected>>, 
     cycles: Vec<Vec<NodeIndex>>,
+    anvil_provider: Arc<RootProvider<Http<Client>>>,
     address_to_pool: Arc<ConcurrentPool>,
     token_to_edge: Arc<FxHashMap<(NodeIndex, NodeIndex), EdgeIndex>>,
     mut reserve_update_receiver: Receiver<Event>,
     mut tx_sender: Sender<ArbPath>,
 ) {
+    let contract = UniswapV2Router::new(address!("7a250d5630B4cF539739dF2C5dAcb4c659F2488D"), anvil_provider.clone());
     while let Ok(event) = reserve_update_receiver.recv().await {
         info!("Searching for arbs...");
         let start = std::time::Instant::now();
@@ -137,12 +141,17 @@ pub async fn search_paths(
             })
             .collect();
 
-        info!("Found {} profitable paths in {:?} {:?}", profitable_paths.len(), start.elapsed(), profitable_paths);
         for path in profitable_paths {
-            let path = path.2.clone();
+            let call_path = path.2.clone();
+            let UniswapV2Router::getAmountsOutReturn { amounts } = contract.getAmountsOut(U256::from(1e17), call_path).call().await.unwrap(); 
+            println!("Router amounts: {:?}, Calculated amounts: {:?}", amounts.last() , path.1);
+            /* 
+
+            let token_path = path.2.clone();
             let amount_in = U256::from(1e17 as u64);
-            let arb_path = ArbPath { path, amount_in };
-            tx_sender.send(arb_path).unwrap();
+            let arb_path = ArbPath { path:token_path, amount_in , expected_out: path.1.clone() };
+            tx_sender.send(arb_path);
+            */
         }
 
         // Process profitable paths here...

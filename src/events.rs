@@ -13,5 +13,6 @@ pub enum Event {
 #[derive(Debug, Clone)]
 pub struct ArbPath {
     pub path: Vec<Address>,
-    pub amount_in: U256
+    pub amount_in: U256,
+    pub expected_out: U256
 }
