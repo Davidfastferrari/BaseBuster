@@ -102,7 +102,7 @@ pub async fn send_transactions(mut tx_receiver: Receiver<ArbPath>) {
                 ..
             } => {
                 let amount_out = <U256>::abi_decode(&value, false).unwrap();
-                info!("Expected out {:?}, Actual out {:?}", arb_path.expected_out, amount_out);
+                //info!("Expected out {:?}, Actual out {:?}", arb_path.expected_out, amount_out);
             }
             _ => continue,
         }

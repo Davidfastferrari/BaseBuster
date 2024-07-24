@@ -1,13 +1,117 @@
 use alloy::network::TransactionBuilder;
 use alloy::primitives::{address, Address, U256};
 use alloy::providers::{Provider, ProviderBuilder};
+use alloy_sol_types::SolInterface;
+use log::info;
 use alloy::rpc::types::TransactionRequest;
 use alloy::sol;
 use alloy::node_bindings::Anvil;
 use alloy::sol_types::{SolCall, SolValue};
 use anyhow::Result;
 use revm::primitives::Bytes;
+use Swap::SwapErrors;
 use std::sync::Arc;
+use crate::events::Event;
+use alloy::transports::TransportError;
+use tokio::sync::broadcast::{Receiver, Sender};
+
+
+sol!(
+    #[derive(Debug)]
+    #[sol(rpc)]
+    Swap,
+    "src/abi/Swap.json"
+);
+
+pub async fn simulate_path(sim_sender: Sender<Event>, mut opt_receiver: Receiver<Event>) {
+    // deploy the simulation contact
+    let signer = Arc::new(ProviderBuilder::new()
+        .with_recommended_fillers()
+        .on_anvil_with_wallet());
+    let contract = Swap::deploy(&signer).await.unwrap();
+    info!("Contract deployed at {:#?}", contract.address());
+
+    while let Ok(Event::OptimizedPath(opt_path)) = opt_receiver.recv().await {
+        // got a path with an optimal input, simulate it
+        let amount_in = opt_path.optimal_input;
+        let path = opt_path.path;
+
+        let call = contract.swap(
+            amount_in, 
+            amount_in,
+            path,
+            U256::from(1_000_000_000)
+        );
+
+        match call.call().await {
+            Ok(amounts) => println!("Simulated path: Amounts: {:#?}",  amounts),
+            Err(e) => {
+                match e {
+                    alloy::contract::Error::TransportError(TransportError::ErrorResp(e)) => {
+                        if let Some(data) = e.data {
+                            let res = Swap::SwapErrors::abi_decode(data.get().as_bytes(), false);
+                            println!("Simulated path: Error: {:#?}", res);
+                        } else {
+                            println!("Simulated path: Error: No error data available");
+                        }
+                    },
+                    _ => {
+                        let res = e.to_string();
+                        println!("Simulated path: Error: {:#?}", res);
+                    }
+                }
+            }
+        }
+
+
+
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 sol! {
     #[sol(rpc)]
@@ -31,6 +135,11 @@ sol! {
         );
     }
 }
+
+
+
+
+
 
 pub fn decode_quote_calldata(calldata: Bytes) -> Result<u128> {
     let (amount_out, _, _, _) = <(u128, u128, u32, u128)>::abi_decode(&calldata, false)?;

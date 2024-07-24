@@ -80,13 +80,14 @@ impl ArbGraph {
              0, 
              Some(3)
         ).collect();
-        debug!("Found {} cycles", cycles.len());
+        info!("Found {} cycles", cycles.len());
         cycles
     }
 
     // Search for paths
     pub async fn search_paths(
         &self,
+        arb_sender: Sender<Event>,
         mut reserve_update_receiver: Receiver<Event>,
     ) {
         // Once we have updated the reserves from the new block, we can search for new opportunities
@@ -100,6 +101,7 @@ impl ArbGraph {
                 .filter_map(|cycle| {
                     // the current amount is how much of a token we currently have along the swap path
                     let mut current_amount = U256::from(1e17);
+                    let mut path_reserves = Vec::new();
 
                     // process in steps of 2, represent a pool swap
                     for window in cycle.windows(2) {
@@ -107,6 +109,7 @@ impl ArbGraph {
                         let (token0, token1) = (window[0], window[1]); // the two tokens in the swap
                         let address = self.nodes_to_address.get(&(token0, token1)).unwrap(); // the pool that the tokens are in
                         let (reserve0, reserve1) = self.pool_manager.get_reserves(address);
+                        path_reserves.push((reserve0, reserve1));
 
                         // offchain swap simulation
                         let zero_to_one = self.graph[token0] < self.graph[token1];
@@ -116,14 +119,20 @@ impl ArbGraph {
 
                     // if we have made a profit, return the cycle
                     if current_amount > U256::from(1e17 as u64) {
-                        Some(cycle.clone())
+                        let address_path: Vec<Address> = cycle.iter().map(|node| self.graph[*node]).collect();
+                        Some((address_path, path_reserves))
                     } else {
                         None
                     }
                 })
                 .collect();
+            info!("Searched all paths in {:?}", start.elapsed());
+
             // send off to the optimizer
-            println!("Found profitable path: {:?}", profitable_paths);
+            for path in profitable_paths {
+                let arb_path = ArbPath { path: path.0, reserves: path.1};
+                arb_sender.send(Event::NewPath(arb_path)).unwrap();
+            }
 
         }
     }

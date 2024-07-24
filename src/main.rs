@@ -1,6 +1,8 @@
+use alloy::network::EthereumWallet;
 use alloy::providers::{Provider, ProviderBuilder, WsConnect};
 use alloy::primitives::address;
 use alloy::node_bindings::Anvil;
+use alloy::signers::local::PrivateKeySigner;
 use log::{info, LevelFilter};
 use std::sync::Arc;
 use pool_sync::*;
@@ -9,6 +11,7 @@ use crate::pool_manager::PoolManager;
 use crate::ignition::start_workers;
 use crate::util::get_working_pools;
 use crate::graph::ArbGraph;
+use crate::deploy::*;
 
 mod pool_manager;
 mod events;
@@ -21,6 +24,7 @@ mod calculation;
 mod stream;
 mod tx_sender;
 mod ignition;
+mod deploy;
 mod util;
 
 #[tokio::main]
@@ -40,21 +44,20 @@ async fn main() -> std::io::Result<()> {
     let anvil = Anvil::new()
         .fork(url)
         .fork_block_number(fork_block)
-        .port(portpicker::pick_unused_port().unwrap())
+        //.port(portpicker::pick_unused_port().unwrap())
         .try_spawn()
         .unwrap();
+    info!("Anvil endpoint: {}", anvil.endpoint_url());
     // Wallet signers
-    // let signer: PrivateKeySigner = anvil.keys()[0].clone().into();
-    // let wallet = EthereumWallet::from(signer);
     let http_provider = Arc::new(ProviderBuilder::new().on_http(anvil.endpoint_url()));
     // Websocket provider
     let ws_url = WsConnect::new(std::env::var("WS").unwrap());
     let ws_provider = Arc::new(ProviderBuilder::new().on_ws(ws_url).await.unwrap());
 
     // Load in all the pools
-    info!("Loading and sycning pools...");
+    info!("Loading and syncing pools...");
     let pool_sync = PoolSync::builder()
-        .add_pools(&[PoolType::UniswapV2])
+        .add_pools(&[PoolType::UniswapV2, PoolType::SushiSwap])
         .chain(Chain::Ethereum)
         .rate_limit(100)
         .build()
@@ -64,7 +67,6 @@ async fn main() -> std::io::Result<()> {
     // load in the tokens that have had the top volume
     info!("Getting our set of working pools...");
     let working_pools = get_working_pools(pools, 3000, Chain::Ethereum).await;
-
 
     // Maintains reserves updates and pool state
     info!("Constructing the pool manager and getting initial reserves...");
