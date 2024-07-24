@@ -83,4 +83,7 @@ contract Swap {
 
         return amounts;
     }
+
+
+    function getOut(uint256 _amountIn, address[] calldata _path)
 }

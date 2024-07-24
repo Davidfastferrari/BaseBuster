@@ -33,8 +33,11 @@ pub async fn simulate_path(sim_sender: Sender<Event>, mut opt_receiver: Receiver
 
     while let Ok(Event::OptimizedPath(opt_path)) = opt_receiver.recv().await {
         // got a path with an optimal input, simulate it
+        info!("Got optimized path: {:?}", opt_path);
+
         let amount_in = opt_path.optimal_input;
         let path = opt_path.path;
+        info!("Simulating path: {:?}", path);
 
         let call = contract.swap(
             amount_in, 
