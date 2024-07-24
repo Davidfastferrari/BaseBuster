@@ -1,25 +1,19 @@
-use alloy::primitives::Address;
-use alloy::primitives::{U128, U256};
-use alloy::signers::k256::elliptic_curve::consts::U25;
-use alloy::transports::http::Http;
-use alloy::transports::http::Client;
+use alloy::primitives::{address, Address, U128, U256};
+use alloy::providers::RootProvider;
+use alloy::sol;
+use alloy::transports::http::{Client, Http};
+use log::info;
 use petgraph::algo;
-use alloy::primitives::address;
-use std::time::Instant;
-use alloy::providers::{ProviderBuilder, RootProvider};
-use tokio::sync::broadcast::{Receiver, Sender};
-use crate::events::Event;
-use rayon::prelude::*;
-use std::sync::Arc;
 use petgraph::prelude::*;
-use pool_sync::Pool;
-use pool_sync::PoolInfo;
+use pool_sync::{Pool, PoolInfo};
+use rayon::prelude::*;
 use rustc_hash::FxHashMap;
 use std::collections::HashSet;
-use log::info;
+use std::sync::Arc;
+use tokio::sync::broadcast::{Receiver, Sender};
+
 use crate::concurrent_pool::ConcurrentPool;
-use alloy::sol;
-use crate::events::ArbPath;
+use crate::events::{ArbPath, Event};
 
 sol!(
     #[derive(Debug)]
@@ -29,12 +23,52 @@ sol!(
     }
 );
 
+pub struct ArbGraph {
+    // The graph that interconnects all trading paths
+    graph: Graph<Address, Address, Undirected>,
+    // Mapping from two graph nodes to their corresponding pool (edge)
+    nodes_to_pool: FxHashMap<(NodeIndex, NodeIndex), Pool>,
+}
+
+impl ArbGraph {
+    // Constructor
+    pub fn new() -> Self {
+        Self {
+            graph: Graph::new_undirected(),
+            nodes_to_pool: FxHashMap::default(),
+        }
+    }
+
+
+    pub fn build_graph(
+        &mut self,
+        top_volume_pools: &Vec<Pool>
+    ) {
+        // go through all the pools we want to consider
+        for pool in &top_volume_pools {
+            // extract the addresses, used for node values
+            let addr0 = pool.token0_address();
+            let addr1 = pool.token1_address();
+
+            // insert the nodes and add an edge between them
+            // todo!(), make the edge the pool/identifier??
+            let node0 = *address_to_node
+                .entry(addr0)
+                .or_insert_with(|| self.graph.add_node(addr0));
+            let node1 = *address_to_node
+                .entry(addr1)
+                .or_insert_with(|| self.graph.add_node(addr1));
+            let edge_index = self.graph.add_edge(node0, node1, pool.address());
+        }
+
+}
+
 pub fn build_graph(
     pools: &Vec<Pool>,
     top_volume_tokens: HashSet<Address>,
     address_to_node: &mut FxHashMap<Address, NodeIndex>,
     address_to_pool: &mut ConcurrentPool,
-    token_to_edge: &mut FxHashMap<(NodeIndex, NodeIndex), EdgeIndex>
+    token_to_edge: &mut FxHashMap<(NodeIndex, NodeIndex), EdgeIndex>,
 ) -> Graph<Address, Address, Undirected> {
     // pools contains all of the pools on the entire blockchain,
     // we are just interested inones with trading volume
@@ -68,8 +102,6 @@ pub fn build_graph(
     graph
 }
 
-
-
 pub fn construct_cycles(
     graph: &Graph<Address, Address, Undirected>,
     node: NodeIndex,
@@ -78,7 +110,11 @@ pub fn construct_cycles(
 }
 
 #[inline]
-pub fn calculate_amount_out(reserves_in: U128, reserves_out: U128, amount_in: U256) -> Option<U256> {
+pub fn calculate_amount_out(
+    reserves_in: U128,
+    reserves_out: U128,
+    amount_in: U256,
+) -> Option<U256> {
     if reserves_in.is_zero() || reserves_out.is_zero() {
         return None;
     }
@@ -97,7 +133,7 @@ pub fn calculate_amount_out(reserves_in: U128, reserves_out: U128, amount_in: U2
 }
 
 pub async fn search_paths(
-    graph: Arc<Graph<Address, Address, Undirected>>, 
+    graph: Arc<Graph<Address, Address, Undirected>>,
     cycles: Vec<Vec<NodeIndex>>,
     anvil_provider: Arc<RootProvider<Http<Client>>>,
     address_to_pool: Arc<ConcurrentPool>,
@@ -105,12 +141,21 @@ pub async fn search_paths(
     mut reserve_update_receiver: Receiver<Event>,
     mut tx_sender: Sender<ArbPath>,
 ) {
-    let contract = UniswapV2Router::new(address!("7a250d5630B4cF539739dF2C5dAcb4c659F2488D"), anvil_provider.clone());
+    //let contract = UniswapV2Router::new(
+        //address!("7a250d5630B4cF539739dF2C5dAcb4c659F2488D"),
+        //anvil_provider.clone(),
+    //);
+    
+
+
+    // Once we have updated the reserves from the new block, we can search for new opportunities
     while let Ok(event) = reserve_update_receiver.recv().await {
         info!("Searching for arbs...");
         let start = std::time::Instant::now();
-        
-        let profitable_paths: Vec<_> = cycles.par_iter()
+
+        // 
+        let profitable_paths: Vec<_> = cycles
+            .par_iter()
             .filter_map(|cycle| {
                 let mut current_amount = U256::from(1e17 as u64);
                 let mut swap_path = vec![graph[cycle[0]]];
@@ -123,7 +168,9 @@ pub async fn search_paths(
                     let token0_address = graph[token0];
                     let pool_token0 = pool.token0_address();
                     let (reserves0, reserves1) = address_to_pool.get_reserves(&pool_addr);
-                    
+
+                    //let reserves = nodes_to_pool.get(&(token0, token1)).get_reserves();
+
                     current_amount = if token0_address == pool_token0 {
                         calculate_amount_out(reserves0, reserves1, current_amount)?
                     } else {
@@ -143,9 +190,17 @@ pub async fn search_paths(
 
         for path in profitable_paths {
             let call_path = path.2.clone();
-            let UniswapV2Router::getAmountsOutReturn { amounts } = contract.getAmountsOut(U256::from(1e17), call_path).call().await.unwrap(); 
-            println!("Router amounts: {:?}, Calculated amounts: {:?}", amounts.last() , path.1);
-            /* 
+            let UniswapV2Router::getAmountsOutReturn { amounts } = contract
+                .getAmountsOut(U256::from(1e17), call_path)
+                .call()
+                .await
+                .unwrap();
+            println!(
+                "Router amounts: {:?}, Calculated amounts: {:?}",
+                amounts.last(),
+                path.1
+            );
+            /*
 
             let token_path = path.2.clone();
             let amount_in = U256::from(1e17 as u64);
@@ -157,3 +212,4 @@ pub async fn search_paths(
         // Process profitable paths here...
     }
 }
+
