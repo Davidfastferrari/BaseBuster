@@ -49,3 +49,93 @@ GAS_PRICE_ORACLE_ADDRESS = to_checksum_address(
 )
 
 - need base fee adn base fee next
+
+
+
+
+//let contract = UniswapV2Router::new(
+    //address!("7a250d5630B4cF539739dF2C5dAcb4c659F2488D"),
+    //anvil_provider.clone(),
+//);
+     /* 
+        for path in profitable_paths {
+            let call_path = path.2.clone();
+            let UniswapV2Router::getAmountsOutReturn { amounts } = contract
+                .getAmountsOut(U256::from(1e17), call_path)
+                .call()
+                .await
+                .unwrap();
+            println!(
+                "Router amounts: {:?}, Calculated amounts: {:?}",
+                amounts.last(),
+                path.1
+            );
+            */
+            /*
+
+            let token_path = path.2.clone();
+            let amount_in = U256::from(1e17 as u64);
+            let arb_path = ArbPath { path:token_path, amount_in , expected_out: path.1.clone() };
+            tx_sender.send(arb_path);
+            */
+
+            pub fn build_graph(
+    pools: &Vec<Pool>,
+    top_volume_tokens: HashSet<Address>,
+    address_to_node: &mut FxHashMap<Address, NodeIndex>,
+    address_to_pool: &mut ConcurrentPool,
+    token_to_edge: &mut FxHashMap<(NodeIndex, NodeIndex), EdgeIndex>,
+) -> Graph<Address, Address, Undirected> {
+    // pools contains all of the pools on the entire blockchain,
+    // we are just interested inones with trading volume
+    // take the insersection fo the pools and the tokens with top volume
+    let top_volume_pools: Vec<Pool> = pools
+        .clone()
+        .into_iter()
+        .filter(|pool| {
+            top_volume_tokens.contains(&pool.token0_address())
+                && top_volume_tokens.contains(&pool.token1_address())
+        })
+        .collect();
+
+    // graph
+    let mut graph: Graph<Address, Address, Undirected> = Graph::new_undirected();
+
+    for pool in &top_volume_pools {
+        let addr0 = pool.token0_address();
+        let addr1 = pool.token1_address();
+        let node0 = *address_to_node
+            .entry(addr0)
+            .or_insert_with(|| graph.add_node(addr0));
+        let node1 = *address_to_node
+            .entry(addr1)
+            .or_insert_with(|| graph.add_node(addr1));
+        let edge_index = graph.add_edge(node0, node1, pool.address());
+        token_to_edge.insert((node0, node1), edge_index);
+        token_to_edge.insert((node1, node0), edge_index);
+        address_to_pool.track_pool(pool.address(), pool.clone());
+    }
+    graph
+}
+
+pub fn construct_cycles(
+    graph: &Graph<Address, Address, Undirected>,
+    node: NodeIndex,
+) -> Vec<Vec<NodeIndex>> {
+    algo::all_simple_paths(&graph, node, node, 0, Some(3)).collect()
+}
+
+// Pair contract to get reserves
+sol!(
+    #[derive(Debug)]
+    #[sol(rpc)]
+    contract UniswapV2Pair {
+        function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestamp);
+    }
+);
+
+
+    // all our mappings
+    //let mut address_to_pool = ConcurrentPool::new(); // for pool data
+    //let mut address_to_node: FxHashMap<Address, NodeIndex> = FxHashMap::default(); // for finding node idx
+    //let mut token_to_edge: FxHashMap<(NodeIndex, NodeIndex), EdgeIndex> = FxHashMap::default();

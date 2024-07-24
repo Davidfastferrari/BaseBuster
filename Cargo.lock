@@ -20,6 +20,7 @@ dependencies = [
  "num-traits",
  "petgraph",
  "pool-sync",
+ "portpicker",
  "rand",
  "rayon",
  "revm",
@@ -2939,9 +2940,9 @@ checksum = "d231b230927b5e4ad203db57bbcbee2802f6bce620b1e4a9024a07d94e2907ec"
 
 [[package]]
 name = "pool-sync"
-version = "0.1.11"
+version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ae96223f1bde0105cf988c7eb60aa1c35f4a64ac0efdda33a77d018c8bfef52"
+checksum = "b96c645c1327746b0a239d0b616335d8b3a22539de6edd75d0b9b193a96fe2e6"
 dependencies = [
  "alloy",
  "alloy-contract 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2952,9 +2953,11 @@ dependencies = [
  "async-trait",
  "dashmap 6.0.1",
  "dotenv",
+ "env_logger",
  "futures",
  "hex",
  "indicatif",
+ "log",
  "once_cell",
  "rand",
  "rang",
@@ -2971,6 +2974,15 @@ name = "portable-atomic"
 version = "1.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "da544ee218f0d287a911e9c99a39a8c9bc8fcad3cb8db5959940044ecfc67265"
+
+[[package]]
+name = "portpicker"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "be97d76faf1bfab666e1375477b23fde79eccf0276e9b63b92a39d676a889ba9"
+dependencies = [
+ "rand",
+]
 
 [[package]]
 name = "powerfmt"

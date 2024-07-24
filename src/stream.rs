@@ -1,17 +1,15 @@
-use alloy::eips::BlockId;
 use alloy::providers::{Provider, RootProvider};
+use tokio::sync::broadcast::{Receiver, Sender};
+use alloy::transports::http::{Client, Http};
 use alloy::pubsub::PubSubFrontend;
 use alloy::rpc::types::Filter;
-use alloy::sol;
-use alloy::transports::http::{Client, Http};
 use alloy_sol_types::SolEvent;
 use futures::StreamExt;
-use log::info;
 use std::sync::Arc;
-use tokio::sync::broadcast::Receiver;
-use tokio::sync::broadcast::Sender;
+use alloy::sol;
+use log::info;
 
-use crate::concurrent_pool::ConcurrentPool;
+use crate::pool_manager::PoolManager;
 use crate::events::Event;
 
 // The sync event is emitted whenever a pool is synced
@@ -38,7 +36,7 @@ pub async fn stream_new_blocks(ws: Arc<RootProvider<PubSubFrontend>>, block_send
 // on each block update, get all the sync events and update pool reserves
 pub async fn stream_sync_events(
     http: Arc<RootProvider<Http<Client>>>, // the http provider to fetch logs from
-    tracked_pools: Arc<ConcurrentPool>,    // mapping of the pools we are seaching over
+    pool_manager: Arc<PoolManager>,    // mapping of the pools we are seaching over
     mut block_receiver: Receiver<Event>,   // block receiver
     reserve_update_sender: Sender<Event>,  // reserve update sender
 ) {
@@ -48,7 +46,6 @@ pub async fn stream_sync_events(
         let filter = Filter::new()
             .event(SyncEvent::Sync::SIGNATURE)
             .from_block(block.header.number.unwrap());
-            //.from_block(block.header.number.unwrap());
 
         // fetch all the logs
         info!("Fetching logs...");
@@ -62,8 +59,8 @@ pub async fn stream_sync_events(
             let SyncEvent::Sync { reserve0, reserve1 } = decoded_log.data;
 
             // update the reserves if we are tracking the pool
-            if tracked_pools.exists(&pool_address) {
-                tracked_pools.update(&pool_address, reserve0, reserve1);
+            if pool_manager.exists(&pool_address) {
+                pool_manager.update_reserves(pool_address, reserve0, reserve1);
             }
         }
 

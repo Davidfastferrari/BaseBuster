@@ -1,4 +1,37 @@
+use alloy::primitives::{U256, U128};
 
+#[inline]
+pub fn calculate_amount_out(
+    reserves_in: U128,
+    reserves_out: U128,
+    amount_in: U256,
+    zero_for_one: bool,
+) -> Option<U256> {
+    if reserves_in.is_zero() || reserves_out.is_zero() {
+        return None;
+    }
+
+    let (reserves_in, reserves_out) = if zero_for_one {
+        (reserves_in, reserves_out)
+    } else {
+        (reserves_out, reserves_in)
+    };
+
+    let amount_in_with_fee = amount_in.checked_mul(U256::from(997))?;
+    let numerator = amount_in_with_fee.checked_mul(U256::from(reserves_out))?;
+    let denominator = U256::from(reserves_in)
+        .checked_mul(U256::from(1000))?
+        .checked_add(amount_in_with_fee)?;
+
+    if denominator.is_zero() {
+        None
+    } else {
+        numerator.checked_div(denominator)
+    }
+}
+
+
+/* 
 
 use alloy::primitives::{U256, U128};
 use num_bigint::BigInt;
@@ -292,3 +325,4 @@ pub fn fee_from_path_bytes(buf: &[u8]) -> u32 {
     // ((unsafe { *buf.get_unchecked(0) } as u32) << 16) +
     ((unsafe { *buf.get_unchecked(1) } as u32) << 8) + (unsafe { *buf.get_unchecked(2) } as u32)
 }
+    */

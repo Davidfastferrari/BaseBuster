@@ -1,16 +1,12 @@
-use alloy::transports::http::{Http, Client};
 use alloy::providers::{Provider, RootProvider};
-use alloy::primitives::U256;
-use log::info;
-use alloy::rpc::types::Block;
+use tokio::sync::broadcast::{Receiver, Sender};
+use alloy::transports::http::{Http, Client};
 use std::sync::Arc;
-use tokio::sync::broadcast::Receiver;
-use tokio::sync::broadcast::Sender;
+use log::info;
 
 use crate::events::Event;
 
-
-
+// Update the gas price based on the block
 pub struct GasPriceManager {
     provider: Arc<RootProvider<Http<Client>>>,
     base_fee_multiplier: f64, // figure out what this is
@@ -18,6 +14,7 @@ pub struct GasPriceManager {
 }
 
 impl GasPriceManager {
+    // Constructor 
     pub fn new(provider: Arc<RootProvider<Http<Client>>>, base_fee_multiplier: f64, max_priority_fee: u128) -> Self {
         Self {
             provider,
