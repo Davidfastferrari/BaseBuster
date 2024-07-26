@@ -1,18 +1,17 @@
-use std::sync::Arc;
-use log::info;
-use alloy::providers::{Provider, ProviderBuilder, WsConnect, RootProvider};
+use alloy::providers::{Provider, ProviderBuilder, RootProvider, WsConnect};
 use alloy::pubsub::PubSubFrontend;
 use alloy::transports::http::{Client, Http};
-use tokio::sync::broadcast::{Receiver, Sender};
+use log::info;
+use std::sync::Arc;
 use tokio::sync::broadcast;
+use tokio::sync::broadcast::{Receiver, Sender};
 
-use crate::stream::*;
-use crate::pool_manager::PoolManager;
 use crate::gas_manager::GasPriceManager;
 use crate::graph::ArbGraph;
 use crate::optimizer::optimize_paths;
+use crate::pool_manager::PoolManager;
+use crate::stream::*;
 use crate::simulation::simulate_path;
-
 
 /// Start all of the workers
 pub async fn start_workers(
@@ -29,13 +28,11 @@ pub async fn start_workers(
     let (opt_sender, opt_receiver) = broadcast::channel(100);
     let (arb_sender, arb_receiver) = broadcast::channel(100);
 
-
     // graph -> tx_sender (to send tx) -> tx_receiver (opt get it)
 
     // Stream in new blocks
     info!("Starting block stream...");
     tokio::spawn(stream_new_blocks(ws.clone(), block_sender));
-
 
     // On each new block, parse sync events and update reserves
     info!("Starting sync event stream...");
@@ -45,7 +42,6 @@ pub async fn start_workers(
         block_receiver.resubscribe(),
         reserve_update_sender,
     ));
-
 
     // Update the gas on each block
     info!("Starting gas manager...");
@@ -62,18 +58,19 @@ pub async fn start_workers(
     info!("Starting optimizer...");
     tokio::spawn(optimize_paths(opt_sender, arb_receiver.resubscribe()));
 
-
     info!("Starting transaction sender...");
     //let (tx_sender, mut tx_receiver) = broadcast::channel(1000);
     //tokio::spawn(send_transactions(
-        //signer_provider,
-        // gas_receiver
+    //signer_provider,
+    // gas_receiver
     //    tx_receiver.resubscribe(),
     //));
 
     // finally.... start the searcher!!!!!
     info!("Starting arbitrage searcher...");
     tokio::spawn(async move {
-        graph.search_paths(arb_sender,reserve_update_receiver).await;
+        graph
+            .search_paths(arb_sender, reserve_update_receiver)
+            .await;
     });
 }

@@ -1,30 +1,32 @@
 use alloy::network::EthereumWallet;
-use alloy::providers::{Provider, ProviderBuilder, WsConnect};
-use alloy::primitives::address;
 use alloy::node_bindings::Anvil;
+use alloy::primitives::address;
+use alloy::providers::{Provider, ProviderBuilder, WsConnect};
 use alloy::signers::local::PrivateKeySigner;
 use log::{info, LevelFilter};
-use std::sync::Arc;
 use pool_sync::*;
+use std::sync::Arc;
 
-use crate::pool_manager::PoolManager;
-use crate::ignition::start_workers;
-use crate::util::get_working_pools;
-use crate::graph::ArbGraph;
 use crate::deploy::*;
+use crate::graph::ArbGraph;
+use crate::ignition::start_workers;
+use crate::pool_manager::PoolManager;
+use crate::sim_testing::test_sim;
+use crate::util::get_working_pools;
 
-mod pool_manager;
+mod calculation;
+mod deploy;
 mod events;
 mod gas_manager;
 mod graph;
+mod ignition;
 mod market;
 mod optimizer;
+mod pool_manager;
+mod sim_testing;
 mod simulation;
-mod calculation;
 mod stream;
 mod tx_sender;
-mod ignition;
-mod deploy;
 mod util;
 
 #[tokio::main]
@@ -34,6 +36,11 @@ async fn main() -> std::io::Result<()> {
     env_logger::Builder::new()
         .filter_level(LevelFilter::Info) // or Info, Warn, etc.
         .init();
+    let url = std::env::var("HTTP").unwrap();
+    let http_provider = Arc::new(ProviderBuilder::new().on_http(url.parse().unwrap()));
+
+    test_sim(http_provider).await.unwrap();
+    return  Ok(());
 
     // construct the providers
     info!("Constructing providers...");
@@ -49,7 +56,7 @@ async fn main() -> std::io::Result<()> {
         .unwrap();
     info!("Anvil endpoint: {}", anvil.endpoint_url());
     // Wallet signers
-    let http_provider = Arc::new(ProviderBuilder::new().on_http(anvil.endpoint_url()));
+    let anvil_provider = Arc::new(ProviderBuilder::new().on_http(anvil.endpoint_url()));
     // Websocket provider
     let ws_url = WsConnect::new(std::env::var("WS").unwrap());
     let ws_provider = Arc::new(ProviderBuilder::new().on_ws(ws_url).await.unwrap());
@@ -70,7 +77,8 @@ async fn main() -> std::io::Result<()> {
 
     // Maintains reserves updates and pool state
     info!("Constructing the pool manager and getting initial reserves...");
-    let pool_manager = Arc::new(PoolManager::new(working_pools.clone(), http_provider.clone()).await);
+    let pool_manager =
+        Arc::new(PoolManager::new(working_pools.clone(), anvil_provider.clone()).await);
 
     // build the graph and populate mappings
     info!("Constructing graph and generating cycles...");
@@ -78,8 +86,7 @@ async fn main() -> std::io::Result<()> {
     let graph = ArbGraph::new(pool_manager.clone(), working_pools.clone(), weth);
 
     info!("Starting workers...");
-    start_workers(http_provider, ws_provider, pool_manager, graph).await;
-
+    start_workers(anvil_provider, ws_provider, pool_manager, graph).await;
 
     loop {
         tokio::time::sleep(std::time::Duration::from_secs(60)).await;

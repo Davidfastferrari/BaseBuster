@@ -1,8 +1,7 @@
-
-use std::sync::RwLock;
 use alloy::primitives::U256;
-use tokio::sync::broadcast::Receiver;
 use log::info;
+use std::sync::RwLock;
+use tokio::sync::broadcast::Receiver;
 
 pub struct Market {
     gas_price: RwLock<U256>,
@@ -12,7 +11,7 @@ impl Market {
     // Construct an empty market, populated on first update of block
     pub fn new() -> Self {
         Self {
-            gas_price: RwLock::new(U256::from(0))
+            gas_price: RwLock::new(U256::from(0)),
         }
     }
 
@@ -25,5 +24,3 @@ impl Market {
         }
     }
 }
-
-

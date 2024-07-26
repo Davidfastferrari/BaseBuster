@@ -1,0 +1,4 @@
+Deployed to FlashSwapInstance(0xf524930660f75cf602e909c15528d58459ab2a56)
+balanceOfReturn { _0: 10000000000000000000 }
+TransactionRequest { from: None, to: Some(Call(0xf524930660f75cf602e909c15528d58459ab2a56)), gas_price: None, max_fee_per_gas: None, max_priority_fee_per_gas: None, max_fee_per_blob_gas: None, gas: None, value: None, input: TransactionInput { input: Some(0xdbf0497b00000000000000000000000000000000000000000000000000038d7ea4c68000), data: None }, nonce: None, chain_id: None, access_list: None, transaction_type: None, blob_versioned_hashes: None, sidecar: None }
+Err(ErrorResp(ErrorPayload { code: -32601, message: "Method not found", data: None }))

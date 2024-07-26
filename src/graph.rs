@@ -1,24 +1,16 @@
-use alloy::primitives::{address, Address, U128, U256};
-use alloy::providers::RootProvider;
-use alloy::transports::http::{Client, Http};
+use crate::calculation::calculate_amount_out;
+use crate::events::{ArbPath, Event};
+use crate::pool_manager::PoolManager;
+use alloy::primitives::{Address, U256};
 use log::info;
-use rustc_hash::FxHashSet;
-use std::collections::HashSet;
-use petgraph::{algo, graph};
+use petgraph::algo;
 use petgraph::graph::UnGraph;
 use petgraph::prelude::*;
 use pool_sync::{Pool, PoolInfo};
 use rayon::prelude::*;
 use rustc_hash::FxHashMap;
-use std::collections::HashMap;
 use std::sync::Arc;
-use std::sync::RwLock;
-use log::debug;
 use tokio::sync::broadcast::{Receiver, Sender};
-use crate::pool_manager::PoolManager;
-use crate::events::{ArbPath, Event};
-use crate::calculation::calculate_amount_out;
-
 
 // All information we need to look for arbitrage opportunities
 pub struct ArbGraph {
@@ -40,15 +32,20 @@ impl ArbGraph {
             graph,
             pool_manager,
             cycles,
-            nodes_to_address
+            nodes_to_address,
         }
     }
 
     // Build the graph from the working set of pools
-    pub fn build_graph(working_pools: Vec<Pool>) -> (UnGraph<Address, Address>, FxHashMap<(NodeIndex, NodeIndex), Address>) {
+    pub fn build_graph(
+        working_pools: Vec<Pool>,
+    ) -> (
+        UnGraph<Address, Address>,
+        FxHashMap<(NodeIndex, NodeIndex), Address>,
+    ) {
         let mut address_to_node = FxHashMap::default();
         let mut nodes_to_address = FxHashMap::default();
-        let mut graph : UnGraph<Address, Address>= UnGraph::new_undirected();
+        let mut graph: UnGraph<Address, Address> = UnGraph::new_undirected();
 
         for pool in working_pools {
             let addr0 = pool.token0_address();
@@ -61,7 +58,7 @@ impl ArbGraph {
                 .entry(addr1)
                 .or_insert_with(|| graph.add_node(addr1));
 
-            let edge = graph.add_edge(node0, node1, pool.address());
+            let _ = graph.add_edge(node0, node1, pool.address());
             nodes_to_address.insert((node0, node1), pool.address());
             nodes_to_address.insert((node1, node0), pool.address());
         }
@@ -69,17 +66,18 @@ impl ArbGraph {
     }
 
     // Build all of the cycles
-    pub fn construct_cycles(graph: &UnGraph<Address, Address>, token: Address) -> Vec<Vec<NodeIndex>> {
+    pub fn construct_cycles(
+        graph: &UnGraph<Address, Address>,
+        token: Address,
+    ) -> Vec<Vec<NodeIndex>> {
         // get the node index for the token
-        let source_index = graph.node_indices().find(|index| graph[*index] == token).unwrap();
+        let source_index = graph
+            .node_indices()
+            .find(|index| graph[*index] == token)
+            .unwrap();
         // construct all the cycles
-        let cycles: Vec<Vec<NodeIndex>> = algo::all_simple_paths(
-            &graph,
-             source_index, 
-             source_index, 
-             0, 
-             Some(3)
-        ).collect();
+        let cycles: Vec<Vec<NodeIndex>> =
+            algo::all_simple_paths(&graph, source_index, source_index, 0, Some(3)).collect();
         info!("Found {} cycles", cycles.len());
         cycles
     }
@@ -91,12 +89,13 @@ impl ArbGraph {
         mut reserve_update_receiver: Receiver<Event>,
     ) {
         // Once we have updated the reserves from the new block, we can search for new opportunities
-        while let Ok(event) = reserve_update_receiver.recv().await {
+        while (reserve_update_receiver.recv().await).is_ok() {
             info!("Searching for arbs...");
             let start = std::time::Instant::now(); // timer
 
             // get all the profitable paths
-            let profitable_paths: Vec<_> = self.cycles
+            let profitable_paths: Vec<_> = self
+                .cycles
                 .par_iter() // parallel iterator
                 .filter_map(|cycle| {
                     // the current amount is how much of a token we currently have along the swap path
@@ -119,7 +118,8 @@ impl ArbGraph {
 
                     // if we have made a profit, return the cycle
                     if current_amount > U256::from(1e17 as u64) {
-                        let address_path: Vec<Address> = cycle.iter().map(|node| self.graph[*node]).collect();
+                        let address_path: Vec<Address> =
+                            cycle.iter().map(|node| self.graph[*node]).collect();
                         Some((address_path, path_reserves))
                     } else {
                         None
@@ -127,14 +127,16 @@ impl ArbGraph {
                 })
                 .collect();
             info!("Searched all paths in {:?}", start.elapsed());
+            info!("Found {} profitable paths", profitable_paths.len());
 
             // send off to the optimizer
             for path in profitable_paths {
-                let arb_path = ArbPath { path: path.0, reserves: path.1};
+                let arb_path = ArbPath {
+                    path: path.0,
+                    reserves: path.1,
+                };
                 arb_sender.send(Event::NewPath(arb_path)).unwrap();
             }
-
         }
     }
 }
-

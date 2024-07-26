@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-alloy = { version = "0.2.0", features = ["full", "node-bindings"] }
+alloy = { version = "0.2.0", features = ["full", "node-bindings", "rpc-types-trace", "rpc-client", "rpc-types-debug", "providers"] }
 anyhow = "1.0.86"
 env_logger = "0.11.3"
 futures = "0.3.30"

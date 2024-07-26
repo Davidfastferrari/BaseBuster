@@ -1,13 +1,12 @@
+use alloy::primitives::address;
+use alloy::primitives::Address;
+use anyhow::Result;
 use pool_sync::filter::fetch_top_volume_tokens;
 use pool_sync::{Chain, Pool, PoolInfo};
-use serde::{Serialize, Deserialize};
-use std::io::{BufWriter, BufReader};
-use alloy::primitives::address;
+use serde::{Deserialize, Serialize};
 use std::fs::{create_dir_all, File};
-use alloy::primitives::Address;
+use std::io::{BufReader, BufWriter};
 use std::path::Path;
-use anyhow::Result;
-
 
 #[derive(Serialize, Deserialize)]
 struct TopVolumeAddresses(Vec<Address>);
@@ -50,19 +49,22 @@ pub async fn get_top_volume_tokens(chain: Chain, num_results: usize) -> Result<V
 }
 
 // based on the top volume tokens, load in all of the working pools
-pub async fn get_working_pools(pools: Vec<Pool>, num_results: usize, chain: Chain) -> Vec<Pool>{
+pub async fn get_working_pools(pools: Vec<Pool>, num_results: usize, chain: Chain) -> Vec<Pool> {
     // get all the top volume tokens
     let mut top_volume_tokens = get_top_volume_tokens(chain, num_results).await.unwrap();
     let blacklist = vec![
         address!("8ab4b525bfd7787fa3a9bd30598acf0b748c52a4"),
         address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"),
-        address!("dac17f958d2ee523a2206206994597c13d831ec7")
+        address!("dac17f958d2ee523a2206206994597c13d831ec7"),
     ];
     top_volume_tokens.retain(|token| !blacklist.contains(token));
 
-    pools.into_iter().filter(|pool| {
-        let token0 = pool.token0_address();
-        let token1 = pool.token1_address();
-        top_volume_tokens.contains(&token0) && top_volume_tokens.contains(&token1)
-    }).collect()
+    pools
+        .into_iter()
+        .filter(|pool| {
+            let token0 = pool.token0_address();
+            let token1 = pool.token1_address();
+            top_volume_tokens.contains(&token0) && top_volume_tokens.contains(&token1)
+        })
+        .collect()
 }

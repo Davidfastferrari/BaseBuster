@@ -1,16 +1,16 @@
 use alloy::providers::{Provider, RootProvider};
-use tokio::sync::broadcast::{Receiver, Sender};
-use alloy::transports::http::{Client, Http};
 use alloy::pubsub::PubSubFrontend;
 use alloy::rpc::types::Filter;
+use alloy::sol;
+use alloy::transports::http::{Client, Http};
 use alloy_sol_types::SolEvent;
 use futures::StreamExt;
-use std::sync::Arc;
-use alloy::sol;
 use log::info;
+use std::sync::Arc;
+use tokio::sync::broadcast::{Receiver, Sender};
 
-use crate::pool_manager::PoolManager;
 use crate::events::Event;
+use crate::pool_manager::PoolManager;
 
 // The sync event is emitted whenever a pool is synced
 sol!(
@@ -36,7 +36,7 @@ pub async fn stream_new_blocks(ws: Arc<RootProvider<PubSubFrontend>>, block_send
 // on each block update, get all the sync events and update pool reserves
 pub async fn stream_sync_events(
     http: Arc<RootProvider<Http<Client>>>, // the http provider to fetch logs from
-    pool_manager: Arc<PoolManager>,    // mapping of the pools we are seaching over
+    pool_manager: Arc<PoolManager>,        // mapping of the pools we are seaching over
     mut block_receiver: Receiver<Event>,   // block receiver
     reserve_update_sender: Sender<Event>,  // reserve update sender
 ) {

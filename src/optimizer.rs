@@ -1,16 +1,14 @@
+use crate::calculation::calculate_amount_out;
+use alloy::primitives::Address;
 use log::info;
 use num_bigint::BigUint;
-use alloy::primitives::Address;
 use num_traits::{FromPrimitive, One, ToPrimitive, Zero};
 use std::str::FromStr;
 use tokio::sync::broadcast::{Receiver, Sender};
-use crate::calculation::calculate_amount_out;
 
 use crate::events::*;
 
-use alloy::{
-    primitives::{U128, U256},
-};
+use alloy::primitives::{U128, U256};
 use pool_sync::Pool;
 
 pub async fn optimize_paths(opt_sender: Sender<Event>, mut arb_receiver: Receiver<Event>) {
@@ -19,11 +17,14 @@ pub async fn optimize_paths(opt_sender: Sender<Event>, mut arb_receiver: Receive
         let reserves = arb_path.reserves;
         let optimized = optimize_amount_in(path.clone(), reserves);
 
-
         //println!("Path {:#?}, Optimal input: {:#?}", path, optimized);
-        let optimized_path = OptPath { path, optimal_input: optimized.0 };
-        opt_sender.send(Event::OptimizedPath(optimized_path)).unwrap();
-
+        let optimized_path = OptPath {
+            path,
+            optimal_input: optimized.0,
+        };
+        opt_sender
+            .send(Event::OptimizedPath(optimized_path))
+            .unwrap();
     }
 }
 
