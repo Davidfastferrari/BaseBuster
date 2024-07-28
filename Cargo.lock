@@ -15,6 +15,7 @@ dependencies = [
  "dotenv",
  "env_logger",
  "futures",
+ "gweiyser",
  "hex-literal",
  "log",
  "num-bigint",
@@ -2154,6 +2155,21 @@ dependencies = [
  "libc",
  "pango-sys",
  "system-deps",
+]
+
+[[package]]
+name = "gweiyser"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b1d8830278328721ce7db4107e4d179ddeef5048cd8a87cf9a83729b9415a627"
+dependencies = [
+ "alloy",
+ "alloy-contract 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "alloy-sol-types",
+ "anyhow",
+ "futures",
+ "pool-sync",
+ "tokio",
 ]
 
 [[package]]

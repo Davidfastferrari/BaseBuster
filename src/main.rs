@@ -1,21 +1,16 @@
-use alloy::network::EthereumWallet;
+use alloy::providers::{Provider, ProviderBuilder, WsConnect};
 use alloy::node_bindings::Anvil;
 use alloy::primitives::address;
-use alloy::providers::{Provider, ProviderBuilder, WsConnect};
-use alloy::signers::local::PrivateKeySigner;
 use log::{info, LevelFilter};
 use pool_sync::*;
 use std::sync::Arc;
 
-use crate::deploy::*;
 use crate::graph::ArbGraph;
 use crate::ignition::start_workers;
 use crate::pool_manager::PoolManager;
-use crate::sim_testing::test_sim;
 use crate::util::get_working_pools;
 
 mod calculation;
-mod deploy;
 mod events;
 mod gas_manager;
 mod graph;
@@ -23,7 +18,6 @@ mod ignition;
 mod market;
 mod optimizer;
 mod pool_manager;
-mod sim_testing;
 mod simulation;
 mod stream;
 mod tx_sender;
@@ -36,11 +30,6 @@ async fn main() -> std::io::Result<()> {
     env_logger::Builder::new()
         .filter_level(LevelFilter::Info) // or Info, Warn, etc.
         .init();
-    let url = std::env::var("HTTP").unwrap();
-    let http_provider = Arc::new(ProviderBuilder::new().on_http(url.parse().unwrap()));
-
-    test_sim(http_provider).await.unwrap();
-    return  Ok(());
 
     // construct the providers
     info!("Constructing providers...");

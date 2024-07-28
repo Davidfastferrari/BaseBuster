@@ -30,3 +30,4 @@ num-traits = "0.2.19"
 revm = { version = "12.1.0", features = ["alloydb"] }
 portpicker = "0.1.1"
 bigint = "4.4.3"
+gweiyser = "0.1.0"

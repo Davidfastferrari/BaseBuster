@@ -50,6 +50,7 @@ impl ArbGraph {
         for pool in working_pools {
             let addr0 = pool.token0_address();
             let addr1 = pool.token1_address();
+            let pool_type = pool.type();
 
             let node0 = *address_to_node
                 .entry(addr0)
@@ -58,7 +59,7 @@ impl ArbGraph {
                 .entry(addr1)
                 .or_insert_with(|| graph.add_node(addr1));
 
-            let _ = graph.add_edge(node0, node1, pool.address());
+            let _ = graph.add_edge(node0, node1, pool_typek);
             nodes_to_address.insert((node0, node1), pool.address());
             nodes_to_address.insert((node1, node0), pool.address());
         }
@@ -66,20 +67,47 @@ impl ArbGraph {
     }
 
     // Build all of the cycles
-    pub fn construct_cycles(
-        graph: &UnGraph<Address, Address>,
-        token: Address,
-    ) -> Vec<Vec<NodeIndex>> {
-        // get the node index for the token
-        let source_index = graph
-            .node_indices()
-            .find(|index| graph[*index] == token)
-            .unwrap();
-        // construct all the cycles
-        let cycles: Vec<Vec<NodeIndex>> =
-            algo::all_simple_paths(&graph, source_index, source_index, 0, Some(3)).collect();
-        info!("Found {} cycles", cycles.len());
-        cycles
+    fn construct_cycles(
+        graph: &UnGraph<usize, Protocol>,
+        current_node: NodeIndex,
+        start_node: NodeIndex,
+        max_hops: usize,
+        current_path: &mut Vec<(NodeIndex, Protocol, NodeIndex)>,
+        visited: &mut HashSet<NodeIndex>,
+        all_paths: &mut Vec<Vec<(NodeIndex, Protocol, NodeIndex)>>,
+    ) {
+        if current_path.len() >= max_hops {
+            return;
+        }
+    
+        for edge in graph.edges(current_node) {
+            let next_node = edge.target();
+            let protocol = *edge.weight();
+            
+            if next_node == start_node {
+                if current_path.len() >= 2 || (current_path.len() == 1 && current_path[0].1 != protocol) {
+                    let mut new_path = current_path.clone();
+                    new_path.push((current_node, protocol, next_node));
+                    all_paths.push(new_path);
+                }
+            } else if !visited.contains(&next_node) {
+                current_path.push((current_node, protocol, next_node));
+                visited.insert(next_node);
+                
+                dfs(
+                    graph,
+                    next_node,
+                    start_node,
+                    max_hops,
+                    current_path,
+                    visited,
+                    all_paths,
+                );
+                
+                current_path.pop();
+                visited.remove(&next_node);
+            }
+        }
     }
 
     // Search for paths
@@ -140,3 +168,97 @@ impl ArbGraph {
         }
     }
 }
+
+/*
+use petgraph::{graph::{NodeIndex, UnGraph}, visit::EdgeRef};
+use std::collections::HashSet;
+use rand::Rng;
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+enum Protocol {
+    UniswapV2,
+    UniswapV3,
+    Curve,
+}
+
+fn find_all_arbitrage_paths(
+    graph: &UnGraph<usize, Protocol>,
+    start_node: NodeIndex,
+    max_hops: usize,
+) -> Vec<Vec<(NodeIndex, Protocol, NodeIndex)>> {
+    let mut all_paths = Vec::new();
+    let mut current_path = Vec::new();
+    let mut visited = HashSet::new();
+
+    dfs(
+        graph,
+        start_node,
+        start_node,
+        max_hops,
+        &mut current_path,
+        &mut visited,
+        &mut all_paths,
+    );
+
+    all_paths
+}
+
+fn dfs(
+    graph: &UnGraph<usize, Protocol>,
+    current_node: NodeIndex,
+    start_node: NodeIndex,
+    max_hops: usize,
+    current_path: &mut Vec<(NodeIndex, Protocol, NodeIndex)>,
+    visited: &mut HashSet<NodeIndex>,
+    all_paths: &mut Vec<Vec<(NodeIndex, Protocol, NodeIndex)>>,
+) {
+    if current_path.len() >= max_hops {
+        return;
+    }
+
+    for edge in graph.edges(current_node) {
+        let next_node = edge.target();
+        let protocol = *edge.weight();
+        
+        if next_node == start_node {
+            if current_path.len() >= 2 || (current_path.len() == 1 && current_path[0].1 != protocol) {
+                let mut new_path = current_path.clone();
+                new_path.push((current_node, protocol, next_node));
+                all_paths.push(new_path);
+            }
+        } else if !visited.contains(&next_node) {
+            current_path.push((current_node, protocol, next_node));
+            visited.insert(next_node);
+            
+            dfs(
+                graph,
+                next_node,
+                start_node,
+                max_hops,
+                current_path,
+                visited,
+                all_paths,
+            );
+            
+            current_path.pop();
+            visited.remove(&next_node);
+        }
+    }
+}
+
+fn print_paths(paths: &Vec<Vec<(NodeIndex, Protocol, NodeIndex)>>) {
+    println!("Total paths found: {}", paths.len());
+    for (i, path) in paths.iter().enumerate() {
+        print!("Path {}: ", i + 1);
+        for (j, (from, protocol, to)) in path.iter().enumerate() {
+            print!("({}, {:?}, {})", from.index(), protocol, to.index());
+            if j < path.len() - 1 {
+                print!(", ");
+            }
+        }
+        println!();
+    }
+}
+
+#
+ */
