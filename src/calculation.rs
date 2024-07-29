@@ -1,4 +1,5 @@
-use alloy::primitives::{U256, U128};
+use alloy::primitives::{U256, U128, Address};
+
 
 #[inline]
 pub fn calculate_amount_out(
@@ -28,6 +29,15 @@ pub fn calculate_amount_out(
     } else {
         numerator.checked_div(denominator)
     }
+}
+
+
+pub fn calcualte_v2_out(amount_in: U256, pool_address: Address, token_in: Address) -> U256 {
+    todo!()
+}
+
+pub fn calculate_v3_out(amount_in: U256, pool_address: Address, token_in: Address) -> U256 {
+    todo!()
 }
 
 

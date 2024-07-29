@@ -2,136 +2,269 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
-import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Callee.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
+import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Pair.sol";
 import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
-import "forge-std/console.sol";
+import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
+import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
+import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
+import "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3FlashCallback.sol";
 
-contract FlashSwapper is IUniswapV2Callee {
-    event Log(string message, uint val);
 
-    address public constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-    address public constant DAI = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
-    address public constant UNISWAP_V2_FACTORY = 0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f;
 
-    IERC20 private constant weth = IERC20(WETH);
-    IUniswapV2Factory private constant factory = IUniswapV2Factory(UNISWAP_V2_FACTORY);
-    IUniswapV2Pair public immutable pair;
+contract FlashSwap {
+    using SafeERC20 for IERC20;
 
-    error FlashSwapError(
-        address msgSender,
-        address caller,
-        address pair,
-        address tokenBorrow,
-        uint256 amount0,
-        uint256 amount1,
-        uint256 fee,
-        uint256 amountToRepay,
-        uint256 callerBalance,
-        uint256 callerAllowance
-    );
+    // the interfaces for the dexs
+    IUniswapV2Router02 public immutable uniswapV2Router;
+    IUniswapV2Router02 public immutable sushiswapRouter;
+    ISwapRouter public immutable uniswapV3Router;
+
+    IUniswapV2Factory public immutable uniswapV2Factory;
+    IUniswapV2Factory public immutable sushiswapFactory;
+    IUniswapV3Factory public immutable uniswapV3Factory;
+
+
+    address public immutable WETH;
+
+    enum DEX {
+        UniswapV2,
+        UniswapV3,
+        Sushiswap
+    }
+
+    struct SwapStep {
+        address tokenIn;
+        address tokenOut;
+        uint24 fee;
+        DEX dex;
+    }
+
+    struct FlashParams {
+        address token0;
+        address token1;
+        uint24 fee;
+        uint256 amount0;
+        uint256 amount1;
+        SwapStep[] path;
+    }
 
     constructor() {
-        pair = IUniswapV2Pair(factory.getPair(DAI, WETH));
-        console.log("Constructor: pair address", address(pair));
+        uniswapV2Router = IUniswapV2Router02(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
+        uniswapV3Router = ISwapRouter(0xE592427A0AEce92De3Edee1F18E0157C05861564);
+        sushiswapRouter = IUniswapV2Router02(0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F);
+        uniswapV2Factory = IUniswapV2Factory(0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f);
+        sushiswapFactory = IUniswapV2Factory(0xC0AEe478e3658e2610c5F7A4A2E1777cE9e4f2Ac);
+        uniswapV3Factory = IUniswapV3Factory(0x1F98431c8aD98523631AE4a59f267346ea31F984);
+        WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     }
 
-    function flashSwap(uint wethAmount) external {
-        console.log("flashSwap called by", msg.sender);
-        console.log("WETH amount requested", wethAmount);
-        
-        require(wethAmount > 0, "FlashSwap: amount must be greater than 0");
-        require(pair != IUniswapV2Pair(address(0)), "FlashSwap: pair not initialized");
-        
-        console.log("FlashSwap: pair address", address(pair));
-        console.log("FlashSwap: this contract address", address(this));
-        require(msg.sender != address(0), "FlashSwap: msg.sender is zero address");
-        
-        bytes memory data = abi.encode(WETH, msg.sender);
-        console.log("FlashSwap: encoded data length", data.length);
-        
-        console.log("FlashSwap: calling pair.swap");
-        pair.swap(0, wethAmount, address(this), data);
-        console.log("FlashSwap: pair.swap completed");
-    }
+    // Main function to execute the flash swap
+    function executeFlashSwap(
+        uint256 amount,
+        SwapStep[] calldata path
+    ) external {
+        require(path.length >= 2, "Path too short");
+        require(path[0].tokenIn == WETH && path[path.length - 1].tokenOut == WETH, "Path must start and end with WETH");
 
-    function uniswapV2Call(
-        address sender,
-        uint amount0,
-        uint amount1,
-        bytes calldata data
-    ) external override {
-        console.log("uniswapV2Call entered");
-        console.log("uniswapV2Call msg.sender", msg.sender);
-        console.log("uniswapV2Call sender", sender);
-        console.log("uniswapV2Call amount0", amount0);
-        console.log("uniswapV2Call amount1", amount1);
-        console.log("uniswapV2Call data length", data.length);
+        if (path[0].dex == DEX.UniswapV3) {
+            // For Uniswap V3, we use the flash function
+            IUniswapV3Pool pool = IUniswapV3Pool(
+                uniswapV3Factory.getPool(path[0].tokenIn, path[0].tokenOut, path[0].fee)
+            );
+            require(address(pool) != address(0), "V3 pool not found");
 
-        (address tokenBorrow, address caller) = abi.decode(data, (address, address));
-        console.log("uniswapV2Call tokenBorrow", tokenBorrow);
-        console.log("uniswapV2Call caller", caller);
+            pool.flash(
+                address(this),
+                amount,
+                0,
+                abi.encode(FlashParams({
+                    token0: path[0].tokenIn,
+                    token1: path[0].tokenOut,
+                    fee: path[0].fee,
+                    amount0: amount,
+                    amount1: 0,
+                    path: path
+                }))
+            );
+        } else {
+            // For Uniswap V2 or SushiSwap, we use the swap function
+            IUniswapV2Factory factory = (path[0].dex == DEX.UniswapV2) ? uniswapV2Factory : sushiswapFactory;
+            address pairAddress = factory.getPair(path[0].tokenIn, path[0].tokenOut);
+            require(pairAddress != address(0), "V2 pair not found");
+            IUniswapV2Pair pair = IUniswapV2Pair(pairAddress);
 
-        uint fee = ((amount1 * 3) / 997) + 1;
-        uint amountToRepay = amount1 + fee;
-        console.log("uniswapV2Call fee", fee);
-        console.log("uniswapV2Call amountToRepay", amountToRepay);
+            (uint256 amount0Out, uint256 amount1Out) = path[0].tokenIn < path[0].tokenOut
+                ? (uint256(0), amount)
+                : (amount, uint256(0));
 
-        uint callerBalance = IERC20(WETH).balanceOf(caller);
-        uint callerAllowance = IERC20(WETH).allowance(caller, address(this));
-        console.log("uniswapV2Call callerBalance", callerBalance);
-        console.log("uniswapV2Call callerAllowance", callerAllowance);
-
-        console.log("uniswapV2Call this contract's WETH balance", IERC20(WETH).balanceOf(address(this)));
-
-        console.log("uniswapV2Call checking conditions");
-        if (msg.sender != address(pair)) {
-            console.log("uniswapV2Call condition failed: msg.sender != address(pair)");
-        }
-        if (sender != address(this)) {
-            console.log("uniswapV2Call condition failed: sender != address(this)");
-        }
-        if (tokenBorrow != WETH) {
-            console.log("uniswapV2Call condition failed: tokenBorrow != WETH");
-        }
-        if (callerBalance < amountToRepay) {
-            console.log("uniswapV2Call condition failed: callerBalance < amountToRepay");
-        }
-        if (callerAllowance < amountToRepay) {
-            console.log("uniswapV2Call condition failed: callerAllowance < amountToRepay");
-        }
-
-        if (msg.sender != address(pair) ||
-            sender != address(this) ||
-            tokenBorrow != WETH ||
-            callerBalance < amountToRepay ||
-            callerAllowance < amountToRepay) {
-            console.log("uniswapV2Call reverting with FlashSwapError");
-            revert FlashSwapError(
-                msg.sender,
-                caller,
-                address(pair),
-                tokenBorrow,
-                amount0,
-                amount1,
-                fee,
-                amountToRepay,
-                callerBalance,
-                callerAllowance
+            pair.swap(
+                amount0Out,
+                amount1Out,
+                address(this),
+                abi.encode(FlashParams({
+                    token0: path[0].tokenIn,
+                    token1: path[0].tokenOut,
+                    fee: 0,
+                    amount0: amount0Out,
+                    amount1: amount1Out,
+                    path: path
+                }))
             );
         }
+    }
 
-        console.log("uniswapV2Call performing transferFrom");
-        require(IERC20(WETH).transferFrom(caller, address(this), amountToRepay), "FlashSwap: transferFrom failed");
+    // This function is called by the Uniswap V3 pool for flash loans
+    function uniswapV3FlashCallback(
+        uint256 fee0,
+        uint256 fee1,
+        bytes calldata data
+    ) external {
+        FlashParams memory params = abi.decode(data, (FlashParams));
+        require(msg.sender == uniswapV3Factory.getPool(params.token0, params.token1, params.fee), "Unauthorized");
+
+        executeArbitrage(params);
+
+        // Repay the flash loan
+        uint256 amount0Owed = params.amount0 + fee0;
+        uint256 amount1Owed = params.amount1 + fee1;
+        if (amount0Owed > 0) IERC20(params.token0).safeTransfer(msg.sender, amount0Owed);
+        if (amount1Owed > 0) IERC20(params.token1).safeTransfer(msg.sender, amount1Owed);
+    }
+
+    // This function is called by the Uniswap V2 pair contract
+    function uniswapV2Call(
+        address sender,
+        uint256 amount0,
+        uint256 amount1,
+        bytes calldata data
+    ) external {
+        FlashParams memory params = abi.decode(data, (FlashParams));
+        IUniswapV2Factory factory = (params.path[0].dex == DEX.UniswapV2) ? uniswapV2Factory : sushiswapFactory;
+        require(msg.sender == factory.getPair(params.token0, params.token1), "Unauthorized");
+        require(sender == address(this), "Unauthorized");
+
+        executeArbitrage(params);
+
+        // Repay the flash loan
+        uint256 amountOwed = ((amount0 > 0) ? amount0 : amount1) * 1000 / 997 + 1;
+        IERC20(params.path[0].tokenOut).safeTransfer(msg.sender, amountOwed);
+    }
+
+    // Helper function to execute the arbitrage
+    function executeArbitrage(FlashParams memory params) private {
+        uint256 currentAmount = (params.amount0 > 0) ? params.amount0 : params.amount1;
+
+        for (uint i = 1; i < params.path.length; i++) {
+            SwapStep memory step = params.path[i];
+            currentAmount = executeSwap(step, currentAmount);
+        }
+
+        // Ensure we have enough to repay the flash loan
+        require(currentAmount > params.amount0 + params.amount1, "Arbitrage not profitable");
+
+        // Transfer the profit to the contract
+        IERC20(WETH).safeTransfer(address(this), currentAmount - (params.amount0 + params.amount1));
+    }
+
+    // Helper function to execute a single swap step
+    function executeSwap(SwapStep memory step, uint256 amountIn) private returns (uint256) {
+        address router = getRouterForDEX(step.dex);
         
-        console.log("uniswapV2Call performing transfer to pair");
-        require(IERC20(WETH).transfer(address(pair), amountToRepay), "FlashSwap: transfer to pair failed");
+        // Approve the router to spend the input token
+        IERC20(step.tokenIn).approve(router, 0); // First, clear any existing allowance
+        IERC20(step.tokenIn).approve(router, amountIn);
 
-        console.log("uniswapV2Call completed successfully");
+        if (step.dex == DEX.UniswapV3) {
+            return swapOnUniswapV3(step, amountIn);
+        } else {
+            return swapOnUniswapV2(step, amountIn);
+        }
     }
 
-    function check_allowance(address owner) public view returns (uint256) {
-        return IERC20(WETH).allowance(owner, address(this));
+    // Helper function to swap on Uniswap V3
+    function swapOnUniswapV3(SwapStep memory step, uint256 amountIn) private returns (uint256) {
+        ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
+            tokenIn: step.tokenIn,
+            tokenOut: step.tokenOut,
+            fee: step.fee,
+            recipient: address(this),
+            deadline: block.timestamp,
+            amountIn: amountIn,
+            amountOutMinimum: 0,
+            sqrtPriceLimitX96: 0
+        });
+
+        return uniswapV3Router.exactInputSingle(params);
     }
+
+    // Helper function to swap on Uniswap V2 or SushiSwap
+    function swapOnUniswapV2(SwapStep memory step, uint256 amountIn) private returns (uint256) {
+        address[] memory path = new address[](2);
+        path[0] = step.tokenIn;
+        path[1] = step.tokenOut;
+
+        IUniswapV2Router02 router = (step.dex == DEX.UniswapV2) ? uniswapV2Router : sushiswapRouter;
+        uint256[] memory amounts = router.swapExactTokensForTokens(
+            amountIn,
+            0,
+            path,
+            address(this),
+            block.timestamp
+        );
+
+        return amounts[amounts.length - 1];
+    }
+
+    // Helper function to get the router for a given DEX
+    function getRouterForDEX(DEX dex) private view returns (address) {
+        if (dex == DEX.UniswapV2) {
+            return address(uniswapV2Router);
+        } else if (dex == DEX.Sushiswap) {
+            return address(sushiswapRouter);
+        } else {
+            return address(uniswapV3Router);
+        }
+    }
+
+    // Function to withdraw tokens from the contract
+    function withdrawToken(address token, uint256 amount) external {
+        IERC20(token).safeTransfer(msg.sender, amount);
+    }
+
+    // Function to withdraw ETH from the contract
+    function withdrawETH(uint256 amount) external {
+        payable(msg.sender).transfer(amount);
+    }
+
+    // Allow the contract to receive ETH
+    receive() external payable {} 
+
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

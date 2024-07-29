@@ -13,12 +13,13 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::sync::broadcast::{Receiver, Sender};
 
+use crate::calculation::{calcualte_v2_out, calculate_v3_out};
+
 // All information we need to look for arbitrage opportunities
 pub struct ArbGraph {
     graph: UnGraph<Address, Pool>,
     pool_manager: Arc<PoolManager>,
-    cycles: Vec<Vec<NodeIndex>>,
-    nodes_to_address: FxHashMap<(NodeIndex, NodeIndex), Address>,
+    cycles: Vec<Vec<SwapStep>>,
 }
 
 pub struct SwapStep {
@@ -28,19 +29,31 @@ pub struct SwapStep {
     protocol: PoolType,
 }
 
+
+impl SwapStep {
+    pub fn get_amount_out(&self, amount_in: U256) -> U256 {
+        match self.protocol {
+            PoolType::UniswapV2 => calcualte_v2_out(amount_in, self.pool_address, self.token_in),
+            PoolType::UniswapV3 => calculate_v3_out(amount_in, self.pool_address, self.token_in),
+            _=> todo!()
+        }
+    }
+}
+
 impl ArbGraph {
     // Constructor, takes the set of working tokens we are interested in searching over
     pub fn new(pool_manager: Arc<PoolManager>, working_pools: Vec<Pool>, token: Address) -> Self {
         // build the graph
         let graph = ArbGraph::build_graph(working_pools);
-        // construct the cycles
-        let cycles = ArbGraph::find_all_arbitrage_paths(&graph, 0.into(), 3);
+
+        // get start node and construct cycles
+        let start_node = graph.node_indices().find(|node| graph[*node] == token).unwrap();
+        let cycles = ArbGraph::find_all_arbitrage_paths(&graph, start_node, 3);
 
         Self {
             graph,
             pool_manager,
             cycles,
-            nodes_to_address,
         }
     }
 
@@ -174,29 +187,15 @@ impl ArbGraph {
                 .cycles
                 .par_iter() // parallel iterator
                 .filter_map(|cycle| {
-                    // the current amount is how much of a token we currently have along the swap path
-                    let mut current_amount = U256::from(1e17);
-                    let mut path_reserves = Vec::new();
-
-                    // process in steps of 2, represent a pool swap
-                    for window in cycle.windows(2) {
-                        // extract relevant info
-                        let (token0, token1) = (window[0], window[1]); // the two tokens in the swap
-                        let address = self.nodes_to_address.get(&(token0, token1)).unwrap(); // the pool that the tokens are in
-                        let (reserve0, reserve1) = self.pool_manager.get_reserves(address);
-                        path_reserves.push((reserve0, reserve1));
-
-                        // offchain swap simulation
-                        let zero_to_one = self.graph[token0] < self.graph[token1];
-                        current_amount =
-                            calculate_amount_out(reserve0, reserve1, current_amount, zero_to_one)?
+                    let current_amount = U256::from(1e17);
+                    // each element in the cycle represents a swap
+                    for swap in cycle {
+                        // I want to swap on each step and get the amount out
+                        current_amount = swap.get_amount_out(current_amount);
                     }
 
-                    // if we have made a profit, return the cycle
                     if current_amount > U256::from(1e17 as u64) {
-                        let address_path: Vec<Address> =
-                            cycle.iter().map(|node| self.graph[*node]).collect();
-                        Some((address_path, path_reserves))
+                        Some(cycle)
                     } else {
                         None
                     }
