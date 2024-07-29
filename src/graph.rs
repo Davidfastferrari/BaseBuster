@@ -6,27 +6,35 @@ use log::info;
 use petgraph::algo;
 use petgraph::graph::UnGraph;
 use petgraph::prelude::*;
-use pool_sync::{Pool, PoolInfo};
+use pool_sync::{Pool, PoolInfo, PoolType};
 use rayon::prelude::*;
 use rustc_hash::FxHashMap;
+use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::sync::broadcast::{Receiver, Sender};
 
 // All information we need to look for arbitrage opportunities
 pub struct ArbGraph {
-    graph: UnGraph<Address, Address>,
+    graph: UnGraph<Address, Pool>,
     pool_manager: Arc<PoolManager>,
     cycles: Vec<Vec<NodeIndex>>,
     nodes_to_address: FxHashMap<(NodeIndex, NodeIndex), Address>,
+}
+
+pub struct SwapStep {
+    pool_address: Address,
+    token_in: Address,
+    token_out: Address,
+    protocol: PoolType,
 }
 
 impl ArbGraph {
     // Constructor, takes the set of working tokens we are interested in searching over
     pub fn new(pool_manager: Arc<PoolManager>, working_pools: Vec<Pool>, token: Address) -> Self {
         // build the graph
-        let (graph, nodes_to_address) = ArbGraph::build_graph(working_pools);
+        let graph = ArbGraph::build_graph(working_pools);
         // construct the cycles
-        let cycles = ArbGraph::construct_cycles(&graph, token);
+        let cycles = ArbGraph::find_all_arbitrage_paths(&graph, 0.into(), 3);
 
         Self {
             graph,
@@ -37,64 +45,104 @@ impl ArbGraph {
     }
 
     // Build the graph from the working set of pools
-    pub fn build_graph(
-        working_pools: Vec<Pool>,
-    ) -> (
-        UnGraph<Address, Address>,
-        FxHashMap<(NodeIndex, NodeIndex), Address>,
-    ) {
-        let mut address_to_node = FxHashMap::default();
-        let mut nodes_to_address = FxHashMap::default();
-        let mut graph: UnGraph<Address, Address> = UnGraph::new_undirected();
+    pub fn build_graph(working_pools: Vec<Pool>) -> UnGraph<Address, Pool> {
+        let mut graph: UnGraph<Address, Pool> = UnGraph::new_undirected();
+        let mut inserted_nodes: HashSet<Address> = HashSet::new();
 
         for pool in working_pools {
-            let addr0 = pool.token0_address();
-            let addr1 = pool.token1_address();
-            let pool_type = pool.type();
+            // add the nodes ot the graph if they have not already been added
+            if !inserted_nodes.contains(&pool.token0_address()) {
+                graph.add_node(pool.token0_address());
+                inserted_nodes.insert(pool.token0_address());
+            }
+            if !inserted_nodes.contains(&pool.token1_address()) {
+                graph.add_node(pool.token1_address());
+                inserted_nodes.insert(pool.token1_address());
+            }
 
-            let node0 = *address_to_node
-                .entry(addr0)
-                .or_insert_with(|| graph.add_node(addr0));
-            let node1 = *address_to_node
-                .entry(addr1)
-                .or_insert_with(|| graph.add_node(addr1));
+            // get the indicies
+            let node1 = graph
+                .node_indices()
+                .find(|node| graph[*node] == pool.token0_address())
+                .unwrap();
+            let node2 = graph
+                .node_indices()
+                .find(|node| graph[*node] == pool.token1_address())
+                .unwrap();
 
-            let _ = graph.add_edge(node0, node1, pool_typek);
-            nodes_to_address.insert((node0, node1), pool.address());
-            nodes_to_address.insert((node1, node0), pool.address());
+            // add the edge
+            graph.add_edge(node1, node2, pool.clone());
         }
-        (graph, nodes_to_address)
+        graph
+    }
+
+    fn find_all_arbitrage_paths(
+        graph: &UnGraph<Address, Pool>,
+        start_node: NodeIndex,
+        max_hops: usize,
+    ) -> Vec<Vec<SwapStep>> {
+        //let mut all_paths = Vec::new();
+        let mut all_paths: Vec<Vec<SwapStep>> = Vec::new();
+        let mut current_path = Vec::new();
+        let mut visited = HashSet::new();
+
+        Self::construct_cycles(
+            graph,
+            start_node,
+            start_node,
+            max_hops,
+            &mut current_path,
+            &mut visited,
+            &mut all_paths,
+        );
+
+        all_paths
     }
 
     // Build all of the cycles
     fn construct_cycles(
-        graph: &UnGraph<usize, Protocol>,
+        graph: &UnGraph<Address, Pool>,
         current_node: NodeIndex,
         start_node: NodeIndex,
         max_hops: usize,
-        current_path: &mut Vec<(NodeIndex, Protocol, NodeIndex)>,
+        current_path: &mut Vec<(NodeIndex, Pool, NodeIndex)>,
         visited: &mut HashSet<NodeIndex>,
-        all_paths: &mut Vec<Vec<(NodeIndex, Protocol, NodeIndex)>>,
+        all_paths: &mut Vec<Vec<SwapStep>>, // all_paths: &mut Vec<Vec<(Address, Protocol)>
     ) {
         if current_path.len() >= max_hops {
             return;
         }
-    
+
         for edge in graph.edges(current_node) {
             let next_node = edge.target();
-            let protocol = *edge.weight();
-            
+            let protocol = edge.weight().clone();
+
             if next_node == start_node {
-                if current_path.len() >= 2 || (current_path.len() == 1 && current_path[0].1 != protocol) {
+                if current_path.len() >= 2
+                    || (current_path.len() == 1
+                        && current_path[0].1.pool_type() != protocol.pool_type())
+                {
                     let mut new_path = current_path.clone();
                     new_path.push((current_node, protocol, next_node));
-                    all_paths.push(new_path);
+
+                    let mut swap_path = Vec::new();
+                    for (base, pool, quote) in new_path.iter() {
+                        let swap = SwapStep {
+                            pool_address: pool.address().clone(),
+                            token_in: graph[*base].clone(),
+                            token_out: graph[*quote].clone(),
+                            protocol: pool.pool_type().clone(),
+                        };
+                        swap_path.push(swap);
+                    }
+
+                    all_paths.push(swap_path);
                 }
             } else if !visited.contains(&next_node) {
                 current_path.push((current_node, protocol, next_node));
                 visited.insert(next_node);
-                
-                dfs(
+
+                Self::construct_cycles(
                     graph,
                     next_node,
                     start_node,
@@ -103,7 +151,7 @@ impl ArbGraph {
                     visited,
                     all_paths,
                 );
-                
+
                 current_path.pop();
                 visited.remove(&next_node);
             }
@@ -219,7 +267,7 @@ fn dfs(
     for edge in graph.edges(current_node) {
         let next_node = edge.target();
         let protocol = *edge.weight();
-        
+
         if next_node == start_node {
             if current_path.len() >= 2 || (current_path.len() == 1 && current_path[0].1 != protocol) {
                 let mut new_path = current_path.clone();
@@ -229,7 +277,7 @@ fn dfs(
         } else if !visited.contains(&next_node) {
             current_path.push((current_node, protocol, next_node));
             visited.insert(next_node);
-            
+
             dfs(
                 graph,
                 next_node,
@@ -239,7 +287,7 @@ fn dfs(
                 visited,
                 all_paths,
             );
-            
+
             current_path.pop();
             visited.remove(&next_node);
         }

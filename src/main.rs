@@ -46,6 +46,8 @@ async fn main() -> std::io::Result<()> {
     info!("Anvil endpoint: {}", anvil.endpoint_url());
     // Wallet signers
     let anvil_provider = Arc::new(ProviderBuilder::new().on_http(anvil.endpoint_url()));
+    let block = anvil_provider.get_block_number().await.unwrap();
+    print!("Block number: {:?}", block);
     // Websocket provider
     let ws_url = WsConnect::new(std::env::var("WS").unwrap());
     let ws_provider = Arc::new(ProviderBuilder::new().on_ws(ws_url).await.unwrap());
