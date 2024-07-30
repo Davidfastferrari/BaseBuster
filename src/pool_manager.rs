@@ -141,5 +141,9 @@ impl PoolManager {
     pub fn get_v3(&self, address: &Address) -> (U256, i32, U128) {
         self.v3_reserves.read().unwrap().get(address).unwrap().clone()
     }
+
+    pub fn exists(&self, address: &Address) -> bool {
+        self.addresses.contains(address)
+    }
 }
 

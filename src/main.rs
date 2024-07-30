@@ -83,8 +83,6 @@ async fn main() -> std::io::Result<()> {
     let contract = BatchSync::deploy(anvil_signer.clone()).await.unwrap();
     let contract_address = contract.address();
 
-
-
     // Wallet signers
     let anvil_provider = Arc::new(ProviderBuilder::new().on_http(anvil.endpoint_url()));
     let block = anvil_provider.get_block_number().await.unwrap();
@@ -108,16 +106,14 @@ async fn main() -> std::io::Result<()> {
     let weth = address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
     let graph = ArbGraph::new(/*pool_manager.clone(),*/ working_pools.clone(), weth);
 
-    /* 
 
 
     info!("Starting workers...");
-    start_workers(anvil_provider, ws_provider, pool_manager, graph).await;
+    start_workers(http_provider, anvil_provider, ws_provider, pool_manager, graph).await;
 
     loop {
         tokio::time::sleep(std::time::Duration::from_secs(60)).await;
     }
-    */
 
     Ok(())
 }

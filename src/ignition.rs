@@ -16,6 +16,7 @@ use crate::simulation::simulate_path;
 /// Start all of the workers
 pub async fn start_workers(
     http: Arc<RootProvider<Http<Client>>>,
+    anvil: Arc<RootProvider<Http<Client>>>,
     ws: Arc<RootProvider<PubSubFrontend>>,
     pool_manager: Arc<PoolManager>,
     graph: ArbGraph,
@@ -35,7 +36,6 @@ pub async fn start_workers(
     tokio::spawn(stream_new_blocks(ws.clone(), block_sender));
 
     // On each new block, parse sync events and update reserves
-    /* 
     info!("Starting sync event stream...");
     tokio::spawn(stream_sync_events(
         http.clone(),
@@ -43,7 +43,6 @@ pub async fn start_workers(
         block_receiver.resubscribe(),
         reserve_update_sender,
     ));
-    */
 
     // Update the gas on each block
     info!("Starting gas manager...");
@@ -69,10 +68,12 @@ pub async fn start_workers(
     //));
 
     // finally.... start the searcher!!!!!
+    /* 
     info!("Starting arbitrage searcher...");
     tokio::spawn(async move {
         graph
             .search_paths(arb_sender, reserve_update_receiver)
             .await;
     });
+*/
 }
