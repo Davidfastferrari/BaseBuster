@@ -21,7 +21,6 @@ pub struct ArbGraph {
     cycles: Vec<Vec<SwapStep>>,
 }
 
-
 #[derive(Debug)]
 pub struct SwapStep {
     pool_address: Address,
@@ -29,7 +28,6 @@ pub struct SwapStep {
     token_out: Address,
     protocol: PoolType,
 }
-
 
 impl SwapStep {
     pub fn get_amount_out(&self, amount_in: U256, pool_manager: &PoolManager) -> U256 {
@@ -43,8 +41,8 @@ impl SwapStep {
                 let (sqrt_price_x96, tick, liquidity) = pool_manager.get_v3(&self.pool_address);
                 let zero_to_one = pool_manager.zero_to_one(self.token_in, &self.pool_address);
                 calculate_v3_out(amount_in, sqrt_price_x96, tick, liquidity, zero_to_one).unwrap()
-            },
-            _=> todo!()
+            }
+            _ => todo!(),
         }
     }
 }
@@ -56,7 +54,10 @@ impl ArbGraph {
         let graph = ArbGraph::build_graph(working_pools);
 
         // get start node and construct cycles
-        let start_node = graph.node_indices().find(|node| graph[*node] == token).unwrap();
+        let start_node = graph
+            .node_indices()
+            .find(|node| graph[*node] == token)
+            .unwrap();
         let cycles = ArbGraph::find_all_arbitrage_paths(&graph, start_node, 4);
         println!("Found {}  paths", cycles.len());
         //println!("Cycles  {:#?}", cycles);
@@ -217,7 +218,7 @@ impl ArbGraph {
 
             // send off to the optimizer
             for path in profitable_paths {
-                /* 
+                /*
                 let arb_path = ArbPath {
                     path: path.0,
                     reserves: path.1,
@@ -228,4 +229,3 @@ impl ArbGraph {
         }
     }
 }
-

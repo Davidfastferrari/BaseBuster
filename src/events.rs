@@ -19,9 +19,9 @@ pub struct OptPath {
     pub optimal_input: U256,
 }
 
-
 #[derive(Debug, Clone)]
 pub struct ArbPath {
     pub path: Vec<Address>,
     pub reserves: Vec<(U128, U128)>,
 }
+

@@ -1,7 +1,7 @@
 use alloy::network::EthereumWallet;
-use alloy::providers::{Provider, ProviderBuilder, WsConnect};
 use alloy::node_bindings::Anvil;
 use alloy::primitives::address;
+use alloy::providers::{Provider, ProviderBuilder, WsConnect};
 use alloy::signers::local::PrivateKeySigner;
 use alloy::sol;
 use log::{info, LevelFilter};
@@ -52,7 +52,13 @@ async fn main() -> std::io::Result<()> {
     // Load in all the pools
     info!("Loading and syncing pools...");
     let pool_sync = PoolSync::builder()
-        .add_pools(&[PoolType::UniswapV2, PoolType::UniswapV3, PoolType::SushiSwapV2, PoolType::SushiSwapV3, PoolType::PancakeSwapV2])
+        .add_pools(&[
+            PoolType::UniswapV2,
+            PoolType::UniswapV3,
+            PoolType::SushiSwapV2,
+            PoolType::SushiSwapV3,
+            PoolType::PancakeSwapV2,
+        ])
         .chain(Chain::Ethereum)
         .rate_limit(100)
         .build()
@@ -76,9 +82,9 @@ async fn main() -> std::io::Result<()> {
         ProviderBuilder::new()
             .with_recommended_fillers()
             .wallet(wallet)
-            .on_http(anvil.endpoint_url()));
-    let anvil_provider = Arc::new(ProviderBuilder::new().on_http(anvil.endpoint_url()));
-    
+            .on_http(anvil.endpoint_url()),
+    );
+
     // deploy the batch contract
     let contract = BatchSync::deploy(anvil_signer.clone()).await.unwrap();
     let contract_address = contract.address();
@@ -98,18 +104,29 @@ async fn main() -> std::io::Result<()> {
 
     // Maintains reserves updates and pool state
     info!("Constructing the pool manager and getting initial reserves...");
-    let pool_manager =
-        Arc::new(PoolManager::new(working_pools.clone(), anvil_provider.clone(), contract_address.clone()).await);
+    let pool_manager = Arc::new(
+        PoolManager::new(
+            working_pools.clone(),
+            anvil_provider.clone(),
+            contract_address.clone(),
+        )
+        .await,
+    );
 
     // build the graph and populate mappings
     info!("Constructing graph and generating cycles...");
     let weth = address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
     let graph = ArbGraph::new(pool_manager.clone(), working_pools.clone(), weth);
 
-
-
     info!("Starting workers...");
-    start_workers(http_provider, anvil_provider, ws_provider, pool_manager, graph).await;
+    start_workers(
+        http_provider,
+        anvil_provider,
+        ws_provider,
+        pool_manager,
+        graph,
+    )
+    .await;
 
     loop {
         tokio::time::sleep(std::time::Duration::from_secs(60)).await;
