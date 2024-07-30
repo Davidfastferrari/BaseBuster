@@ -10,8 +10,8 @@ use crate::gas_manager::GasPriceManager;
 use crate::graph::ArbGraph;
 use crate::optimizer::optimize_paths;
 use crate::pool_manager::PoolManager;
-use crate::stream::*;
 use crate::simulation::simulate_path;
+use crate::stream::*;
 
 /// Start all of the workers
 pub async fn start_workers(

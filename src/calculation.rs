@@ -1,12 +1,15 @@
 use alloy::primitives::{Address, I128, I16, I256, I32, U128, U16, U256};
+use anyhow::Result;
 use std::cmp::Ordering;
 use uniswap_v3_math::tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK};
-use anyhow::Result;
 pub const U256_1: U256 = U256::from_limbs([1, 0, 0, 0]);
 
-
-
-pub fn calculate_v2_out(amount_in: U256, reserve0: U128, reserve1: U128, zero_to_one: bool) -> U256 {
+pub fn calculate_v2_out(
+    amount_in: U256,
+    reserve0: U128,
+    reserve1: U128,
+    zero_to_one: bool,
+) -> U256 {
     if reserve0.is_zero() || reserve1.is_zero() {
         return U256::ZERO;
     }
@@ -18,10 +21,14 @@ pub fn calculate_v2_out(amount_in: U256, reserve0: U128, reserve1: U128, zero_to
     };
 
     let amount_in_with_fee = amount_in.checked_mul(U256::from(997)).unwrap();
-    let numerator = amount_in_with_fee.checked_mul(U256::from(reserve1)).unwrap();
+    let numerator = amount_in_with_fee
+        .checked_mul(U256::from(reserve1))
+        .unwrap();
     let denominator = U256::from(reserve0)
-        .checked_mul(U256::from(1000)).unwrap()
-        .checked_add(amount_in_with_fee).unwrap();
+        .checked_mul(U256::from(1000))
+        .unwrap()
+        .checked_add(amount_in_with_fee)
+        .unwrap();
 
     if denominator.is_zero() {
         return U256::ZERO;
@@ -49,15 +56,14 @@ pub struct StepComputations {
     pub fee_amount: U256,
 }
 
-
 pub fn calculate_v3_out(
-    amount_in: U256, 
-    sqrt_price:U256, 
+    amount_in: U256,
+    sqrt_price: U256,
     tick: i32,
-    liquidity: u128,    
-    zero_to_one: bool
+    liquidity: u128,
+    zero_to_one: bool,
 ) -> Result<U256> {
-    /* 
+    /*
     if amount_in.is_zero() {
         return Ok(U256::ZERO);
     }
@@ -68,7 +74,7 @@ pub fn calculate_v3_out(
     } else {
         MAX_SQRT_RATIO - U256_1
     };
-    
+
     // Initialize a mutable state state struct to hold the dynamic simulated state of the pool
     let mut current_state = CurrentState {
         sqrt_price_x_96: sqrt_price, //Active price on the pool
@@ -183,9 +189,5 @@ pub fn calculate_v3_out(
         let amount_out = (-current_state.amount_calculated).into_raw();
         */
 
-
-
     Ok(amount_in)
 }
-
-
