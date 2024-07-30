@@ -18,6 +18,12 @@ weth 3 hop arb cycles
 
 // stream in new block
 
+// simulating price
+  sqrtPriceLimitX96=(
+                  TickMath.MIN_SQRT_RATIO + 1
+                  if zeroForOne
+                  else TickMath.MAX_SQRT_RATIO - 1
+),
 
 
 0xca7c2771d248dcbe09eabe0ce57a62e18da178c0 (3301575257374022376880, 57425551100269474282) 1753474795668657 ->

@@ -18,10 +18,12 @@ use crate::calculation::{calcualte_v2_out, calculate_v3_out};
 // All information we need to look for arbitrage opportunities
 pub struct ArbGraph {
     graph: UnGraph<Address, Pool>,
-    pool_manager: Arc<PoolManager>,
+    //pool_manager: Arc<PoolManager>,
     cycles: Vec<Vec<SwapStep>>,
 }
 
+
+#[derive(Debug)]
 pub struct SwapStep {
     pool_address: Address,
     token_in: Address,
@@ -42,17 +44,19 @@ impl SwapStep {
 
 impl ArbGraph {
     // Constructor, takes the set of working tokens we are interested in searching over
-    pub fn new(pool_manager: Arc<PoolManager>, working_pools: Vec<Pool>, token: Address) -> Self {
+    pub fn new(/*pool_manager: Arc<PoolManager>, */working_pools: Vec<Pool>, token: Address) -> Self {
         // build the graph
         let graph = ArbGraph::build_graph(working_pools);
 
         // get start node and construct cycles
         let start_node = graph.node_indices().find(|node| graph[*node] == token).unwrap();
-        let cycles = ArbGraph::find_all_arbitrage_paths(&graph, start_node, 3);
+        let cycles = ArbGraph::find_all_arbitrage_paths(&graph, start_node, 4);
+        println!("Found {}  paths", cycles.len());
+        //println!("Cycles  {:#?}", cycles);
 
         Self {
             graph,
-            pool_manager,
+            //pool_manager,
             cycles,
         }
     }
@@ -187,7 +191,7 @@ impl ArbGraph {
                 .cycles
                 .par_iter() // parallel iterator
                 .filter_map(|cycle| {
-                    let current_amount = U256::from(1e17);
+                    let mut current_amount = U256::from(1e17);
                     // each element in the cycle represents a swap
                     for swap in cycle {
                         // I want to swap on each step and get the amount out
@@ -206,106 +210,15 @@ impl ArbGraph {
 
             // send off to the optimizer
             for path in profitable_paths {
+                /* 
                 let arb_path = ArbPath {
                     path: path.0,
                     reserves: path.1,
                 };
                 arb_sender.send(Event::NewPath(arb_path)).unwrap();
+                */
             }
         }
     }
 }
 
-/*
-use petgraph::{graph::{NodeIndex, UnGraph}, visit::EdgeRef};
-use std::collections::HashSet;
-use rand::Rng;
-
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-enum Protocol {
-    UniswapV2,
-    UniswapV3,
-    Curve,
-}
-
-fn find_all_arbitrage_paths(
-    graph: &UnGraph<usize, Protocol>,
-    start_node: NodeIndex,
-    max_hops: usize,
-) -> Vec<Vec<(NodeIndex, Protocol, NodeIndex)>> {
-    let mut all_paths = Vec::new();
-    let mut current_path = Vec::new();
-    let mut visited = HashSet::new();
-
-    dfs(
-        graph,
-        start_node,
-        start_node,
-        max_hops,
-        &mut current_path,
-        &mut visited,
-        &mut all_paths,
-    );
-
-    all_paths
-}
-
-fn dfs(
-    graph: &UnGraph<usize, Protocol>,
-    current_node: NodeIndex,
-    start_node: NodeIndex,
-    max_hops: usize,
-    current_path: &mut Vec<(NodeIndex, Protocol, NodeIndex)>,
-    visited: &mut HashSet<NodeIndex>,
-    all_paths: &mut Vec<Vec<(NodeIndex, Protocol, NodeIndex)>>,
-) {
-    if current_path.len() >= max_hops {
-        return;
-    }
-
-    for edge in graph.edges(current_node) {
-        let next_node = edge.target();
-        let protocol = *edge.weight();
-
-        if next_node == start_node {
-            if current_path.len() >= 2 || (current_path.len() == 1 && current_path[0].1 != protocol) {
-                let mut new_path = current_path.clone();
-                new_path.push((current_node, protocol, next_node));
-                all_paths.push(new_path);
-            }
-        } else if !visited.contains(&next_node) {
-            current_path.push((current_node, protocol, next_node));
-            visited.insert(next_node);
-
-            dfs(
-                graph,
-                next_node,
-                start_node,
-                max_hops,
-                current_path,
-                visited,
-                all_paths,
-            );
-
-            current_path.pop();
-            visited.remove(&next_node);
-        }
-    }
-}
-
-fn print_paths(paths: &Vec<Vec<(NodeIndex, Protocol, NodeIndex)>>) {
-    println!("Total paths found: {}", paths.len());
-    for (i, path) in paths.iter().enumerate() {
-        print!("Path {}: ", i + 1);
-        for (j, (from, protocol, to)) in path.iter().enumerate() {
-            print!("({}, {:?}, {})", from.index(), protocol, to.index());
-            if j < path.len() - 1 {
-                print!(", ");
-            }
-        }
-        println!();
-    }
-}
-
-#
- */

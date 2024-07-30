@@ -20,6 +20,40 @@ sol!(
     }
 );
 
+sol! {
+    #[derive(Debug)]
+    contract UniswapV3Events {
+        event Swap(
+            address indexed sender,
+            address indexed recipient,
+            int256 amount0,
+            int256 amount1,
+            uint160 sqrtPriceX96,
+            uint128 liquidity,
+            int24 tick
+        );
+
+        event Mint(
+            address sender,
+            address indexed owner,
+            int24 indexed tickLower,
+            int24 indexed tickUpper,
+            uint128 amount,
+            uint256 amount0,
+            uint256 amount1
+        );
+
+        event Burn(
+            address indexed owner,
+            int24 indexed tickLower,
+            int24 indexed tickUpper,
+            uint128 amount,
+            uint256 amount0,
+            uint256 amount1
+        );
+    }
+}
+
 // stream in new blocks
 pub async fn stream_new_blocks(ws: Arc<RootProvider<PubSubFrontend>>, block_sender: Sender<Event>) {
     let sub = ws.subscribe_blocks().await.unwrap();
@@ -32,6 +66,7 @@ pub async fn stream_new_blocks(ws: Arc<RootProvider<PubSubFrontend>>, block_send
         }
     }
 }
+/* 
 
 // on each block update, get all the sync events and update pool reserves
 pub async fn stream_sync_events(
@@ -71,3 +106,46 @@ pub async fn stream_sync_events(
         }
     }
 }
+*/
+
+
+/* 
+pub async fn stream_swap_mint_burn_events(
+    ws: Arc<RootProvider<PubSubFrontend>>,
+
+    pool_manager: Arc<PoolManager>,
+    mut block_receiver: Receiver<Event>,
+    swap_mint_burn_sender: Sender<Event>,
+) {
+    while let Ok(Event::NewBlock(block)) = block_receiver.recv().await {
+        let filter = Filter::new()
+            .events([UniswapV3Events::Swap::SIGNATURE, UniswapV3Events::Mint::SIGNATURE, UniswapV3Events::Burn::SIGNATURE])
+            .from_block(block.header.number.unwrap());
+
+        let logs = http.get_logs(&filter).await.unwrap();
+
+    }
+}
+*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
