@@ -1,338 +1,191 @@
-use alloy::primitives::{U256, U128, Address};
+use alloy::primitives::{Address, I128, I16, I256, I32, U128, U16, U256};
+use std::cmp::Ordering;
+use uniswap_v3_math::tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK};
+use anyhow::Result;
+pub const U256_1: U256 = U256::from_limbs([1, 0, 0, 0]);
 
 
-#[inline]
-pub fn calculate_amount_out(
-    reserves_in: U128,
-    reserves_out: U128,
-    amount_in: U256,
-    zero_for_one: bool,
-) -> Option<U256> {
-    if reserves_in.is_zero() || reserves_out.is_zero() {
-        return None;
+
+pub fn calculate_v2_out(amount_in: U256, reserve0: U128, reserve1: U128, zero_to_one: bool) -> U256 {
+    if reserve0.is_zero() || reserve1.is_zero() {
+        return U256::ZERO;
     }
 
-    let (reserves_in, reserves_out) = if zero_for_one {
-        (reserves_in, reserves_out)
+    let (reserve0, reserve1) = if zero_to_one {
+        (reserve0, reserve1)
     } else {
-        (reserves_out, reserves_in)
+        (reserve1, reserve0)
     };
 
-    let amount_in_with_fee = amount_in.checked_mul(U256::from(997))?;
-    let numerator = amount_in_with_fee.checked_mul(U256::from(reserves_out))?;
-    let denominator = U256::from(reserves_in)
-        .checked_mul(U256::from(1000))?
-        .checked_add(amount_in_with_fee)?;
+    let amount_in_with_fee = amount_in.checked_mul(U256::from(997)).unwrap();
+    let numerator = amount_in_with_fee.checked_mul(U256::from(reserve1)).unwrap();
+    let denominator = U256::from(reserve0)
+        .checked_mul(U256::from(1000)).unwrap()
+        .checked_add(amount_in_with_fee).unwrap();
 
     if denominator.is_zero() {
-        None
+        return U256::ZERO;
     } else {
-        numerator.checked_div(denominator)
+        return numerator.checked_div(denominator).unwrap();
     }
 }
 
-
-pub fn calcualte_v2_out(amount_in: U256, pool_address: Address, token_in: Address) -> U256 {
-    todo!()
+pub struct CurrentState {
+    amount_specified_remaining: I256,
+    amount_calculated: I256,
+    sqrt_price_x_96: U256,
+    tick: i32,
+    liquidity: u128,
 }
 
-pub fn calculate_v3_out(amount_in: U256, pool_address: Address, token_in: Address) -> U256 {
-    todo!()
-}
-
-
-/* 
-
-use alloy::primitives::{U256, U128};
-use num_bigint::BigInt;
-use num_traits::ToPrimitive;
-
-/// Calculates the optimal input amount for a given pair of reserves
-/// 
-/// This function uses the formula derived from the constant product formula:
-/// optimal_x = sqrt((r0 * r1 * 1000) / 997) - r0
-/// where r0 is the input reserve and r1 is the output reserve
-/// 
-/// Parameters:
-/// - reserves_in: The reserves of the input token
-/// - reserves_out: The reserves of the output token
-/// 
-/// Returns:
-/// - The optimal input amount as a U256
-fn calculate_optimal_input(reserves_in: U128, reserves_out: U128) -> U256 {
-    let r0 = BigInt::from(reserves_in.as_u128());
-    let r1 = BigInt::from(reserves_out.as_u128());
-    
-    let numerator = r0.clone() * r1 * 1000;
-    let denominator = BigInt::from(997);
-    
-    let sqrt_result = numerator.div(denominator).sqrt();
-    
-    let optimal_x = sqrt_result - r0;
-    
-    U256::from(optimal_x.to_u128().unwrap_or(u128::MAX))
+#[derive(Default)]
+pub struct StepComputations {
+    pub sqrt_price_start_x_96: U256,
+    pub tick_next: i32,
+    pub initialized: bool,
+    pub sqrt_price_next_x96: U256,
+    pub amount_in: U256,
+    pub amount_out: U256,
+    pub fee_amount: U256,
 }
 
 
+pub fn calculate_v3_out(
+    amount_in: U256, 
+    sqrt_price:U256, 
+    tick: i32,
+    liquidity: u128,    
+    zero_to_one: bool
+) -> Result<U256> {
+    /* 
+    if amount_in.is_zero() {
+        return Ok(U256::ZERO);
+    }
 
-/// Mirror router 'getAmountOut' calculation
-pub fn get_amount_out(fee: u16, amount_in: u128, reserve_in: u128, reserve_out: u128) -> u128 {
-    let amount_in_with_fee = U256::from(amount_in * (FEE_DENOMINATOR - fee as u128));
-    // y0 = (y.x0)  / (x + x0)
-    let amount_out = (U256::from(reserve_out) * amount_in_with_fee)
-        / ((U256::from(reserve_in) * U256::from(FEE_DENOMINATOR)) + amount_in_with_fee);
-
-    amount_out.as_u128()
-}
-
-/// Mirror router 'getAmountOut' calculation
-pub fn get_amount_in(fee: u16, amount_out: u128, reserve_in: u128, reserve_out: u128) -> u128 {
-    let numerator = reserve_in * amount_out * FEE_DENOMINATOR;
-    let denominator = reserve_out - (amount_out * (FEE_DENOMINATOR - fee as u128));
-    (numerator / denominator) + 1
-}
-
-/// `get_amount_out` with float (speed > precision)
-pub fn get_amount_out_f(fee: u16, amount_in: u128, reserve_in: u128, reserve_out: u128) -> f64 {
-    let amount_in_with_fee = (amount_in * (FEE_DENOMINATOR - fee as u128)) as f64;
-    // y0 = (y.x0)  / (x + x0)
-    let amount_out = ((reserve_out as f64) * amount_in_with_fee)
-        / ((reserve_in as f64 * FEE_DENOMINATOR as f64) + amount_in_with_fee);
-
-    amount_out
-}
-
-/// 2 ** 96
-pub static X96: Lazy<U256> = Lazy::new(|| U256::from(2_u128.pow(96_u32)));
-pub static Q96: Lazy<U256> = Lazy::new(|| U256::from(96));
-static X96_F: Lazy<f64> = Lazy::new(|| 2_f64.powi(96));
-
-pub fn get_next_sqrt_price_amount_0(
-    liquidity: &U256,
-    current_sqrt_p_x96: &U256,
-    amount_0_in: &U256,
-) -> U256 {
-    let numerator_1 = liquidity << *Q96;
-    let product = amount_0_in * current_sqrt_p_x96;
-    let denominator = U512::from(numerator_1 + product);
-    U256::try_from((U512::from(numerator_1) * U512::from(current_sqrt_p_x96)) / denominator)
-        .expect("no overflow")
-}
-
-pub fn get_next_sqrt_price_amount_0_f(
-    liquidity: f64,
-    current_sqrt_p_x96: f64,
-    amount_0_in: f64,
-) -> f64 {
-    let numerator_1 = liquidity * *X96_F;
-    let product = amount_0_in * current_sqrt_p_x96;
-    let denominator = numerator_1 + product;
-    (numerator_1 * current_sqrt_p_x96) / denominator
-}
-
-pub fn get_next_sqrt_price_amount_1(
-    liquidity: &U256,
-    current_sqrt_p_x96: &U256,
-    amount_1_in: &U256,
-) -> U256 {
-    let quotient = (amount_1_in << *Q96) / liquidity;
-    current_sqrt_p_x96 + quotient
-}
-
-pub fn get_next_sqrt_price_amount_1_f(
-    liquidity: f64,
-    current_sqrt_p_x96: f64,
-    amount_1_in: f64,
-) -> f64 {
-    let quotient = (amount_1_in * *X96_F) / liquidity;
-    current_sqrt_p_x96 + quotient
-}
-
-pub fn get_next_sqrt_price_amount_0_output(
-    liquidity: &U256,
-    current_sqrt_p_x96: &U256,
-    amount_out: &U256,
-) -> U256 {
-    let numerator_1 = liquidity << *Q96;
-    let product = amount_out * current_sqrt_p_x96;
-    let denominator = numerator_1 - product;
-
-    ((U512::from(numerator_1) * U512::from(current_sqrt_p_x96)) / denominator)
-        .try_into()
-        .expect("fits 256")
-}
-
-pub fn get_next_sqrt_price_amount_1_output(
-    liquidity: &U256,
-    current_sqrt_p_x96: &U256,
-    amount_out: &U256,
-) -> U256 {
-    // assume fits 160bits
-    let quotient: U256 = ((U512::from(amount_out) << *Q96) / liquidity)
-        .try_into()
-        .expect("fits 256");
-    current_sqrt_p_x96 - quotient
-}
-
-/// Get the amount0 delta between two prices
-pub fn get_amount_0_delta_f(liquidity: f64, sqrt_ratio_aX96: f64, sqrt_ratio_bX96: f64) -> f64 {
-    let (sqrt_ratio_aX96, sqrt_ratio_bX96) = if sqrt_ratio_aX96 > sqrt_ratio_bX96 {
-        (sqrt_ratio_bX96, sqrt_ratio_aX96)
+    // Set sqrt_price_limit_x_96 to the max or min sqrt price in the pool depending on zero_for_one
+    let sqrt_price_limit_x_96 = if zero_to_one {
+        MIN_SQRT_RATIO + U256_1
     } else {
-        (sqrt_ratio_aX96, sqrt_ratio_bX96)
+        MAX_SQRT_RATIO - U256_1
     };
-
-    let liquidity = liquidity * *X96_F;
-    let delta_sqrt_p = (sqrt_ratio_bX96 - sqrt_ratio_aX96).abs();
-
-    ((liquidity * delta_sqrt_p) / sqrt_ratio_bX96) / sqrt_ratio_aX96
-}
-
-/// Get the amount0 delta between two prices
-pub fn get_amount_0_delta(
-    liquidity: &U256,
-    sqrt_ratio_aX96: &U256,
-    sqrt_ratio_bX96: &U256,
-) -> U256 {
-    let numerator_1 = liquidity << *Q96;
-    let (sqrt_ratio_aX96, sqrt_ratio_bX96) = if sqrt_ratio_aX96 > sqrt_ratio_bX96 {
-        (sqrt_ratio_bX96, sqrt_ratio_aX96)
-    } else {
-        (sqrt_ratio_aX96, sqrt_ratio_bX96)
+    
+    // Initialize a mutable state state struct to hold the dynamic simulated state of the pool
+    let mut current_state = CurrentState {
+        sqrt_price_x_96: sqrt_price, //Active price on the pool
+        amount_calculated: I256::ZERO,        //Amount of token_out that has been calculated
+        amount_specified_remaining: I256::from_raw(amount_in), //Amount of token_in that has not been swapped
+        tick,
+        liquidity  //Current available liquidity in the tick range
     };
-    let numerator_2 = sqrt_ratio_bX96 - sqrt_ratio_aX96;
+        while current_state.amount_specified_remaining != I256::ZERO
+            && current_state.sqrt_price_x_96 != sqrt_price_limit_x_96
+        {
+            // Initialize a new step struct to hold the dynamic state of the pool at each step
+            let mut step = StepComputations {
+                // Set the sqrt_price_start_x_96 to the current sqrt_price_x_96
+                sqrt_price_start_x_96: current_state.sqrt_price_x_96,
+                ..Default::default()
+            };
 
-    ((U512::from(numerator_1) * U512::from(numerator_2) / sqrt_ratio_bX96) / sqrt_ratio_aX96)
-        .try_into()
-        .expect("fits u256")
+            // Get the next tick from the current tick
+            (step.tick_next, step.initialized) =
+                uniswap_v3_math::tick_bitmap::next_initialized_tick_within_one_word(
+                    &self.tick_bitmap,
+                    current_state.tick,
+                    self.tick_spacing,
+                    zero_for_one,
+                )?;
+
+            // ensure that we do not overshoot the min/max tick, as the tick bitmap is not aware of these bounds
+            // Note: this could be removed as we are clamping in the batch contract
+            step.tick_next = step.tick_next.clamp(MIN_TICK, MAX_TICK);
+
+            // Get the next sqrt price from the input amount
+            step.sqrt_price_next_x96 =
+                uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick(step.tick_next)?;
+
+            // Target spot price
+            let swap_target_sqrt_ratio = if zero_for_one {
+                if step.sqrt_price_next_x96 < sqrt_price_limit_x_96 {
+                    sqrt_price_limit_x_96
+                } else {
+                    step.sqrt_price_next_x96
+                }
+            } else if step.sqrt_price_next_x96 > sqrt_price_limit_x_96 {
+                sqrt_price_limit_x_96
+            } else {
+                step.sqrt_price_next_x96
+            };
+
+            // Compute swap step and update the current state
+            (
+                current_state.sqrt_price_x_96,
+                step.amount_in,
+                step.amount_out,
+                step.fee_amount,
+            ) = uniswap_v3_math::swap_math::compute_swap_step(
+                current_state.sqrt_price_x_96,
+                swap_target_sqrt_ratio,
+                current_state.liquidity,
+                current_state.amount_specified_remaining,
+                self.fee,
+            )?;
+
+            // Decrement the amount remaining to be swapped and amount received from the step
+            current_state.amount_specified_remaining = current_state
+                .amount_specified_remaining
+                .overflowing_sub(I256::from_raw(
+                    step.amount_in.overflowing_add(step.fee_amount).0,
+                ))
+                .0;
+
+            current_state.amount_calculated -= I256::from_raw(step.amount_out);
+
+            // If the price moved all the way to the next price, recompute the liquidity change for the next iteration
+            if current_state.sqrt_price_x_96 == step.sqrt_price_next_x96 {
+                if step.initialized {
+                    let mut liquidity_net = if let Some(info) = self.ticks.get(&step.tick_next) {
+                        info.liquidity_net
+                    } else {
+                        0
+                    };
+
+                    // we are on a tick boundary, and the next tick is initialized, so we must charge a protocol fee
+                    if zero_for_one {
+                        liquidity_net = -liquidity_net;
+                    }
+
+                    current_state.liquidity = if liquidity_net < 0 {
+                        if current_state.liquidity < (-liquidity_net as u128) {
+                            return Ok(U256::ZERO); // this orignally returned an error
+                        } else {
+                            current_state.liquidity - (-liquidity_net as u128)
+                        }
+                    } else {
+                        current_state.liquidity + (liquidity_net as u128)
+                    };
+                }
+                // Increment the current tick
+                current_state.tick = if zero_for_one {
+                    step.tick_next.wrapping_sub(1)
+                } else {
+                    step.tick_next
+                }
+                // If the current_state sqrt price is not equal to the step sqrt price, then we are not on the same tick.
+                // Update the current_state.tick to the tick at the current_state.sqrt_price_x_96
+            } else if current_state.sqrt_price_x_96 != step.sqrt_price_start_x_96 {
+                current_state.tick = uniswap_v3_math::tick_math::get_tick_at_sqrt_ratio(
+                    current_state.sqrt_price_x_96,
+                )?;
+            }
+        }
+
+        let amount_out = (-current_state.amount_calculated).into_raw();
+        */
+
+
+
+    Ok(amount_in)
 }
 
-/// Get the amount1 delta between two prices
-/// https://github.com/Uniswap/v3-core/blob/fc2107bd5709cdee6742d5164c1eb998566bcb75/contracts/libraries/SqrtPriceMath.sol#L182
-pub fn get_amount_1_delta(
-    liquidity: &U256,
-    sqrt_ratio_aX96: &U256,
-    sqrt_ratio_bX96: &U256,
-) -> U256 {
-    let delta_sqrt_p = sqrt_ratio_aX96.abs_diff(*sqrt_ratio_bX96);
 
-    U256::try_from((U512::from(liquidity) * U512::from(delta_sqrt_p)) / U512::from(*X96))
-        .expect("fits u256")
-}
-
-/// Get the amount1 delta between two prices
-/// https://github.com/Uniswap/v3-core/blob/fc2107bd5709cdee6742d5164c1eb998566bcb75/contracts/libraries/SqrtPriceMath.sol#L182
-pub fn get_amount_1_delta_f(liquidity: f64, sqrt_ratio_aX96: f64, sqrt_ratio_bX96: f64) -> f64 {
-    (liquidity * (sqrt_ratio_bX96 - sqrt_ratio_aX96).abs()) / *X96_F
-}
-
-/// Get the amount out given some amount in
-///
-/// - `current_sqrt_p_x96` The √P.96
-/// - `liquidity` The liquidity value
-/// - `amount_in` the amount of tokens to input
-///
-/// Returns the amount of tokens output
-pub fn get_amount_out(
-    amount_in: u128,
-    current_sqrt_p_x96: &U256,
-    liquidity: &U256,
-    fee_pips: u32,
-    zero_for_one: bool,
-) -> (U256, u128) {
-    // calculate the expected price shift then return the amount out (i.e. price target is set exactly to required price shift)
-    let amount_in_less_fee =
-        U256::from(amount_in * (1_000_000_u32 - fee_pips) as u128) / U256::from(1_000_000_u128);
-    if zero_for_one {
-        let next_sqrt_p_x96 =
-            get_next_sqrt_price_amount_0(liquidity, current_sqrt_p_x96, &amount_in_less_fee);
-        (
-            next_sqrt_p_x96,
-            get_amount_1_delta(liquidity, &next_sqrt_p_x96, current_sqrt_p_x96).as_u128(), // TODO needs round up
-        )
-    } else {
-        let next_sqrt_p_x96 =
-            get_next_sqrt_price_amount_1(liquidity, current_sqrt_p_x96, &amount_in_less_fee);
-        (
-            next_sqrt_p_x96,
-            get_amount_0_delta(liquidity, current_sqrt_p_x96, &next_sqrt_p_x96).as_u128(), // TODO: needs round up
-        )
-    }
-}
-
-pub fn get_amount_out_f(
-    amount_in: u128,
-    current_sqrt_p_x96: f64,
-    liquidity: f64,
-    fee_pips: u32,
-    zero_for_one: bool,
-) -> f64 {
-    // calculate the expected price shift then return the amount out (i.e. price target is set exactly to required price shift)
-    let amount_in_less_fee = (amount_in as f64 * (1_000_000_u32 - fee_pips) as f64) / 1_000_000_f64;
-    if zero_for_one {
-        let next_sqrt_p_x96 =
-            get_next_sqrt_price_amount_0_f(liquidity, current_sqrt_p_x96, amount_in_less_fee);
-
-        get_amount_1_delta_f(liquidity, next_sqrt_p_x96, current_sqrt_p_x96)
-    } else {
-        let next_sqrt_p_x96 =
-            get_next_sqrt_price_amount_1_f(liquidity, current_sqrt_p_x96, amount_in_less_fee);
-
-        get_amount_0_delta_f(liquidity, current_sqrt_p_x96, next_sqrt_p_x96)
-    }
-}
-
-/// Get the amount in given some amount out
-///
-/// - `current_sqrt_p_x96` The √P.96
-/// - `liquidity` The liquidity value
-/// - `amount_out` the amount of tokens to output
-///
-/// Returns the amount of tokens to input and the new price
-pub fn get_amount_in(
-    amount_out: u128,
-    current_sqrt_p_x96: &U256,
-    liquidity: &U256,
-    fee_pips: u32,
-    zero_for_one: bool,
-) -> (U256, u128) {
-    // calculate the expected price shift then return the amount out (i.e. price target is set exactly to required price shift)
-    let amount_out = &amount_out.into();
-    if zero_for_one {
-        // expect the order filled within one tick
-        // trading in an amount of of token
-        let next_sqrt_p_x96 =
-            get_next_sqrt_price_amount_1_output(liquidity, current_sqrt_p_x96, amount_out);
-        (
-            next_sqrt_p_x96,
-            ((get_amount_0_delta(liquidity, &next_sqrt_p_x96, current_sqrt_p_x96)
-                * U256::from(1_000_000 - fee_pips))
-                / U256::from(1_000_000))
-            .as_u128(),
-        )
-    } else {
-        // expect the order filled within one tick
-        let next_sqrt_p_x96 =
-            get_next_sqrt_price_amount_0_output(liquidity, current_sqrt_p_x96, amount_out);
-        (
-            next_sqrt_p_x96,
-            ((get_amount_1_delta(liquidity, current_sqrt_p_x96, &next_sqrt_p_x96)
-                * U256::from(1_000_000 - fee_pips))
-                / U256::from(1_000_000))
-            .as_u128(),
-        )
-    }
-}
-#[derive(Debug, PartialEq, DecodeStatic)]
-pub struct UniswapV3Slot0 {
-    pub sqrt_p_x96: U256,
-    pub liquidity: u128,
-}
-
-#[inline(always)]
-pub fn fee_from_path_bytes(buf: &[u8]) -> u32 {
-    // OPTIMIZATION: nothing sensible should ever be longer than 2 ** 16 so we ignore the other bytes
-    // ((unsafe { *buf.get_unchecked(0) } as u32) << 16) +
-    ((unsafe { *buf.get_unchecked(1) } as u32) << 8) + (unsafe { *buf.get_unchecked(2) } as u32)
-}
-    */

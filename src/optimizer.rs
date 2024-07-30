@@ -1,4 +1,3 @@
-use crate::calculation::calculate_amount_out;
 use alloy::primitives::Address;
 use log::info;
 use num_bigint::BigUint;
@@ -12,7 +11,9 @@ use alloy::primitives::{U128, U256};
 use pool_sync::Pool;
 
 pub async fn optimize_paths(opt_sender: Sender<Event>, mut arb_receiver: Receiver<Event>) {
+    /* 
     while let Ok(Event::NewPath(arb_path)) = arb_receiver.recv().await {
+
         let path = arb_path.path;
         let reserves = arb_path.reserves;
         let optimized = optimize_amount_in(path.clone(), reserves);
@@ -26,8 +27,10 @@ pub async fn optimize_paths(opt_sender: Sender<Event>, mut arb_receiver: Receive
             .send(Event::OptimizedPath(optimized_path))
             .unwrap();
     }
+    */
 }
 
+/* 
 fn optimize_amount_in(path: Vec<Address>, reserves: Vec<(U128, U128)>) -> (U256, U256) {
     let mut low = U256::from(0);
     let mut high = U256::from(1e19);
@@ -121,3 +124,4 @@ fn integer_sqrt(n: &BigUint) -> BigUint {
 fn u256_to_biguint(value: U256) -> BigUint {
     BigUint::from_str(&value.to_string()).unwrap()
 }
+*/

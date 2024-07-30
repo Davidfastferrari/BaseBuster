@@ -68,12 +68,10 @@ pub async fn start_workers(
     //));
 
     // finally.... start the searcher!!!!!
-    /* 
     info!("Starting arbitrage searcher...");
     tokio::spawn(async move {
         graph
             .search_paths(arb_sender, reserve_update_receiver)
             .await;
     });
-*/
 }

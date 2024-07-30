@@ -104,7 +104,7 @@ async fn main() -> std::io::Result<()> {
     // build the graph and populate mappings
     info!("Constructing graph and generating cycles...");
     let weth = address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
-    let graph = ArbGraph::new(/*pool_manager.clone(),*/ working_pools.clone(), weth);
+    let graph = ArbGraph::new(pool_manager.clone(), working_pools.clone(), weth);
 
 
 

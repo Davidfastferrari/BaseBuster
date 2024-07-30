@@ -31,3 +31,4 @@ revm = { version = "12.1.0", features = ["alloydb"] }
 portpicker = "0.1.1"
 bigint = "4.4.3"
 gweiyser = "0.1.0"
+uniswap_v3_math = "0.5.1"

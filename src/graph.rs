@@ -1,4 +1,3 @@
-use crate::calculation::calculate_amount_out;
 use crate::events::{ArbPath, Event};
 use crate::pool_manager::PoolManager;
 use alloy::primitives::{Address, U256};
@@ -13,12 +12,12 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::sync::broadcast::{Receiver, Sender};
 
-use crate::calculation::{calcualte_v2_out, calculate_v3_out};
+use crate::calculation::{calculate_v2_out, calculate_v3_out};
 
 // All information we need to look for arbitrage opportunities
 pub struct ArbGraph {
     graph: UnGraph<Address, Pool>,
-    //pool_manager: Arc<PoolManager>,
+    pool_manager: Arc<PoolManager>,
     cycles: Vec<Vec<SwapStep>>,
 }
 
@@ -33,10 +32,18 @@ pub struct SwapStep {
 
 
 impl SwapStep {
-    pub fn get_amount_out(&self, amount_in: U256) -> U256 {
+    pub fn get_amount_out(&self, amount_in: U256, pool_manager: &PoolManager) -> U256 {
         match self.protocol {
-            PoolType::UniswapV2 => calcualte_v2_out(amount_in, self.pool_address, self.token_in),
-            PoolType::UniswapV3 => calculate_v3_out(amount_in, self.pool_address, self.token_in),
+            PoolType::UniswapV2 | PoolType::SushiSwapV2 | PoolType::PancakeSwapV2 => {
+                let (reserve0, reserve1) = pool_manager.get_v2(&self.pool_address);
+                let zero_to_one = pool_manager.zero_to_one(self.token_in, &self.pool_address);
+                calculate_v2_out(amount_in, reserve0, reserve1, zero_to_one)
+            }
+            PoolType::UniswapV3 | PoolType::SushiSwapV3 => {
+                let (sqrt_price_x96, tick, liquidity) = pool_manager.get_v3(&self.pool_address);
+                let zero_to_one = pool_manager.zero_to_one(self.token_in, &self.pool_address);
+                calculate_v3_out(amount_in, sqrt_price_x96, tick, liquidity, zero_to_one).unwrap()
+            },
             _=> todo!()
         }
     }
@@ -44,7 +51,7 @@ impl SwapStep {
 
 impl ArbGraph {
     // Constructor, takes the set of working tokens we are interested in searching over
-    pub fn new(/*pool_manager: Arc<PoolManager>, */working_pools: Vec<Pool>, token: Address) -> Self {
+    pub fn new(pool_manager: Arc<PoolManager>, working_pools: Vec<Pool>, token: Address) -> Self {
         // build the graph
         let graph = ArbGraph::build_graph(working_pools);
 
@@ -56,7 +63,7 @@ impl ArbGraph {
 
         Self {
             graph,
-            //pool_manager,
+            pool_manager,
             cycles,
         }
     }
@@ -195,7 +202,7 @@ impl ArbGraph {
                     // each element in the cycle represents a swap
                     for swap in cycle {
                         // I want to swap on each step and get the amount out
-                        current_amount = swap.get_amount_out(current_amount);
+                        current_amount = swap.get_amount_out(current_amount, &self.pool_manager);
                     }
 
                     if current_amount > U256::from(1e17 as u64) {

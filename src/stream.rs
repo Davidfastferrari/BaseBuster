@@ -116,18 +116,18 @@ pub async fn stream_sync_events(
                     debug!("Found v3 log for pool {:?}", pool_address);
                     if let Ok(swap_event) = UniswapV3Events::Swap::decode_log(&log.inner, false) {
                         let UniswapV3Events::Swap { sqrtPriceX96, liquidity, tick, .. } = swap_event.data;
-                        pool_manager.update_v3(pool_address, sqrtPriceX96, tick, U128::from(liquidity));
+                        pool_manager.update_v3(pool_address, sqrtPriceX96, tick, liquidity);
                     } else if let Ok(mint_event) = UniswapV3Events::Mint::decode_log(&log.inner, false) {
                         // For Mint events, we need to update the liquidity
                         let UniswapV3Events::Mint { amount, .. } = mint_event.data;
                         let (current_sqrt_price, current_tick, current_liquidity) = pool_manager.get_v3(&pool_address);
-                        let new_liquidity = current_liquidity.saturating_add(U128::from(amount));
+                        let new_liquidity = current_liquidity.saturating_add(amount);
                         pool_manager.update_v3(pool_address, current_sqrt_price, current_tick, new_liquidity);
                     } else if let Ok(burn_event) = UniswapV3Events::Burn::decode_log(&log.inner, false) {
                         // For Burn events, we need to update the liquidity
                         let UniswapV3Events::Burn { amount, .. } = burn_event.data;
                         let (current_sqrt_price, current_tick, current_liquidity) = pool_manager.get_v3(&pool_address);
-                        let new_liquidity = current_liquidity.saturating_sub(U128::from(amount));
+                        let new_liquidity = current_liquidity.saturating_sub(amount);
                         pool_manager.update_v3(pool_address, current_sqrt_price, current_tick, new_liquidity);
                     }
                 }
