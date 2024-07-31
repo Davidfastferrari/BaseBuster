@@ -21,12 +21,25 @@ pub struct ArbGraph {
     cycles: Vec<Vec<SwapStep>>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SwapStep {
-    pool_address: Address,
-    token_in: Address,
-    token_out: Address,
-    protocol: PoolType,
+    pub pool_address: Address,
+    pub token_in: Address,
+    pub token_out: Address,
+    pub protocol: PoolType,
+}
+
+impl SwapStep {
+    pub fn as_u8(&self) -> u8 {
+        match self.protocol {
+            PoolType::UniswapV2 => 0,
+            PoolType::SushiSwapV2 => 1,
+            PoolType::PancakeSwapV2 => 2,
+            PoolType::UniswapV3 => 3,
+            PoolType::SushiSwapV3 => 4,
+            _=> panic!("Unsupported protocol")
+        }
+    }
 }
 
 impl SwapStep {
@@ -215,9 +228,11 @@ impl ArbGraph {
                 .collect();
             info!("Searched all paths in {:?}", start.elapsed());
             info!("Found {} profitable paths", profitable_paths.len());
+            //info!("Profitable paths {:#?}", profitable_paths);
 
             // send off to the optimizer
             for path in profitable_paths {
+                arb_sender.send(Event::NewPath(path.clone())).unwrap();
                 /*
                 let arb_path = ArbPath {
                     path: path.0,

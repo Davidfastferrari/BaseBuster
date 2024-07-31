@@ -3,13 +3,15 @@ use alloy::primitives::U128;
 use alloy::primitives::U256;
 use alloy::rpc::types::Block;
 
+use crate::graph::SwapStep;
+
 #[derive(Debug, Clone)]
 pub enum Event {
     // There is a new block on the chian
     NewBlock(Block),
     // We have updated the reserves for the pools based on the new block sync events
     ReserveUpdate,
-    NewPath(ArbPath),
+    NewPath(Vec<SwapStep>),
     OptimizedPath(OptPath),
 }
 
