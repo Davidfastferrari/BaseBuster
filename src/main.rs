@@ -21,6 +21,14 @@ sol!(
     "src/abi/BatchSync.json"
 );
 
+sol!(
+    #[derive(Debug)]
+    #[sol(rpc)]
+    FlashSwap,
+    "src/abi/FlashSwap.json"
+);
+
+
 mod calculation;
 mod events;
 mod gas_manager;
@@ -54,9 +62,7 @@ async fn main() -> std::io::Result<()> {
     let pool_sync = PoolSync::builder()
         .add_pools(&[
             PoolType::UniswapV2,
-            PoolType::UniswapV3,
             PoolType::SushiSwapV2,
-            PoolType::SushiSwapV3,
             PoolType::PancakeSwapV2,
         ])
         .chain(Chain::Ethereum)
@@ -69,6 +75,7 @@ async fn main() -> std::io::Result<()> {
     let fork_block = http_provider.get_block_number().await.unwrap();
     let anvil = Anvil::new()
         .fork(url)
+        .port(8545_u16)
         .fork_block_number(fork_block)
         //.port(portpicker::pick_unused_port().unwrap())
         .try_spawn()
@@ -89,6 +96,11 @@ async fn main() -> std::io::Result<()> {
     let contract = BatchSync::deploy(anvil_signer.clone()).await.unwrap();
     let contract_address = contract.address();
 
+    // deploy the falsh contract
+    let flash = FlashSwap::deploy(anvil_signer.clone()).await.unwrap();
+    info!("Flash swap address {:#?}", flash.address());
+    let flash_address = flash.address();
+
     // Wallet signers
     let anvil_provider = Arc::new(ProviderBuilder::new().on_http(anvil.endpoint_url()));
     let block = anvil_provider.get_block_number().await.unwrap();
@@ -99,7 +111,7 @@ async fn main() -> std::io::Result<()> {
 
     // load in the tokens that have had the top volume
     info!("Getting our set of working pools...");
-    let working_pools = get_working_pools(pools, 3000, Chain::Ethereum).await;
+    let working_pools = get_working_pools(pools, 6000, Chain::Ethereum).await;
     println!("Found {} working pools", working_pools.len());
 
     // Maintains reserves updates and pool state
@@ -107,7 +119,7 @@ async fn main() -> std::io::Result<()> {
     let pool_manager = Arc::new(
         PoolManager::new(
             working_pools.clone(),
-            anvil_provider.clone(),
+            http_provider.clone(),
             contract_address.clone(),
         )
         .await,
@@ -125,6 +137,7 @@ async fn main() -> std::io::Result<()> {
         ws_provider,
         pool_manager,
         graph,
+        *flash_address,
     )
     .await;
 

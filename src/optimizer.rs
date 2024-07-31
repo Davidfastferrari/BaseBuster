@@ -1,6 +1,10 @@
 use alloy::primitives::Address;
+use alloy_sol_types::SolEvent;
 use log::info;
 use num_bigint::BigUint;
+use alloy::providers::{Provider, ProviderBuilder};
+use serde_json::json;
+use alloy::primitives::utils::parse_units;
 use num_traits::{FromPrimitive, One, ToPrimitive, Zero};
 use std::str::FromStr;
 use tokio::sync::broadcast::{Receiver, Sender};
@@ -9,25 +13,101 @@ use crate::events::*;
 
 use alloy::primitives::{U128, U256};
 use pool_sync::Pool;
+use alloy::providers::ext::{TraceApi, DebugApi};
+use alloy::rpc::types::trace::parity::TraceType;
+use alloy::rpc::types::trace::geth::{CallConfig, CallFrame, GethDebugTracerConfig, GethDebugTracerType, GethDebugTracingCallOptions, GethDefaultTracingOptions, GethTrace};
+use alloy::rpc::types::trace::geth::GethDebugTracingOptions;
+use alloy::rpc::types::trace::geth::GethDebugBuiltInTracerType::CallTracer;
 
-pub async fn optimize_paths(opt_sender: Sender<Event>, mut arb_receiver: Receiver<Event>) {
-    /*
+use alloy::sol;
+
+use crate::FlashSwap;
+
+
+pub async fn optimize_paths(
+    opt_sender: Sender<Event>, 
+    mut arb_receiver: Receiver<Event>,
+    flash_addr: Address,
+) {
+
+    let provider = ProviderBuilder::new()
+        .on_http("http://localhost:8545".parse().unwrap());
+
+    let contract = FlashSwap::new(flash_addr, provider.clone());
+
+    let options = GethDebugTracingCallOptions {
+        tracing_options: GethDebugTracingOptions {
+            config: GethDefaultTracingOptions {
+                disable_memory: Some(true),
+                disable_stack: Some(true),
+                disable_storage: Some(true),
+                disable_return_data: Some(true),
+                ..Default::default()
+            },
+            tracer: Some(GethDebugTracerType::BuiltInTracer(CallTracer)),
+            tracer_config: GethDebugTracerConfig(json!({
+                "withLog": true,
+            })),
+            timeout: None,
+            ..Default::default()
+        },
+        state_overrides: None,
+        block_overrides: None,
+    };
+
+
     while let Ok(Event::NewPath(arb_path)) = arb_receiver.recv().await {
+        //info!("Received arb path: {:?}", arb_path);
 
-        let path = arb_path.path;
-        let reserves = arb_path.reserves;
-        let optimized = optimize_amount_in(path.clone(), reserves);
+        let converted_path: Vec<FlashSwap::SwapStep> = arb_path.iter().map(|step| FlashSwap::SwapStep {
+            poolAddress: step.pool_address,
+            tokenIn: step.token_in,
+            tokenOut: step.token_out,
+            protocol: step.as_u8()
+        }).collect();
 
-        //println!("Path {:#?}, Optimal input: {:#?}", path, optimized);
-        let optimized_path = OptPath {
-            path,
-            optimal_input: optimized.0,
-        };
-        opt_sender
-            .send(Event::OptimizedPath(optimized_path))
-            .unwrap();
+        let tx = contract.executeArbitrage(converted_path, U256::from(2e17)).into_transaction_request();
+        let output = provider.debug_trace_call(tx, alloy::eips::BlockNumberOrTag::Latest, options.clone()).await.unwrap();
+        match output {
+            GethTrace::CallTracer(call_trace) => {
+                if call_trace.error.is_none() {
+                    println!("Success!");
+                    let output = extract_profit(&call_trace).unwrap();
+                    println!("Profit {:?}", parse_units(output.to_string().as_str(), "ether"));
+
+                } else {
+                    println!("Reverted with error: {:?}", call_trace.error)
+                }
+
+            }
+            _ => {}
+        }
+        //println!("{:#?}", output);
+
     }
-    */
+}
+
+
+fn extract_profit(frame: &CallFrame) -> Option<U256> {
+
+    let mut profit = None;
+
+    for log in &frame.logs {
+        let topics = log.topics.as_ref().unwrap();
+        if topics.contains(&FlashSwap::Profit::SIGNATURE_HASH) {
+            //let profit = FlashSwap::Profit::de(&log.data, false).unwrap();
+            let profit = FlashSwap::Profit::decode_raw_log(topics, &log.data.clone().unwrap(), false).unwrap();
+            println!("Profit: {:?}", profit);
+        }
+    }
+
+    for call in &frame.calls {
+        if let Some(child_profit) = extract_profit(call) {
+            profit = Some(child_profit);
+        }
+    }
+    profit
+
 }
 
 /*

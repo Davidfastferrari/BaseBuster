@@ -1,5 +1,6 @@
 use alloy::providers::{Provider, ProviderBuilder, RootProvider, WsConnect};
 use alloy::pubsub::PubSubFrontend;
+use alloy::primitives::Address;
 use alloy::transports::http::{Client, Http};
 use log::info;
 use std::sync::Arc;
@@ -20,6 +21,7 @@ pub async fn start_workers(
     ws: Arc<RootProvider<PubSubFrontend>>,
     pool_manager: Arc<PoolManager>,
     graph: ArbGraph,
+    addr: Address,
 ) {
     // all communication channels
     let (block_sender, block_receiver) = broadcast::channel(10);
@@ -57,7 +59,7 @@ pub async fn start_workers(
     tokio::spawn(simulate_path(sim_sender, opt_receiver.resubscribe()));
 
     info!("Starting optimizer...");
-    tokio::spawn(optimize_paths(opt_sender, arb_receiver.resubscribe()));
+    tokio::spawn(optimize_paths(opt_sender, arb_receiver.resubscribe(), addr));
 
     info!("Starting transaction sender...");
     //let (tx_sender, mut tx_receiver) = broadcast::channel(1000);

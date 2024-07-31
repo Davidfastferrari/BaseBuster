@@ -3,6 +3,7 @@ use alloy::primitives::address;
 use alloy::primitives::Address;
 use alloy::primitives::{U128, U256};
 use alloy::providers::RootProvider;
+use log::info;
 use alloy::sol;
 use alloy::transports::http::{Client, Http};
 use futures::future::join_all;
@@ -16,6 +17,7 @@ use rustc_hash::FxHashSet;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::sync::Semaphore;
+use pool_sync::PoolSync;
 
 // Structure to hold all the tracked pools
 // Reserves will be modified on every block due to Sync events
@@ -73,11 +75,12 @@ impl PoolManager {
                     || pool.pool_type() == PoolType::PancakeSwapV2
             });
 
-        let v2_reserves_future = Self::initial_v2_sync(v2_pools, http.clone(), contract_address);
-        let v3_reserves_future = Self::initial_v3_sync(v3_pools, http.clone(), contract_address);
-        let (v2_reserves, v3_reserves) = futures::join!(v2_reserves_future, v3_reserves_future);
+        let v2_reserves_future = Self::initial_v2_sync(v2_pools, http.clone(), contract_address).await;
+        //let v3_reserves_future = Self::initial_v3_sync(v3_pools, http.clone(), contract_address);
+        let v3_reserves = FxHashMap::default();
+        //let (v2_reserves, v3_reserves) = futures::join!(v2_reserves_future, v3_reserves_future);
 
-        (v2_reserves, v3_reserves)
+        (v2_reserves_future, v3_reserves)
     }
 
     async fn initial_v2_sync(
@@ -85,32 +88,16 @@ impl PoolManager {
         http: Arc<RootProvider<Http<Client>>>,
         contract_address: Address,
     ) -> FxHashMap<Address, (U128, U128)> {
+        info!("Start v2 sync");
         let mut v2_reserves: FxHashMap<Address, (U128, U128)> = FxHashMap::default();
-        let contract = Arc::new(crate::BatchSync::new(contract_address, http.clone()));
-        let results = stream::iter(working_pools.chunks(50))
-            .map(|chunk| {
-                let contract = contract.clone();
-                async move {
-                    let addresses: Vec<Address> = chunk.iter().map(|pool| pool.address()).collect();
-                    let crate::BatchSync::syncV2Return { _0: reserves } =
-                        contract.syncV2(addresses).call().await.unwrap();
-                    reserves
-                }
-            })
-            .buffer_unordered(10)
-            .flat_map(|reserves| stream::iter(reserves))
-            .collect::<Vec<_>>()
-            .await;
+        let pool_addresses: Vec<Address> = working_pools.iter().map(|pool| pool.address()).collect();
+        let reserve_updates = PoolSync::v2_pool_snapshot(pool_addresses, http).await.unwrap();
 
-        for v2_output in results {
-            v2_reserves.insert(
-                v2_output.pairAddr,
-                (
-                    U128::from(v2_output.reserve0),
-                    U128::from(v2_output.reserve1),
-                ),
-            );
+        for snapshot in reserve_updates {
+            v2_reserves.insert(snapshot.address, (U128::from(snapshot.reserve0), U128::from(snapshot.reserve1)));
         }
+        info!("Finished v2 sync");
+
         v2_reserves
     }
 
@@ -119,6 +106,7 @@ impl PoolManager {
         http: Arc<RootProvider<Http<Client>>>,
         contract_address: Address,
     ) -> FxHashMap<Address, (U256, i32, u128)> {
+        info!("Start v3 sync");
         let mut v3_state: FxHashMap<Address, (U256, i32, u128)> = FxHashMap::default();
         let contract = Arc::new(crate::BatchSync::new(contract_address, http.clone()));
         let results = stream::iter(working_pools.chunks(50))

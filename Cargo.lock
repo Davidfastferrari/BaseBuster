@@ -21,7 +21,7 @@ dependencies = [
  "num-bigint",
  "num-traits",
  "petgraph",
- "pool-sync 1.0.0",
+ "pool-sync 1.0.2",
  "portpicker",
  "rand",
  "rayon",
@@ -3269,9 +3269,9 @@ dependencies = [
 
 [[package]]
 name = "pool-sync"
-version = "1.0.0"
+version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc729b509991b09352044d45697093075262aad81ed978d2861f17b18e064d05"
+checksum = "48068c196f792140d9b3fc725b491d69f0ee2300f771940c1ceae5f2846316e4"
 dependencies = [
  "alloy 0.2.0",
  "alloy-contract 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
