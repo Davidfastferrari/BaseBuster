@@ -27,7 +27,6 @@ contract FlashSwap is FlashLoanSimpleReceiverBase {
     event DebugAddress(string message, address value);
 
     constructor() FlashLoanSimpleReceiverBase(IPoolAddressesProvider(AAVE_ADDRESSES_PROVIDER)) {
-        owner = msg.sender;
     }
 
     function executeArbitrage(SwapStep[] calldata steps, uint256 amount) external {

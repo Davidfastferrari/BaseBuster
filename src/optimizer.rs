@@ -1,5 +1,7 @@
 use alloy::primitives::utils::parse_units;
 use alloy::primitives::Address;
+use alloy::sol_types::SolCall;
+use alloy::primitives::address;
 use alloy::providers::{Provider, ProviderBuilder};
 use alloy_sol_types::SolEvent;
 use log::info;
@@ -14,6 +16,7 @@ use crate::events::*;
 use alloy::primitives::{U128, U256};
 use alloy::providers::ext::{DebugApi, TraceApi};
 use alloy::rpc::types::trace::geth::GethDebugBuiltInTracerType::CallTracer;
+use revm::primitives::{ExecutionResult, Output, TxKind};
 use alloy::rpc::types::trace::geth::GethDebugTracingOptions;
 use alloy::rpc::types::trace::geth::{
     CallConfig, CallFrame, GethDebugTracerConfig, GethDebugTracerType, GethDebugTracingCallOptions,
@@ -24,7 +27,19 @@ use pool_sync::Pool;
 
 use alloy::sol;
 
+
+use revm::primitives::{Bytecode, TransactTo, AccountInfo};
+use revm::Evm;
+use revm::db::{AlloyDB, CacheDB};
+use alloy::transports::http::{Http, Client};
 use crate::FlashSwap;
+use alloy::network::Ethereum;
+use std::sync::Arc;
+use alloy::providers::RootProvider;
+
+
+
+pub type AlloyDb = CacheDB<AlloyDB<Http<Client>, Ethereum, Arc<RootProvider<Http<Client>>>>>;
 
 pub async fn optimize_paths(
     opt_sender: Sender<Event>,
@@ -33,7 +48,7 @@ pub async fn optimize_paths(
 ) {
     let provider = ProviderBuilder::new().on_http("http://localhost:8545".parse().unwrap());
 
-    let contract = FlashSwap::new(flash_addr, provider.clone());
+    let contract = Arc::new(FlashSwap::new(flash_addr, provider.clone()));
 
     let options = GethDebugTracingCallOptions {
         tracing_options: GethDebugTracingOptions {
@@ -54,7 +69,29 @@ pub async fn optimize_paths(
         block_overrides: None,
     };
 
+
+
     while let Ok(Event::NewPath(arb_path)) = arb_receiver.recv().await {
+        let mut db = CacheDB::new(AlloyDB::new(provider.clone(), Default::default()).unwrap());
+
+        /*
+        let bytecode = FlashSwap::DEPLOYED_BYTECODE.clone();
+        let revm_bytecode = Bytecode::new_raw(bytecode.clone());
+        let code_hash = revm_bytecode.hash_slow();
+        let account_info = AccountInfo {
+            balance: U256::from(0),
+            nonce: 0,
+            code_hash,
+            code: Some(revm_bytecode)
+        };
+
+        db.insert_account_info(flash_addr, account_info);
+        */
+
+
+
+
+
         //info!("Received arb path: {:?}", arb_path);
 
         let converted_path: Vec<FlashSwap::SwapStep> = arb_path
@@ -66,6 +103,37 @@ pub async fn optimize_paths(
                 protocol: step.as_u8(),
             })
             .collect();
+
+        let encoded = FlashSwap::executeArbitrageCall {
+            steps: converted_path,
+            amount: U256::from(1e17)
+        }.abi_encode();
+
+        let mut evm = Evm::builder()
+            .with_db(db)
+            .modify_tx_env(|tx| {
+                tx.caller = address!("f39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
+                tx.transact_to = TxKind::Call(flash_addr);
+                tx.data = encoded.into();
+                tx.value = U256::from(0);
+            })
+            .build();
+
+        let result = evm.transact().unwrap();
+        info!("Result: {:#?}", result);
+        /*
+        match result {
+            ExecutionResult::Success{ output: Output::Call(value), .. } => info!("{:?}", value),
+            _ => info!("not successful")
+        }
+        */
+
+
+
+
+
+        /*
+
 
         let tx = contract
             .executeArbitrage(converted_path, U256::from(2e17))
@@ -87,6 +155,7 @@ pub async fn optimize_paths(
             }
 
         }
+        */
     }
 }
 
