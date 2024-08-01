@@ -94,6 +94,8 @@ pub async fn stream_sync_events(
         info!("Fetching logs...");
         let (v2_logs, v3_logs) = tokio::join!(http.get_logs(&v2_filter), http.get_logs(&v3_filter));
 
+        let mut updated_pools = Vec::new();
+
         if let Ok(v2_logs) = v2_logs {
             // update all the pool reserves based on the sync events
             for log in v2_logs {
@@ -105,6 +107,7 @@ pub async fn stream_sync_events(
                 if pool_manager.exists(&pool_address) {
                     debug!("Found v2 log for pool {:?}", pool_address);
                     pool_manager.update_v2(pool_address, reserve0, reserve1);
+                    updated_pools.push(pool_address);
                 }
             }
         }
@@ -156,7 +159,7 @@ pub async fn stream_sync_events(
         }
 
         // send notification saying that we have updated the reserves
-        match reserve_update_sender.send(Event::ReserveUpdate) {
+        match reserve_update_sender.send(Event::ReserveUpdate(updated_pools)) {
             Ok(_) => info!("Reserves updated"),
             Err(e) => info!("Reserves update failed: {:?}", e),
         }

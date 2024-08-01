@@ -8,9 +8,11 @@ use petgraph::prelude::*;
 use pool_sync::{Pool, PoolInfo, PoolType};
 use rayon::prelude::*;
 use rustc_hash::FxHashMap;
-use std::collections::HashSet;
+use std::collections::{BinaryHeap, HashMap, HashSet};
+use std::path;
 use std::sync::Arc;
 use tokio::sync::broadcast::{Receiver, Sender};
+use crossbeam_queue::SegQueue;
 
 use crate::calculation::{calculate_v2_out, calculate_v3_out};
 
@@ -19,6 +21,7 @@ pub struct ArbGraph {
     graph: UnGraph<Address, Pool>,
     pool_manager: Arc<PoolManager>,
     cycles: Vec<Vec<SwapStep>>,
+    pools_to_paths: HashMap<Address, HashSet<usize>>,
 }
 
 #[derive(Debug, Clone)]
@@ -75,10 +78,18 @@ impl ArbGraph {
         println!("Found {}  paths", cycles.len());
         //println!("Cycles  {:#?}", cycles);
 
+        let mut pools_to_paths = HashMap::new();
+        for (index, cycle) in cycles.iter().enumerate() {
+            for step in cycle {
+                pools_to_paths.entry(step.pool_address).or_insert_with(HashSet::new).insert(index);
+            }
+        }
+
         Self {
             graph,
             pool_manager,
             cycles,
+            pools_to_paths
         }
     }
 
@@ -203,36 +214,77 @@ impl ArbGraph {
         mut reserve_update_receiver: Receiver<Event>,
     ) {
         // Once we have updated the reserves from the new block, we can search for new opportunities
-        while (reserve_update_receiver.recv().await).is_ok() {
+        while let Ok(Event::ReserveUpdate(updated_pools)) = reserve_update_receiver.recv().await {
             info!("Searching for arbs...");
             let start = std::time::Instant::now(); // timer
 
-            // get all the profitable paths
-            let profitable_paths: Vec<_> = self
-                .cycles
-                .par_iter() // parallel iterator
-                .filter_map(|cycle| {
-                    let mut current_amount = U256::from(1e17);
-                    // each element in the cycle represents a swap
-                    for swap in cycle {
-                        // I want to swap on each step and get the amount out
-                        current_amount = swap.get_amount_out(current_amount, &self.pool_manager);
-                    }
-
-                    if current_amount > U256::from(1e17 as u64) {
-                        Some(cycle)
-                    } else {
-                        None
-                    }
-                })
+            let affected_paths: HashSet<usize> = updated_pools.iter()
+                .flat_map(|pool| self.pools_to_paths.get(pool).cloned().unwrap_or_default())
                 .collect();
+            info!("Searching {} paths", affected_paths.len());
+
+            let profitable_paths = Arc::new(SegQueue::new());
+
+            affected_paths.into_par_iter().for_each(|path_index| {
+                let cycle = &self.cycles[path_index];
+                let mut current_amount = U256::from(2e17);
+                for swap in cycle {
+                    current_amount = swap.get_amount_out(current_amount, &self.pool_manager);
+                }
+
+                if current_amount > U256::from(2e17 as u64) {
+                    profitable_paths.push((cycle, current_amount));
+                }
+            });
+
+                /* 
+            let chunk_size = (self.cycles.len() / rayon::current_num_threads()).max(1);
+
+            let profitable_paths = Arc::new(SegQueue::new());
+            self.cycles.par_chunks(chunk_size).for_each(|chunk| {
+                let local_profitable_paths: Vec<_> = chunk
+                    .iter()
+                    .filter_map(|cycle| {
+                        let mut current_amount = U256::from(1e17);
+                        for swap in cycle {
+                            current_amount = swap.get_amount_out(current_amount, &self.pool_manager)
+                        }
+
+                        if current_amount > U256::from(1e17 as u64) {
+                            Some((cycle, current_amount))
+                        } else {
+                            None
+                        }
+                    }).collect();
+                for path in local_profitable_paths {
+                    profitable_paths.push(path);
+                }
+            });
+            */
+
+            // get all the profitable paths
             info!("Searched all paths in {:?}", start.elapsed());
             info!("Found {} profitable paths", profitable_paths.len());
             //info!("Profitable paths {:#?}", profitable_paths);
 
-            // send off to the optimizer
-            for path in profitable_paths {
-                arb_sender.send(Event::NewPath(path.clone())).unwrap();
+            // get the cycle with the highest profit
+            if profitable_paths.len() != 0 {
+                let mut best_path = None;
+                let mut max_profit = U256::ZERO;
+        
+                while let Some(path) = profitable_paths.pop() {
+                    if path.1 > max_profit {
+                        max_profit = path.1;
+                        best_path = Some(path);
+                    }
+                }
+                // send off to the optimizer
+                let best_path = best_path.unwrap();
+                println!("Path with highest profit: {:#?}, profit: {:?}", best_path.0, best_path.1);
+                arb_sender.send(Event::NewPath(best_path.0.clone())).unwrap();
+
+            }
+
                 /*
                 let arb_path = ArbPath {
                     path: path.0,
@@ -240,7 +292,8 @@ impl ArbGraph {
                 };
                 arb_sender.send(Event::NewPath(arb_path)).unwrap();
                 */
-            }
         }
     }
+
+
 }

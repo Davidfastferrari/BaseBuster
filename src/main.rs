@@ -111,7 +111,7 @@ async fn main() -> std::io::Result<()> {
 
     // load in the tokens that have had the top volume
     info!("Getting our set of working pools...");
-    let working_pools = get_working_pools(pools, 6000, Chain::Ethereum).await;
+    let working_pools = get_working_pools(pools, 10000, Chain::Ethereum).await;
     println!("Found {} working pools", working_pools.len());
 
     // Maintains reserves updates and pool state

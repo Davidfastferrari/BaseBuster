@@ -10,7 +10,7 @@ pub enum Event {
     // There is a new block on the chian
     NewBlock(Block),
     // We have updated the reserves for the pools based on the new block sync events
-    ReserveUpdate,
+    ReserveUpdate(Vec<Address>),
     NewPath(Vec<SwapStep>),
     OptimizedPath(OptPath),
 }

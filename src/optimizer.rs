@@ -1,19 +1,13 @@
 use alloy::primitives::utils::parse_units;
 use alloy::primitives::Address;
-<<<<<<< HEAD
 use alloy::sol_types::SolCall;
 use alloy::primitives::address;
 use alloy::providers::{Provider, ProviderBuilder};
-=======
->>>>>>> 86750add12efb7ea2e4a20a99cd4e7b0550e3e74
 use alloy_sol_types::SolEvent;
 use log::info;
 use num_bigint::BigUint;
-use alloy::providers::{Provider, ProviderBuilder};
 use serde_json::json;
-use alloy::primitives::utils::parse_units;
 use num_traits::{FromPrimitive, One, ToPrimitive, Zero};
-use serde_json::json;
 use std::str::FromStr;
 use tokio::sync::broadcast::{Receiver, Sender};
 
@@ -30,11 +24,6 @@ use alloy::rpc::types::trace::geth::{
 };
 use alloy::rpc::types::trace::parity::TraceType;
 use pool_sync::Pool;
-use alloy::providers::ext::{TraceApi, DebugApi};
-use alloy::rpc::types::trace::parity::TraceType;
-use alloy::rpc::types::trace::geth::{CallConfig, CallFrame, GethDebugTracerConfig, GethDebugTracerType, GethDebugTracingCallOptions, GethDefaultTracingOptions, GethTrace};
-use alloy::rpc::types::trace::geth::GethDebugTracingOptions;
-use alloy::rpc::types::trace::geth::GethDebugBuiltInTracerType::CallTracer;
 
 use alloy::sol;
 
@@ -73,143 +62,6 @@ pub async fn optimize_paths(
     };
 
 
-<<<<<<< HEAD
-use alloy::sol;
-
-
-use revm::primitives::{Bytecode, TransactTo, AccountInfo};
-use revm::Evm;
-use revm::db::{AlloyDB, CacheDB};
-use alloy::transports::http::{Http, Client};
-use crate::FlashSwap;
-use alloy::network::Ethereum;
-use std::sync::Arc;
-use alloy::providers::RootProvider;
-
-
-
-pub type AlloyDb = CacheDB<AlloyDB<Http<Client>, Ethereum, Arc<RootProvider<Http<Client>>>>>;
-
-pub async fn optimize_paths(
-    opt_sender: Sender<Event>,
-    mut arb_receiver: Receiver<Event>,
-    flash_addr: Address,
-) {
-    let provider = ProviderBuilder::new().on_http("http://localhost:8545".parse().unwrap());
-
-    let contract = Arc::new(FlashSwap::new(flash_addr, provider.clone()));
-
-    let options = GethDebugTracingCallOptions {
-        tracing_options: GethDebugTracingOptions {
-            config: GethDefaultTracingOptions {
-                /*
-                disable_memory: Some(true),
-                disable_stack: Some(true),
-                disable_storage: Some(true),
-                debug: Some(false),
-                */
-                ..Default::default()
-            },
-            tracer: Some(GethDebugTracerType::BuiltInTracer(CallTracer)),
-            timeout: None,
-            ..Default::default()
-        },
-        state_overrides: None,
-        block_overrides: None,
-    };
-
-
-
-    while let Ok(Event::NewPath(arb_path)) = arb_receiver.recv().await {
-        let mut db = CacheDB::new(AlloyDB::new(provider.clone(), Default::default()).unwrap());
-
-        /*
-        let bytecode = FlashSwap::DEPLOYED_BYTECODE.clone();
-        let revm_bytecode = Bytecode::new_raw(bytecode.clone());
-        let code_hash = revm_bytecode.hash_slow();
-        let account_info = AccountInfo {
-            balance: U256::from(0),
-            nonce: 0,
-            code_hash,
-            code: Some(revm_bytecode)
-        };
-
-        db.insert_account_info(flash_addr, account_info);
-        */
-
-
-
-
-
-        //info!("Received arb path: {:?}", arb_path);
-
-        let converted_path: Vec<FlashSwap::SwapStep> = arb_path
-            .iter()
-            .map(|step| FlashSwap::SwapStep {
-                poolAddress: step.pool_address,
-                tokenIn: step.token_in,
-                tokenOut: step.token_out,
-                protocol: step.as_u8(),
-            })
-            .collect();
-
-        let encoded = FlashSwap::executeArbitrageCall {
-            steps: converted_path,
-            amount: U256::from(1e17)
-        }.abi_encode();
-
-        let mut evm = Evm::builder()
-            .with_db(db)
-            .modify_tx_env(|tx| {
-                tx.caller = address!("f39Fd6e51aad88F6F4ce6aB8827279cffFb92266");
-                tx.transact_to = TxKind::Call(flash_addr);
-                tx.data = encoded.into();
-                tx.value = U256::from(0);
-            })
-            .build();
-
-        let result = evm.transact().unwrap();
-        info!("Result: {:#?}", result);
-        /*
-        match result {
-            ExecutionResult::Success{ output: Output::Call(value), .. } => info!("{:?}", value),
-            _ => info!("not successful")
-        }
-        */
-
-
-
-
-
-        /*
-
-
-        let tx = contract
-            .executeArbitrage(converted_path, U256::from(2e17))
-            .into_transaction_request();
-        let output = provider
-            .debug_trace_call(tx, alloy::eips::BlockNumberOrTag::Latest, options.clone())
-            .await
-            .unwrap();
-        if let GethTrace::CallTracer(call_trace) = output {
-            if call_trace.error.is_none() {
-                println!("Success!");
-                let output = extract_profit(&call_trace).unwrap();
-                info!(
-                    "Profit {:?}",
-                    parse_units(output.to_string().as_str(), "ether")
-                );
-            } else {
-                info!("Reverted with reason: {:?}", call_trace.revert_reason);
-            }
-
-        }
-        */
-    }
-}
-
-fn extract_profit(frame: &CallFrame) -> Option<U256> {
-=======
     while let Ok(Event::NewPath(arb_path)) = arb_receiver.recv().await {
         //info!("Received arb path: {:?}", arb_path);
 
@@ -222,15 +74,16 @@ fn extract_profit(frame: &CallFrame) -> Option<U256> {
 
         let tx = contract.executeArbitrage(converted_path, U256::from(2e17)).into_transaction_request();
         let output = provider.debug_trace_call(tx, alloy::eips::BlockNumberOrTag::Latest, options.clone()).await.unwrap();
+        //println!("Output: {:?}", output);
         match output {
             GethTrace::CallTracer(call_trace) => {
+                let output = extract_profit(&call_trace);
                 if call_trace.error.is_none() {
                     println!("Success!");
-                    let output = extract_profit(&call_trace).unwrap();
-                    println!("Profit {:?}", parse_units(output.to_string().as_str(), "ether"));
+                    //println!("Profit {:?}", parse_units(output.to_string().as_str(), "ether"));
 
                 } else {
-                    println!("Reverted with error: {:?}", call_trace.error)
+                    println!("Reverted with error: {:?}", call_trace.revert_reason)
                 }
 
             }
@@ -243,37 +96,24 @@ fn extract_profit(frame: &CallFrame) -> Option<U256> {
 
 
 fn extract_profit(frame: &CallFrame) -> Option<U256> {
-
->>>>>>> 86750add12efb7ea2e4a20a99cd4e7b0550e3e74
-    let mut profit = None;
-
     for log in &frame.logs {
-        let topics = log.topics.as_ref().unwrap();
-        if topics.contains(&FlashSwap::Profit::SIGNATURE_HASH) {
-            //let profit = FlashSwap::Profit::de(&log.data, false).unwrap();
-<<<<<<< HEAD
-            let profit =
-                FlashSwap::Profit::decode_raw_log(topics, &log.data.clone().unwrap(), false)
-                    .unwrap();
-            //println!("Profit: {:?}", profit);
-=======
-            let profit = FlashSwap::Profit::decode_raw_log(topics, &log.data.clone().unwrap(), false).unwrap();
-            println!("Profit: {:?}", profit);
->>>>>>> 86750add12efb7ea2e4a20a99cd4e7b0550e3e74
+        if let Some(topics) = &log.topics {
+            for topic in topics {
+                if topic.starts_with(&FlashSwap::ActualValue::SIGNATURE_HASH[..8]) {
+                    println!("Found matching topic: {:?}", topic);
+                    println!("{}", log.data.clone().unwrap());
+                }
+            }
         }
     }
-
     for call in &frame.calls {
         if let Some(child_profit) = extract_profit(call) {
-            profit = Some(child_profit);
+            return Some(child_profit);
         }
     }
-    profit
-<<<<<<< HEAD
-=======
-
->>>>>>> 86750add12efb7ea2e4a20a99cd4e7b0550e3e74
+    None
 }
+
 
 /*
 fn optimize_amount_in(path: Vec<Address>, reserves: Vec<(U128, U128)>) -> (U256, U256) {
@@ -370,7 +210,3 @@ fn u256_to_biguint(value: U256) -> BigUint {
     BigUint::from_str(&value.to_string()).unwrap()
 }
 */
-<<<<<<< HEAD
-=======
-
->>>>>>> 86750add12efb7ea2e4a20a99cd4e7b0550e3e74
