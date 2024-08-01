@@ -1,11 +1,17 @@
 use alloy::primitives::utils::parse_units;
 use alloy::primitives::Address;
+<<<<<<< HEAD
 use alloy::sol_types::SolCall;
 use alloy::primitives::address;
 use alloy::providers::{Provider, ProviderBuilder};
+=======
+>>>>>>> 86750add12efb7ea2e4a20a99cd4e7b0550e3e74
 use alloy_sol_types::SolEvent;
 use log::info;
 use num_bigint::BigUint;
+use alloy::providers::{Provider, ProviderBuilder};
+use serde_json::json;
+use alloy::primitives::utils::parse_units;
 use num_traits::{FromPrimitive, One, ToPrimitive, Zero};
 use serde_json::json;
 use std::str::FromStr;
@@ -24,7 +30,50 @@ use alloy::rpc::types::trace::geth::{
 };
 use alloy::rpc::types::trace::parity::TraceType;
 use pool_sync::Pool;
+use alloy::providers::ext::{TraceApi, DebugApi};
+use alloy::rpc::types::trace::parity::TraceType;
+use alloy::rpc::types::trace::geth::{CallConfig, CallFrame, GethDebugTracerConfig, GethDebugTracerType, GethDebugTracingCallOptions, GethDefaultTracingOptions, GethTrace};
+use alloy::rpc::types::trace::geth::GethDebugTracingOptions;
+use alloy::rpc::types::trace::geth::GethDebugBuiltInTracerType::CallTracer;
 
+use alloy::sol;
+
+use crate::FlashSwap;
+
+
+pub async fn optimize_paths(
+    opt_sender: Sender<Event>, 
+    mut arb_receiver: Receiver<Event>,
+    flash_addr: Address,
+) {
+
+    let provider = ProviderBuilder::new()
+        .on_http("http://localhost:8545".parse().unwrap());
+
+    let contract = FlashSwap::new(flash_addr, provider.clone());
+
+    let options = GethDebugTracingCallOptions {
+        tracing_options: GethDebugTracingOptions {
+            config: GethDefaultTracingOptions {
+                disable_memory: Some(true),
+                disable_stack: Some(true),
+                disable_storage: Some(true),
+                disable_return_data: Some(true),
+                ..Default::default()
+            },
+            tracer: Some(GethDebugTracerType::BuiltInTracer(CallTracer)),
+            tracer_config: GethDebugTracerConfig(json!({
+                "withLog": true,
+            })),
+            timeout: None,
+            ..Default::default()
+        },
+        state_overrides: None,
+        block_overrides: None,
+    };
+
+
+<<<<<<< HEAD
 use alloy::sol;
 
 
@@ -160,16 +209,57 @@ pub async fn optimize_paths(
 }
 
 fn extract_profit(frame: &CallFrame) -> Option<U256> {
+=======
+    while let Ok(Event::NewPath(arb_path)) = arb_receiver.recv().await {
+        //info!("Received arb path: {:?}", arb_path);
+
+        let converted_path: Vec<FlashSwap::SwapStep> = arb_path.iter().map(|step| FlashSwap::SwapStep {
+            poolAddress: step.pool_address,
+            tokenIn: step.token_in,
+            tokenOut: step.token_out,
+            protocol: step.as_u8()
+        }).collect();
+
+        let tx = contract.executeArbitrage(converted_path, U256::from(2e17)).into_transaction_request();
+        let output = provider.debug_trace_call(tx, alloy::eips::BlockNumberOrTag::Latest, options.clone()).await.unwrap();
+        match output {
+            GethTrace::CallTracer(call_trace) => {
+                if call_trace.error.is_none() {
+                    println!("Success!");
+                    let output = extract_profit(&call_trace).unwrap();
+                    println!("Profit {:?}", parse_units(output.to_string().as_str(), "ether"));
+
+                } else {
+                    println!("Reverted with error: {:?}", call_trace.error)
+                }
+
+            }
+            _ => {}
+        }
+        //println!("{:#?}", output);
+
+    }
+}
+
+
+fn extract_profit(frame: &CallFrame) -> Option<U256> {
+
+>>>>>>> 86750add12efb7ea2e4a20a99cd4e7b0550e3e74
     let mut profit = None;
 
     for log in &frame.logs {
         let topics = log.topics.as_ref().unwrap();
         if topics.contains(&FlashSwap::Profit::SIGNATURE_HASH) {
             //let profit = FlashSwap::Profit::de(&log.data, false).unwrap();
+<<<<<<< HEAD
             let profit =
                 FlashSwap::Profit::decode_raw_log(topics, &log.data.clone().unwrap(), false)
                     .unwrap();
             //println!("Profit: {:?}", profit);
+=======
+            let profit = FlashSwap::Profit::decode_raw_log(topics, &log.data.clone().unwrap(), false).unwrap();
+            println!("Profit: {:?}", profit);
+>>>>>>> 86750add12efb7ea2e4a20a99cd4e7b0550e3e74
         }
     }
 
@@ -179,6 +269,10 @@ fn extract_profit(frame: &CallFrame) -> Option<U256> {
         }
     }
     profit
+<<<<<<< HEAD
+=======
+
+>>>>>>> 86750add12efb7ea2e4a20a99cd4e7b0550e3e74
 }
 
 /*
@@ -276,3 +370,7 @@ fn u256_to_biguint(value: U256) -> BigUint {
     BigUint::from_str(&value.to_string()).unwrap()
 }
 */
+<<<<<<< HEAD
+=======
+
+>>>>>>> 86750add12efb7ea2e4a20a99cd4e7b0550e3e74
