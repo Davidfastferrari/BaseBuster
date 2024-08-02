@@ -54,7 +54,7 @@ async fn main() -> std::io::Result<()> {
     info!("Constructing http provider...");
 
     // Http provider, utilizing anvil instance
-    let url = std::env::var("HTTP").unwrap();
+    let url = std::env::var("FULL").unwrap();
     let http_provider = Arc::new(ProviderBuilder::new().on_http(url.parse().unwrap()));
 
     // Load in all the pools
@@ -69,7 +69,7 @@ async fn main() -> std::io::Result<()> {
         .rate_limit(100)
         .build()
         .unwrap();
-    let pools = pool_sync.sync_pools(http_provider.clone()).await.unwrap();
+    let pools = pool_sync.sync_pools().await.unwrap();
 
     // start the anvil instance
     let fork_block = http_provider.get_block_number().await.unwrap();

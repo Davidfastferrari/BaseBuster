@@ -18,6 +18,7 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::sync::Semaphore;
 use pool_sync::PoolSync;
+use pool_sync::snapshot::*;
 
 // Structure to hold all the tracked pools
 // Reserves will be modified on every block due to Sync events
@@ -91,7 +92,7 @@ impl PoolManager {
         info!("Start v2 sync");
         let mut v2_reserves: FxHashMap<Address, (U128, U128)> = FxHashMap::default();
         let pool_addresses: Vec<Address> = working_pools.iter().map(|pool| pool.address()).collect();
-        let reserve_updates = PoolSync::v2_pool_snapshot(pool_addresses, http).await.unwrap();
+        let reserve_updates = v2_pool_snapshot(pool_addresses, http).await.unwrap();
 
         for snapshot in reserve_updates {
             v2_reserves.insert(snapshot.address, (U128::from(snapshot.reserve0), U128::from(snapshot.reserve1)));
