@@ -1,15 +1,21 @@
 use alloy::primitives::{Address, I128, I16, I256, I32, U128, U16, U256};
 use anyhow::Result;
-use std::cmp::Ordering;
+use num_traits::Zero;
+use pool_sync::snapshot::{UniswapV2PoolState, UniswapV3PoolState};
+use std::{cmp::Ordering, collections::HashMap};
 use uniswap_v3_math::tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK};
 pub const U256_1: U256 = U256::from_limbs([1, 0, 0, 0]);
 
+
 pub fn calculate_v2_out(
     amount_in: U256,
-    reserve0: U128,
-    reserve1: U128,
+    pool: UniswapV2PoolState,
     zero_to_one: bool,
 ) -> U256 {
+
+    let reserve0 = pool.reserve0;
+    let reserve1 = pool.reserve1;
+
     if reserve0.is_zero() || reserve1.is_zero() {
         return U256::ZERO;
     }
@@ -58,12 +64,9 @@ pub struct StepComputations {
 
 pub fn calculate_v3_out(
     amount_in: U256,
-    sqrt_price: U256,
-    tick: i32,
-    liquidity: u128,
+    pool: UniswapV3PoolState,
     zero_to_one: bool,
 ) -> Result<U256> {
-    /*
     if amount_in.is_zero() {
         return Ok(U256::ZERO);
     }
@@ -77,30 +80,30 @@ pub fn calculate_v3_out(
 
     // Initialize a mutable state state struct to hold the dynamic simulated state of the pool
     let mut current_state = CurrentState {
-        sqrt_price_x_96: sqrt_price, //Active price on the pool
-        amount_calculated: I256::ZERO,        //Amount of token_out that has been calculated
+        sqrt_price_x_96: pool.sqrt_price,   //Active price on the pool
+        amount_calculated: I256::ZERO, //Amount of token_out that has been calculated
         amount_specified_remaining: I256::from_raw(amount_in), //Amount of token_in that has not been swapped
-        tick,
-        liquidity  //Current available liquidity in the tick range
+        tick: pool.tick,
+        liquidity: pool.liquidity, //Current available liquidity in the tick range
     };
-        while current_state.amount_specified_remaining != I256::ZERO
-            && current_state.sqrt_price_x_96 != sqrt_price_limit_x_96
-        {
-            // Initialize a new step struct to hold the dynamic state of the pool at each step
-            let mut step = StepComputations {
-                // Set the sqrt_price_start_x_96 to the current sqrt_price_x_96
-                sqrt_price_start_x_96: current_state.sqrt_price_x_96,
-                ..Default::default()
-            };
+    while current_state.amount_specified_remaining != I256::ZERO
+        && current_state.sqrt_price_x_96 != sqrt_price_limit_x_96
+    {
+        // Initialize a new step struct to hold the dynamic state of the pool at each step
+        let mut step = StepComputations {
+            // Set the sqrt_price_start_x_96 to the current sqrt_price_x_96
+            sqrt_price_start_x_96: current_state.sqrt_price_x_96,
+            ..Default::default()
+        };
 
-            // Get the next tick from the current tick
-            (step.tick_next, step.initialized) =
-                uniswap_v3_math::tick_bitmap::next_initialized_tick_within_one_word(
-                    &self.tick_bitmap,
-                    current_state.tick,
-                    self.tick_spacing,
-                    zero_for_one,
-                )?;
+        // Get the next tick from the current tick
+        (step.tick_next, step.initialized) =
+            uniswap_v3_math::tick_bitmap::next_initialized_tick_within_one_word(
+                &pool.tick_bitmap,
+                current_state.tick,
+                pool.tick_spacing,
+                zero_to_one,
+            )?;
 
             // ensure that we do not overshoot the min/max tick, as the tick bitmap is not aware of these bounds
             // Note: this could be removed as we are clamping in the batch contract
@@ -111,7 +114,7 @@ pub fn calculate_v3_out(
                 uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick(step.tick_next)?;
 
             // Target spot price
-            let swap_target_sqrt_ratio = if zero_for_one {
+            let swap_target_sqrt_ratio = if zero_to_one {
                 if step.sqrt_price_next_x96 < sqrt_price_limit_x_96 {
                     sqrt_price_limit_x_96
                 } else {
@@ -134,7 +137,7 @@ pub fn calculate_v3_out(
                 swap_target_sqrt_ratio,
                 current_state.liquidity,
                 current_state.amount_specified_remaining,
-                self.fee,
+                pool.fee,
             )?;
 
             // Decrement the amount remaining to be swapped and amount received from the step
@@ -150,14 +153,14 @@ pub fn calculate_v3_out(
             // If the price moved all the way to the next price, recompute the liquidity change for the next iteration
             if current_state.sqrt_price_x_96 == step.sqrt_price_next_x96 {
                 if step.initialized {
-                    let mut liquidity_net = if let Some(info) = self.ticks.get(&step.tick_next) {
+                    let mut liquidity_net = if let Some(info) = pool.ticks.get(&step.tick_next) {
                         info.liquidity_net
                     } else {
                         0
                     };
 
                     // we are on a tick boundary, and the next tick is initialized, so we must charge a protocol fee
-                    if zero_for_one {
+                    if zero_to_one {
                         liquidity_net = -liquidity_net;
                     }
 
@@ -172,7 +175,7 @@ pub fn calculate_v3_out(
                     };
                 }
                 // Increment the current tick
-                current_state.tick = if zero_for_one {
+                current_state.tick = if zero_to_one {
                     step.tick_next.wrapping_sub(1)
                 } else {
                     step.tick_next
@@ -184,10 +187,9 @@ pub fn calculate_v3_out(
                     current_state.sqrt_price_x_96,
                 )?;
             }
-        }
+    }
 
-        let amount_out = (-current_state.amount_calculated).into_raw();
-        */
+    let amount_out = (-current_state.amount_calculated).into_raw();
 
-    Ok(amount_in)
+    Ok(amount_out)
 }

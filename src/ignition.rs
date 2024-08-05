@@ -39,7 +39,7 @@ pub async fn start_workers(
 
     // On each new block, parse sync events and update reserves
     info!("Starting sync event stream...");
-    tokio::spawn(stream_sync_events(
+    tokio::spawn(state_updater(
         http.clone(),
         pool_manager.clone(),
         block_receiver.resubscribe(),

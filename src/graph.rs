@@ -5,6 +5,7 @@ use log::info;
 use petgraph::algo;
 use petgraph::graph::UnGraph;
 use petgraph::prelude::*;
+use pool_sync::snapshot::{UniswapV2PoolState, UniswapV3PoolState};
 use pool_sync::{Pool, PoolInfo, PoolType};
 use rayon::prelude::*;
 use rustc_hash::FxHashMap;
@@ -47,16 +48,15 @@ impl SwapStep {
 
 impl SwapStep {
     pub fn get_amount_out(&self, amount_in: U256, pool_manager: &PoolManager) -> U256 {
+        let zero_to_one = pool_manager.zero_to_one(self.token_in, &self.pool_address);
         match self.protocol {
             PoolType::UniswapV2 | PoolType::SushiSwapV2 | PoolType::PancakeSwapV2 => {
-                let (reserve0, reserve1) = pool_manager.get_v2(&self.pool_address);
-                let zero_to_one = pool_manager.zero_to_one(self.token_in, &self.pool_address);
-                calculate_v2_out(amount_in, reserve0, reserve1, zero_to_one)
+                let v2_pool: UniswapV2PoolState = pool_manager.get_v2pool(&self.pool_address);
+                calculate_v2_out(amount_in, v2_pool, zero_to_one)
             }
             PoolType::UniswapV3 | PoolType::SushiSwapV3 => {
-                let (sqrt_price_x96, tick, liquidity) = pool_manager.get_v3(&self.pool_address);
-                let zero_to_one = pool_manager.zero_to_one(self.token_in, &self.pool_address);
-                calculate_v3_out(amount_in, sqrt_price_x96, tick, liquidity, zero_to_one).unwrap()
+                let v3_pool: UniswapV3PoolState = pool_manager.get_v3pool(&self.pool_address);
+                calculate_v3_out(amount_in, v3_pool, zero_to_one).unwrap()
             }
             _ => todo!(),
         }
@@ -237,30 +237,6 @@ impl ArbGraph {
                 }
             });
 
-                /* 
-            let chunk_size = (self.cycles.len() / rayon::current_num_threads()).max(1);
-
-            let profitable_paths = Arc::new(SegQueue::new());
-            self.cycles.par_chunks(chunk_size).for_each(|chunk| {
-                let local_profitable_paths: Vec<_> = chunk
-                    .iter()
-                    .filter_map(|cycle| {
-                        let mut current_amount = U256::from(1e17);
-                        for swap in cycle {
-                            current_amount = swap.get_amount_out(current_amount, &self.pool_manager)
-                        }
-
-                        if current_amount > U256::from(1e17 as u64) {
-                            Some((cycle, current_amount))
-                        } else {
-                            None
-                        }
-                    }).collect();
-                for path in local_profitable_paths {
-                    profitable_paths.push(path);
-                }
-            });
-            */
 
             // get all the profitable paths
             info!("Searched all paths in {:?}", start.elapsed());
@@ -285,13 +261,6 @@ impl ArbGraph {
 
             }
 
-                /*
-                let arb_path = ArbPath {
-                    path: path.0,
-                    reserves: path.1,
-                };
-                arb_sender.send(Event::NewPath(arb_path)).unwrap();
-                */
         }
     }
 

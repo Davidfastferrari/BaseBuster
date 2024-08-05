@@ -64,6 +64,8 @@ async fn main() -> std::io::Result<()> {
             PoolType::UniswapV2,
             PoolType::SushiSwapV2,
             PoolType::PancakeSwapV2,
+            PoolType::UniswapV3,
+            PoolType::SushiSwapV3,
         ])
         .chain(Chain::Ethereum)
         .rate_limit(100)
