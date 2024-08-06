@@ -18,11 +18,13 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::sync::Semaphore;
 use pool_sync::PoolSync;
+use pool_sync::{build_v2_pools, build_v3_pools};
 use pool_sync::snapshot::*;
 
 
 // Structure to hold all the tracked pools
 // Reserves will be modified on every block due to Sync events
+#[derive(Default)]
 pub struct PoolManager {
     // All addresses that hte pool is tracking
     addresses: FxHashSet<Address>,
@@ -39,16 +41,17 @@ impl PoolManager {
     pub async fn new(
         working_pools: Vec<Pool>,
         http: Arc<RootProvider<Http<Client>>>,
-        contract_address: Address,
     ) -> Self {
         let address_to_pool = working_pools
             .iter()
             .map(|pool| (pool.address(), pool.clone()))
             .collect();
         // construct mapping and do an initial reserve sync so we are working wtih an up to date state
-        let (v2_state, v3_state) = Self::initial_sync(working_pools, http, contract_address).await;
+        let (v2_state, v3_state) = Self::initial_sync(working_pools, http).await;
         let mut addresses: FxHashSet<Address> = v2_state.keys().cloned().collect();
         addresses.extend(v3_state.keys().cloned());
+
+
         Self {
             addresses,
             address_to_pool,
@@ -57,13 +60,35 @@ impl PoolManager {
         }
     }
 
+    pub async fn new_with_addresses(
+        v2_pools: Vec<Address>,
+        v3_pools: Vec<Address>,
+        http: Arc<RootProvider<Http<Client>>>,
+    ) -> Self {
+        let v2_state = Self::initial_v2_sync(v2_pools.clone(), http.clone());
+        let v3_state = Self::initial_v3_sync(v3_pools.clone(), http.clone());
+        let (v2_state, v3_state) = futures::join!(v2_state, v3_state);
+
+        let v2_pools = build_v2_pools(http.clone(), v2_pools.clone(), PoolType::UniswapV2).await;
+        let v3_pools = build_v3_pools(http.clone(), v3_pools.clone(), PoolType::UniswapV3).await;
+        let address_to_pool: FxHashMap<Address, Pool> = v2_pools.into_iter().map(|pool| (pool.address(), pool)).collect();
+        let address_to_pool: FxHashMap<Address, Pool> = address_to_pool.into_iter().chain(v3_pools.into_iter().map(|pool| (pool.address(), pool))).collect();
+
+        Self {
+            address_to_pool,
+            address_to_v2pool: RwLock::new(v2_state),
+            address_to_v3pool: RwLock::new(v3_state),
+            ..Default::default()
+        }
+
+    }
+
     /// Batch sync resreves for tracked pools upon startup
     /// Indirection, sync events provide address which we used to get the node indicies
     /// which are utilized by the graph
     async fn initial_sync(
         working_pools: Vec<Pool>,
         http: Arc<RootProvider<Http<Client>>>,
-        contract_address: Address,
     ) -> (
         FxHashMap<Address, UniswapV2PoolState>,
         FxHashMap<Address, UniswapV3PoolState>,

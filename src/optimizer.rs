@@ -37,7 +37,7 @@ pub async fn optimize_paths(
 ) {
 
     let provider = ProviderBuilder::new()
-        .on_http("http://localhost:8545".parse().unwrap());
+        .on_http("http://localhost:9100".parse().unwrap());
 
     let contract = FlashSwap::new(flash_addr, provider.clone());
 
@@ -69,7 +69,8 @@ pub async fn optimize_paths(
             poolAddress: step.pool_address,
             tokenIn: step.token_in,
             tokenOut: step.token_out,
-            protocol: step.as_u8()
+            protocol: step.as_u8(),
+            fee: step.fee
         }).collect();
 
         let tx = contract.executeArbitrage(converted_path, U256::from(2e17)).into_transaction_request();

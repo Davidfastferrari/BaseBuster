@@ -107,11 +107,13 @@ pub async fn state_updater(
                 .filter(|addr| pool_manager.exists(addr))
                 .collect()
         );
-        let v2_snapshots = v2_pool_snapshot(v2_addresses.clone(), http.clone()).await;
-        let v3_snapshots = v3_pool_snapshot(&v3_addresses.clone(), http.clone()).await;
+        let v2_snapshots = v2_pool_snapshot(v2_addresses.clone(), http.clone()).await.unwrap();
+        info!("Got {} v2 snapshots", v2_snapshots.len());
+        let v3_snapshots = v3_pool_snapshot(&v3_addresses.clone(), http.clone()).await.unwrap();
+        info!("Got {} v3 snapshots", v3_snapshots.len());
 
-        pool_manager.v2_update_from_snapshots(v2_snapshots.unwrap());
-        pool_manager.v3_update_from_snapshots(v3_snapshots.unwrap());
+        pool_manager.v2_update_from_snapshots(v2_snapshots);
+        pool_manager.v3_update_from_snapshots(v3_snapshots);
 
 
         // send notification saying that we have updated the reserves

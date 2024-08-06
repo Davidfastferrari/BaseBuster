@@ -38,7 +38,7 @@ pub async fn start_workers(
     tokio::spawn(stream_new_blocks(ws.clone(), block_sender));
 
     // On each new block, parse sync events and update reserves
-    info!("Starting sync event stream...");
+    info!("Starting state updater...");
     tokio::spawn(state_updater(
         http.clone(),
         pool_manager.clone(),
@@ -75,5 +75,6 @@ pub async fn start_workers(
         graph
             .search_paths(arb_sender, reserve_update_receiver)
             .await;
+
     });
 }

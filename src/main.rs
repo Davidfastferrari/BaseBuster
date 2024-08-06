@@ -1,12 +1,14 @@
-use alloy::network::EthereumWallet;
+use alloy::network::{EthereumWallet, NetworkWallet};
 use alloy::node_bindings::Anvil;
 use alloy::primitives::address;
 use alloy::providers::{Provider, ProviderBuilder, WsConnect};
 use alloy::signers::local::PrivateKeySigner;
+use alloy::primitives::U256;
 use alloy::sol;
 use log::{info, LevelFilter};
 use pool_sync::*;
 use std::sync::Arc;
+use pool_sync::filter::filter_pools_by_liquidity;
 
 use crate::graph::ArbGraph;
 use crate::ignition::start_workers;
@@ -63,11 +65,11 @@ async fn main() -> std::io::Result<()> {
         .add_pools(&[
             PoolType::UniswapV2,
             PoolType::SushiSwapV2,
-            PoolType::PancakeSwapV2,
+            //PoolType::PancakeSwapV2,
             PoolType::UniswapV3,
             PoolType::SushiSwapV3,
         ])
-        .chain(Chain::Ethereum)
+        .chain(Chain::Base)
         .rate_limit(100)
         .build()
         .unwrap();
@@ -77,7 +79,7 @@ async fn main() -> std::io::Result<()> {
     let fork_block = http_provider.get_block_number().await.unwrap();
     let anvil = Anvil::new()
         .fork(url)
-        .port(8545_u16)
+        .port(9100_u16)
         .fork_block_number(fork_block)
         //.port(portpicker::pick_unused_port().unwrap())
         .try_spawn()
@@ -90,13 +92,10 @@ async fn main() -> std::io::Result<()> {
     let anvil_signer = Arc::new(
         ProviderBuilder::new()
             .with_recommended_fillers()
+            .network::<alloy::network::AnyNetwork>()
             .wallet(wallet)
             .on_http(anvil.endpoint_url()),
     );
-
-    // deploy the batch contract
-    let contract = BatchSync::deploy(anvil_signer.clone()).await.unwrap();
-    let contract_address = contract.address();
 
     // deploy the falsh contract
     let flash = FlashSwap::deploy(anvil_signer.clone()).await.unwrap();
@@ -113,7 +112,12 @@ async fn main() -> std::io::Result<()> {
 
     // load in the tokens that have had the top volume
     info!("Getting our set of working pools...");
-    let working_pools = get_working_pools(pools, 10000, Chain::Ethereum).await;
+    //let working_pools = get_working_pools(pools, 15000, Chain::Base).await;
+    let working_pools = filter_pools_by_liquidity(
+        http_provider.clone(),
+        pools,
+        U256::from(2e17),
+    ).await;
     println!("Found {} working pools", working_pools.len());
 
     // Maintains reserves updates and pool state
@@ -122,14 +126,14 @@ async fn main() -> std::io::Result<()> {
         PoolManager::new(
             working_pools.clone(),
             http_provider.clone(),
-            contract_address.clone(),
         )
         .await,
     );
 
     // build the graph and populate mappings
     info!("Constructing graph and generating cycles...");
-    let weth = address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
+    //let weth = address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
+    let weth = address!("4200000000000000000000000000000000000006");
     let graph = ArbGraph::new(pool_manager.clone(), working_pools.clone(), weth);
 
     info!("Starting workers...");
