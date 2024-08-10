@@ -1,7 +1,7 @@
 use alloy::primitives::{Address, I128, I16, I256, I32, U128, U16, U256};
 use anyhow::Result;
 use num_traits::Zero;
-use pool_sync::snapshot::{UniswapV2PoolState, UniswapV3PoolState};
+use pool_sync::pools::pool_structure::UniswapV3Pool;
 use std::{cmp::Ordering, collections::HashMap};
 use uniswap_v3_math::tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK};
 pub const U256_1: U256 = U256::from_limbs([1, 0, 0, 0]);
@@ -9,12 +9,14 @@ pub const U256_1: U256 = U256::from_limbs([1, 0, 0, 0]);
 
 pub fn calculate_v2_out(
     amount_in: U256,
-    pool: UniswapV2PoolState,
+    reserve0: U128,
+    reserve1: U128,
     zero_to_one: bool,
 ) -> U256 {
 
-    let reserve0 = pool.reserve0;
-    let reserve1 = pool.reserve1;
+    let reserve0 = U256::from(reserve0);
+    let reserve1 = U256::from(reserve1);
+
 
     if reserve0.is_zero() || reserve1.is_zero() {
         return U256::ZERO;
@@ -64,7 +66,7 @@ pub struct StepComputations {
 
 pub fn calculate_v3_out(
     amount_in: U256,
-    pool: UniswapV3PoolState,
+    pool: UniswapV3Pool,
     zero_to_one: bool,
 ) -> Result<U256> {
     if amount_in.is_zero() {

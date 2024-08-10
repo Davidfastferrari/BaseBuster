@@ -2411,9 +2411,9 @@ dependencies = [
 
 [[package]]
 name = "gweiyser"
-version = "0.1.0"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1d8830278328721ce7db4107e4d179ddeef5048cd8a87cf9a83729b9415a627"
+checksum = "67a5efea9368f88093abf95b71fcb353626e42dbb4026ef36a5447416025592d"
 dependencies = [
  "alloy 0.2.0",
  "alloy-contract 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2422,6 +2422,7 @@ dependencies = [
  "futures",
  "pool-sync 0.1.12",
  "tokio",
+ "uniswap_v3_math",
 ]
 
 [[package]]
@@ -3280,8 +3281,6 @@ dependencies = [
 [[package]]
 name = "pool-sync"
 version = "1.0.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ad4a371a11c431b4733706f3c8ca0fb1f986c547d1071a1eda91879aa575ecac"
 dependencies = [
  "alloy 0.2.0",
  "alloy-contract 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3306,6 +3305,7 @@ dependencies = [
  "serde_json",
  "thiserror",
  "tokio",
+ "uniswap_v3_math",
 ]
 
 [[package]]

@@ -23,17 +23,19 @@ pub async fn start_workers(
     graph: ArbGraph,
     addr: Address,
 ) {
+    /* 
     // all communication channels
     let (block_sender, block_receiver) = broadcast::channel(10);
     let (reserve_update_sender, reserve_update_receiver) = broadcast::channel(10);
     let (gas_sender, gas_receiver) = broadcast::channel(10);
     let (sim_sender, sim_receiver) = broadcast::channel(30);
     let (opt_sender, opt_receiver) = broadcast::channel(100);
-    let (arb_sender, arb_receiver) = broadcast::channel(100);
+    let (arb_sender, arb_receiver) = broadcast::channel(200);
 
     // graph -> tx_sender (to send tx) -> tx_receiver (opt get it)
 
     // Stream in new blocks
+    /* */
     info!("Starting block stream...");
     tokio::spawn(stream_new_blocks(ws.clone(), block_sender));
 
@@ -47,6 +49,7 @@ pub async fn start_workers(
     ));
 
     // Update the gas on each block
+    /* *
     info!("Starting gas manager...");
     let gas_manager = Arc::new(GasPriceManager::new(http.clone(), 0.1, 100));
     tokio::spawn(async move {
@@ -54,9 +57,10 @@ pub async fn start_workers(
             .update_gas_price(block_receiver.resubscribe(), gas_sender)
             .await;
     });
+    */
 
-    info!("Starting arb simulator...");
-    tokio::spawn(simulate_path(sim_sender, opt_receiver.resubscribe()));
+    //info!("Starting arb simulator...");
+    //tokio::spawn(simulate_path(sim_sender, opt_receiver.resubscribe()));
 
     info!("Starting optimizer...");
     tokio::spawn(optimize_paths(opt_sender, arb_receiver.resubscribe(), addr));
@@ -71,10 +75,12 @@ pub async fn start_workers(
 
     // finally.... start the searcher!!!!!
     info!("Starting arbitrage searcher...");
-    tokio::spawn(async move {
-        graph
-            .search_paths(arb_sender, reserve_update_receiver)
-            .await;
+    //tokio::spawn(async move {
+    //    graph
+    //        .search_paths(arb_sender, reserve_update_receiver)
+    //        .await;
 
-    });
+    //});
+    */
+    todo!()
 }

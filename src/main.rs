@@ -5,8 +5,11 @@ use alloy::providers::{Provider, ProviderBuilder, WsConnect};
 use alloy::signers::local::PrivateKeySigner;
 use alloy::primitives::U256;
 use alloy::sol;
+use events::Event;
 use log::{info, LevelFilter};
+use optimizer::optimize_paths;
 use pool_sync::*;
+use tokio::sync::broadcast;
 use std::sync::Arc;
 use pool_sync::filter::filter_pools_by_liquidity;
 
@@ -53,27 +56,15 @@ async fn main() -> std::io::Result<()> {
         .init();
 
     // construct the providers
-    info!("Constructing http provider...");
+    info!("Starting anvil and constructing providers");
 
     // Http provider, utilizing anvil instance
     let url = std::env::var("FULL").unwrap();
     let http_provider = Arc::new(ProviderBuilder::new().on_http(url.parse().unwrap()));
 
-    // Load in all the pools
-    info!("Loading and syncing pools...");
-    let pool_sync = PoolSync::builder()
-        .add_pools(&[
-            PoolType::UniswapV2,
-            PoolType::SushiSwapV2,
-            //PoolType::PancakeSwapV2,
-            PoolType::UniswapV3,
-            PoolType::SushiSwapV3,
-        ])
-        .chain(Chain::Base)
-        .rate_limit(100)
-        .build()
-        .unwrap();
-    let pools = pool_sync.sync_pools().await.unwrap();
+    // Websocket provider
+    let ws_url = WsConnect::new(std::env::var("WS").unwrap());
+    let ws_provider = Arc::new(ProviderBuilder::new().on_ws(ws_url).await.unwrap());
 
     // start the anvil instance
     let fork_block = http_provider.get_block_number().await.unwrap();
@@ -81,12 +72,9 @@ async fn main() -> std::io::Result<()> {
         .fork(url)
         .port(9100_u16)
         .fork_block_number(fork_block)
-        //.port(portpicker::pick_unused_port().unwrap())
         .try_spawn()
         .unwrap();
     info!("Anvil endpoint: {}", anvil.endpoint_url());
-
-    // create anvil signer and http client on anvil endpoint
     let signer: PrivateKeySigner = anvil.keys()[0].clone().into();
     let wallet = EthereumWallet::from(signer);
     let anvil_signer = Arc::new(
@@ -97,6 +85,39 @@ async fn main() -> std::io::Result<()> {
             .on_http(anvil.endpoint_url()),
     );
 
+    let (opt_sender, opt_receiver) = broadcast::channel(100);
+    let (arb_sender, arb_receiver) = broadcast::channel(200);
+
+    let (reserve_update_sender, reserve_update_receiver) = broadcast::channel(10);
+
+
+    let mut receiver_clone = reserve_update_receiver.resubscribe();
+    tokio::spawn( async move {
+        while let Ok(Event::ReserveUpdate(updated_pools)) = receiver_clone.recv().await {
+        }
+    });
+
+    // Load in all the pools
+    info!("Loading and syncing pools...");
+    let pool_sync = PoolSync::builder()
+        .add_pools(&[
+            PoolType::UniswapV2,
+            //PoolType::SushiSwapV2,
+            //PoolType::PancakeSwapV2,
+            PoolType::UniswapV3,
+            //PoolType::SushiSwapV3,
+        ])
+        .chain(Chain::Base)
+        .rate_limit(100)
+        .build()
+        .unwrap();
+    let pools = pool_sync.sync_pools().await.unwrap();
+
+    // construct the pool manager here and start sycning reserves
+    let pool_manager = PoolManager::new(pools.clone(), reserve_update_sender.clone()).await;
+    println!("construted pool manager");
+
+
     // deploy the falsh contract
     let flash = FlashSwap::deploy(anvil_signer.clone()).await.unwrap();
     info!("Flash swap address {:#?}", flash.address());
@@ -106,9 +127,6 @@ async fn main() -> std::io::Result<()> {
     let anvil_provider = Arc::new(ProviderBuilder::new().on_http(anvil.endpoint_url()));
     let block = anvil_provider.get_block_number().await.unwrap();
     print!("Block number: {:?}", block);
-    // Websocket provider
-    let ws_url = WsConnect::new(std::env::var("WS").unwrap());
-    let ws_provider = Arc::new(ProviderBuilder::new().on_ws(ws_url).await.unwrap());
 
     // load in the tokens that have had the top volume
     info!("Getting our set of working pools...");
@@ -116,19 +134,9 @@ async fn main() -> std::io::Result<()> {
     let working_pools = filter_pools_by_liquidity(
         http_provider.clone(),
         pools,
-        U256::from(2e17),
+        U256::from(1e16),
     ).await;
     println!("Found {} working pools", working_pools.len());
-
-    // Maintains reserves updates and pool state
-    info!("Constructing the pool manager and getting initial reserves...");
-    let pool_manager = Arc::new(
-        PoolManager::new(
-            working_pools.clone(),
-            http_provider.clone(),
-        )
-        .await,
-    );
 
     // build the graph and populate mappings
     info!("Constructing graph and generating cycles...");
@@ -136,6 +144,16 @@ async fn main() -> std::io::Result<()> {
     let weth = address!("4200000000000000000000000000000000000006");
     let graph = ArbGraph::new(pool_manager.clone(), working_pools.clone(), weth);
 
+    tokio::spawn(async move {
+        graph
+            .search_paths(arb_sender, reserve_update_receiver)
+            .await;
+
+    });
+
+    tokio::spawn(optimize_paths(opt_sender, arb_receiver.resubscribe(), *flash_address));
+
+    /* 
     info!("Starting workers...");
     start_workers(
         http_provider,
@@ -146,9 +164,10 @@ async fn main() -> std::io::Result<()> {
         *flash_address,
     )
     .await;
+*/
 
     loop {
-        tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
     }
 
     Ok(())

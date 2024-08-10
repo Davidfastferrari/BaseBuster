@@ -65,7 +65,7 @@ pub async fn optimize_paths(
     while let Ok(Event::NewPath(arb_path)) = arb_receiver.recv().await {
         //info!("Received arb path: {:?}", arb_path);
 
-        let converted_path: Vec<FlashSwap::SwapStep> = arb_path.iter().map(|step| FlashSwap::SwapStep {
+        let converted_path: Vec<FlashSwap::SwapStep> = arb_path.clone().iter().map(|step| FlashSwap::SwapStep {
             poolAddress: step.pool_address,
             tokenIn: step.token_in,
             tokenOut: step.token_out,
@@ -73,12 +73,13 @@ pub async fn optimize_paths(
             fee: step.fee
         }).collect();
 
-        let tx = contract.executeArbitrage(converted_path, U256::from(2e17)).into_transaction_request();
+        let tx = contract.executeArbitrage(converted_path, U256::from(25e15)).into_transaction_request();
         let output = provider.debug_trace_call(tx, alloy::eips::BlockNumberOrTag::Latest, options.clone()).await.unwrap();
-        //println!("Output: {:?}", output);
+        println!("path: {:?}", arb_path);
+        println!("Output: {:#?}", output);
         match output {
             GethTrace::CallTracer(call_trace) => {
-                let output = extract_profit(&call_trace);
+                //let output = extract_profit(&call_trace);
                 if call_trace.error.is_none() {
                     println!("Success!");
                     //println!("Profit {:?}", parse_units(output.to_string().as_str(), "ether"));

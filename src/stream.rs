@@ -10,52 +10,10 @@ use futures::StreamExt;
 use log::{debug, info};
 use std::sync::Arc;
 use tokio::sync::broadcast::{Receiver, Sender};
-use pool_sync::snapshot::*;
 
 use crate::events::Event;
 use crate::pool_manager::PoolManager;
 
-// The sync event is emitted whenever a pool is synced
-sol!(
-    #[derive(Debug)]
-    contract SyncEvent {
-        event Sync(uint112 reserve0, uint112 reserve1);
-    }
-);
-
-sol! {
-    #[derive(Debug)]
-    contract UniswapV3Events {
-        event Swap(
-            address indexed sender,
-            address indexed recipient,
-            int256 amount0,
-            int256 amount1,
-            uint160 sqrtPriceX96,
-            uint128 liquidity,
-            int24 tick
-        );
-
-        event Mint(
-            address sender,
-            address indexed owner,
-            int24 indexed tickLower,
-            int24 indexed tickUpper,
-            uint128 amount,
-            uint256 amount0,
-            uint256 amount1
-        );
-
-        event Burn(
-            address indexed owner,
-            int24 indexed tickLower,
-            int24 indexed tickUpper,
-            uint128 amount,
-            uint256 amount0,
-            uint256 amount1
-        );
-    }
-}
 
 // stream in new blocks
 pub async fn stream_new_blocks(ws: Arc<RootProvider<PubSubFrontend>>, block_sender: Sender<Event>) {
@@ -78,6 +36,7 @@ pub async fn state_updater(
     reserve_update_sender: Sender<Event>,  // reserve update sender
 ) {
     // wait for a new block
+    /* 
     while let Ok(Event::NewBlock(block)) = block_receiver.recv().await {
         let block_number = block.header.number.unwrap();
         
@@ -95,6 +54,9 @@ pub async fn state_updater(
             http.get_logs(&v2_filter),
             http.get_logs(&v3_filter)
         );
+
+        
+
 
         let (v2_addresses, v3_addresses): (Vec<Address>, Vec<Address>) = (
             v2_logs.unwrap_or_default().into_iter()
@@ -124,4 +86,5 @@ pub async fn state_updater(
             Err(e) => info!("Reserves update failed: {:?}", e),
         }
     }
+    */
 }

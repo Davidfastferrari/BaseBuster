@@ -1,27 +1,64 @@
-use alloy::eips::eip6110::MAINNET_DEPOSIT_CONTRACT_ADDRESS;
-use alloy::primitives::address;
 use alloy::primitives::Address;
-use alloy::primitives::{U128, U256};
-use alloy::providers::RootProvider;
+use alloy::primitives::U128;
+use alloy::providers::Provider;
+use alloy::providers::ProviderBuilder;
+use alloy::providers::WsConnect;
+use alloy::rpc::types::Log;
+use alloy_sol_types::SolEvent;
+use futures::stream::StreamExt;
 use log::info;
-use alloy::sol;
-use alloy::transports::http::{Client, Http};
-use futures::future::join_all;
-use futures::stream::{self, StreamExt};
-use log::debug;
-use petgraph::prelude::*;
 use pool_sync::PoolInfo;
-use pool_sync::{Pool, PoolType};
+use pool_sync::Pool;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 use std::sync::Arc;
 use std::sync::RwLock;
-use tokio::sync::Semaphore;
-use pool_sync::PoolSync;
-use pool_sync::{build_v2_pools, build_v3_pools};
-use pool_sync::snapshot::*;
+use alloy::rpc::types::Filter;
+use alloy::sol;
+use tokio::sync::broadcast;
+use crate::events::Event;
+use pool_sync::pools::pool_structure::{UniswapV2Pool, UniswapV3Pool};
 
+sol!(
+    #[derive(Debug)]
+    contract SyncEvent {
+        event Sync(uint112 reserve0, uint112 reserve1);
+    }
+);
 
+sol! {
+    #[derive(Debug)]
+    contract UniswapV3Events {
+        event Swap(
+            address indexed sender,
+            address indexed recipient,
+            int256 amount0,
+            int256 amount1,
+            uint160 sqrtPriceX96,
+            uint128 liquidity,
+            int24 tick
+        );
+
+        event Mint(
+            address sender,
+            address indexed owner,
+            int24 indexed tickLower,
+            int24 indexed tickUpper,
+            uint128 amount,
+            uint256 amount0,
+            uint256 amount1
+        );
+
+        event Burn(
+            address indexed owner,
+            int24 indexed tickLower,
+            int24 indexed tickUpper,
+            uint128 amount,
+            uint256 amount0,
+            uint256 amount1
+        );
+    }
+}
 // Structure to hold all the tracked pools
 // Reserves will be modified on every block due to Sync events
 #[derive(Default)]
@@ -31,155 +68,108 @@ pub struct PoolManager {
     // Mapping from address to generic pool
     address_to_pool: FxHashMap<Address, Pool>,
     // Mapping from address to V2Pool
-    address_to_v2pool: RwLock<FxHashMap<Address, UniswapV2PoolState>>,
+    address_to_v2pool: RwLock<FxHashMap<Address, UniswapV2Pool>>,
     /// Mapping from address to V3Pool
-    address_to_v3pool: RwLock<FxHashMap<Address, UniswapV3PoolState>>,
+    address_to_v3pool: RwLock<FxHashMap<Address, UniswapV3Pool>>,
 }
 
 impl PoolManager {
     // construct a new instance
     pub async fn new(
         working_pools: Vec<Pool>,
-        http: Arc<RootProvider<Http<Client>>>,
-    ) -> Self {
-        let address_to_pool = working_pools
+        sender: broadcast::Sender<Event>,
+    ) -> Arc<Self> {
+        let address_to_pool: FxHashMap<Address, Pool> = working_pools
             .iter()
             .map(|pool| (pool.address(), pool.clone()))
             .collect();
-        // construct mapping and do an initial reserve sync so we are working wtih an up to date state
-        let (v2_state, v3_state) = Self::initial_sync(working_pools, http).await;
-        let mut addresses: FxHashSet<Address> = v2_state.keys().cloned().collect();
-        addresses.extend(v3_state.keys().cloned());
+        
+        let addresses = address_to_pool.keys().cloned().collect();
 
+        let mut address_to_v2pool = FxHashMap::default();
+        let mut address_to_v3pool = FxHashMap::default();
+        for pool in working_pools {
+            if pool.is_v2() {
+                let v2_pool: UniswapV2Pool = pool.get_v2().unwrap().clone();
+                address_to_v2pool.insert(pool.address(), v2_pool);
+            } else if pool.is_v3() {
+                let v3_pool: UniswapV3Pool = pool.get_v3().unwrap().clone();
+                address_to_v3pool.insert(pool.address(), v3_pool);
+            }
+        }
 
-        Self {
+        let manager = Arc::new(Self {
             addresses,
             address_to_pool,
-            address_to_v2pool: RwLock::new(v2_state),
-            address_to_v3pool: RwLock::new(v3_state),
-        }
+            address_to_v2pool: RwLock::new(address_to_v2pool),
+            address_to_v3pool: RwLock::new(address_to_v3pool),
+        });
+
+        tokio::spawn(PoolManager::state_updater(manager.clone(), sender));
+        manager
     }
 
-    pub async fn new_with_addresses(
-        v2_pools: Vec<Address>,
-        v3_pools: Vec<Address>,
-        http: Arc<RootProvider<Http<Client>>>,
-    ) -> Self {
-        let v2_state = Self::initial_v2_sync(v2_pools.clone(), http.clone());
-        let v3_state = Self::initial_v3_sync(v3_pools.clone(), http.clone());
-        let (v2_state, v3_state) = futures::join!(v2_state, v3_state);
+    pub async fn state_updater(manager: Arc<PoolManager>, sender: broadcast::Sender<Event>) {
+        let ws_url = std::env::var("WS").unwrap();
+        let http_url = std::env::var("FULL").unwrap();
 
-        let v2_pools = build_v2_pools(http.clone(), v2_pools.clone(), PoolType::UniswapV2).await;
-        let v3_pools = build_v3_pools(http.clone(), v3_pools.clone(), PoolType::UniswapV3).await;
-        let address_to_pool: FxHashMap<Address, Pool> = v2_pools.into_iter().map(|pool| (pool.address(), pool)).collect();
-        let address_to_pool: FxHashMap<Address, Pool> = address_to_pool.into_iter().chain(v3_pools.into_iter().map(|pool| (pool.address(), pool))).collect();
+        let ws = ProviderBuilder::new().on_ws(WsConnect::new(ws_url)).await.unwrap();
+        let http = ProviderBuilder::new().on_http(http_url.parse().unwrap());
 
-        Self {
-            address_to_pool,
-            address_to_v2pool: RwLock::new(v2_state),
-            address_to_v3pool: RwLock::new(v3_state),
-            ..Default::default()
-        }
-
-    }
-
-    /// Batch sync resreves for tracked pools upon startup
-    /// Indirection, sync events provide address which we used to get the node indicies
-    /// which are utilized by the graph
-    async fn initial_sync(
-        working_pools: Vec<Pool>,
-        http: Arc<RootProvider<Http<Client>>>,
-    ) -> (
-        FxHashMap<Address, UniswapV2PoolState>,
-        FxHashMap<Address, UniswapV3PoolState>,
-    ) {
-        // split into v2 and v3 pools
-        let (v2_pools, v3_pools): (Vec<Pool>, Vec<Pool>) =
-            working_pools.into_iter().partition(|pool| {
-                pool.pool_type() == PoolType::UniswapV2
-                    || pool.pool_type() == PoolType::SushiSwapV2
-                    || pool.pool_type() == PoolType::PancakeSwapV2
-            });
+        let sub = ws.subscribe_blocks().await.unwrap();
+        let mut stream = sub.into_stream();
+        while let Some(block) = stream.next().await {
+            let block_number = block.header.number.unwrap();
+            println!("Block number: {:?}", block_number);
         
-        let v2_pools: Vec<Address> = v2_pools.into_iter().map(|pool| pool.address()).collect();
-        let v3_pools = v3_pools.into_iter().map(|pool| pool.address()).collect();
+            // setup the log filters
+            let filter = Filter::new().events([
+                    SyncEvent::Sync::SIGNATURE,
+                    UniswapV3Events::Mint::SIGNATURE,
+                    UniswapV3Events::Burn::SIGNATURE,
+                ]).from_block(block_number);
 
-        let v2_state = Self::initial_v2_sync(v2_pools, http.clone());
-        let v3_state = Self::initial_v3_sync(v3_pools, http.clone());
-        let (v2_state, v3_state) = futures::join!(v2_state, v3_state);
+            let logs = http.get_logs(&filter).await.unwrap();
 
-        (v2_state, v3_state)
-    }
-
-    async fn initial_v2_sync(
-        v2_pools: Vec<Address>,
-        http: Arc<RootProvider<Http<Client>>>,
-    ) -> FxHashMap<Address, UniswapV2PoolState> {
-        info!("Start v2 sync");
-        let mut v2_state: FxHashMap<Address, UniswapV2PoolState> = FxHashMap::default();
-        let v2_state_snapshots = v2_pool_snapshot(v2_pools, http).await.unwrap();
-
-        for v2_state_snapshot in v2_state_snapshots {
-            v2_state.insert(v2_state_snapshot.address, v2_state_snapshot);
-        }
-        info!("Finished v2 sync");
-
-        v2_state
-    }
-
-    async fn initial_v3_sync(
-        v3_pools: Vec<Address>,
-        http: Arc<RootProvider<Http<Client>>>,
-    ) -> FxHashMap<Address, UniswapV3PoolState> {
-        info!("Start v3 sync");
-        let mut v3_state: FxHashMap<Address, UniswapV3PoolState> = FxHashMap::default();
-        let v3_state_snapshots = v3_pool_snapshot(&v3_pools, http).await.unwrap();
-
-        for v3_state_snapshot in v3_state_snapshots {
-            v3_state.insert(v3_state_snapshot.address, v3_state_snapshot);
-        }
-        info!("Finished v3 sync");
-        v3_state
-    }
-
-    pub fn exists(&self, address: &Address) -> bool {
-        self.addresses.contains(address)
-    }
-
-    pub fn v2_update_from_snapshots(&self, v2_snapshots: Vec<UniswapV2PoolState>) {
-        let mut v2_pools = self.address_to_v2pool.write().unwrap();
-        for snapshot in v2_snapshots {
-            v2_pools.entry(snapshot.address)
-                .and_modify(|existing| {
-                    existing.reserve0 = snapshot.reserve0;
-                    existing.reserve1 = snapshot.reserve1;
-                })
-                .or_insert(snapshot);
+            let updated_pools = manager.process_logs(logs);
+            match sender.send(Event::ReserveUpdate(updated_pools)) {
+                Ok(_) => info!("Reserves updated"),
+                Err(e) => info!("Reserves update failed: {:?}", e),
+            }
         }
     }
 
-    pub fn v3_update_from_snapshots(&self, v3_snapshots: Vec<UniswapV3PoolState>) {
-        let mut v3_pools = self.address_to_v3pool.write().unwrap();
-        for snapshot in v3_snapshots {
-            v3_pools.entry(snapshot.address)
-                .and_modify(|existing| {
-                    existing.liquidity = snapshot.liquidity;
-                    existing.sqrt_price = snapshot.sqrt_price;
-                    existing.tick = snapshot.tick;
-                    existing.fee = snapshot.fee;
-                    existing.tick_spacing = snapshot.tick_spacing;
-                    existing.tick_bitmap = snapshot.tick_bitmap;
-                    existing.ticks = snapshot.ticks;
-                });
-    //            .or_insert(snapshot.clone()); keep to fix the copy here
+    fn process_logs(&self, logs: Vec<Log>) -> Vec<Address>{
+        let mut updated_pools = Vec::new();
+        for log in logs {
+            let address = log.address();
+            // we know if it s v3 pool since we are processing mint/burn/swap logs
+            if self.addresses.contains(&address)  {
+                updated_pools.push(address);
+                let pool = self.get_pool(&address);
+                if pool.is_v3() {
+                    let mut map = self.address_to_v3pool.write().unwrap();
+                    let pool = map.get_mut(&address).unwrap();
+                    pool_sync::pools::process_tick_data(pool, log);
+                } else if pool.is_v2() {
+                    let mut map = self.address_to_v2pool.write().unwrap();
+                    let pool = map.get_mut(&address).unwrap();
+                    pool_sync::pools::process_sync_data(pool, log);
+                }
+            }
         }
+        updated_pools
     }
 
-    pub fn get_v2pool(&self, address: &Address) -> UniswapV2PoolState {
+    pub fn get_pool(&self, address: &Address) -> Pool {
+        self.address_to_pool.get(address).unwrap().clone()
+    }
+
+    pub fn get_v2pool(&self, address: &Address) -> UniswapV2Pool {
         self.address_to_v2pool.read().unwrap().get(address).unwrap().clone()
     }
 
-    pub fn get_v3pool(&self, address: &Address) -> UniswapV3PoolState {
+    pub fn get_v3pool(&self, address: &Address) -> UniswapV3Pool {
         self.address_to_v3pool.read().unwrap().get(address).unwrap().clone()
     }
 
