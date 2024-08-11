@@ -1,38 +1,10 @@
-use alloy::network::{EthereumWallet, NetworkWallet};
-use alloy::node_bindings::Anvil;
-use alloy::primitives::address;
-use alloy::providers::{Provider, ProviderBuilder, WsConnect};
-use alloy::signers::local::PrivateKeySigner;
-use alloy::primitives::U256;
+use alloy::providers::{ProviderBuilder, WsConnect};
 use alloy::sol;
-use events::Event;
+use anyhow::Result;
+use ignition::start_workers;
 use log::{info, LevelFilter};
-use optimizer::optimize_paths;
 use pool_sync::*;
-use tokio::sync::broadcast;
 use std::sync::Arc;
-use pool_sync::filter::filter_pools_by_liquidity;
-
-use crate::graph::ArbGraph;
-use crate::ignition::start_workers;
-use crate::pool_manager::PoolManager;
-use crate::util::get_working_pools;
-
-// Pair contract to get reserves
-sol!(
-    #[derive(Debug)]
-    #[sol(rpc)]
-    BatchSync,
-    "src/abi/BatchSync.json"
-);
-
-sol!(
-    #[derive(Debug)]
-    #[sol(rpc)]
-    FlashSwap,
-    "src/abi/FlashSwap.json"
-);
-
 
 mod calculation;
 mod events;
@@ -40,135 +12,54 @@ mod gas_manager;
 mod graph;
 mod ignition;
 mod market;
-mod optimizer;
 mod pool_manager;
-mod simulation;
+mod simulator;
 mod stream;
 mod tx_sender;
 mod util;
 
+// define our flash swap contract
+sol!(
+    #[derive(Debug)]
+    #[sol(rpc)]
+    FlashSwap,
+    "src/abi/FlashSwap.json"
+);
+
+// initial amount we are trying to arb over
+pub const AMOUNT: u128 = 1_000_000_000_000_000;
+
 #[tokio::main]
-async fn main() -> std::io::Result<()> {
-    // initializations
+async fn main() -> Result<()> {
+    // init dots and logger
     dotenv::dotenv().ok();
     env_logger::Builder::new()
         .filter_level(LevelFilter::Info) // or Info, Warn, etc.
         .init();
 
-    // construct the providers
-    info!("Starting anvil and constructing providers");
-
-    // Http provider, utilizing anvil instance
-    let url = std::env::var("FULL").unwrap();
-    let http_provider = Arc::new(ProviderBuilder::new().on_http(url.parse().unwrap()));
-
-    // Websocket provider
+    // http provider and websocket provider
+    info!("Constructing providers");
+    let http_url = std::env::var("FULL").unwrap();
     let ws_url = WsConnect::new(std::env::var("WS").unwrap());
-    let ws_provider = Arc::new(ProviderBuilder::new().on_ws(ws_url).await.unwrap());
-
-    // start the anvil instance
-    let fork_block = http_provider.get_block_number().await.unwrap();
-    let anvil = Anvil::new()
-        .fork(url)
-        .port(9100_u16)
-        .fork_block_number(fork_block)
-        .try_spawn()
-        .unwrap();
-    info!("Anvil endpoint: {}", anvil.endpoint_url());
-    let signer: PrivateKeySigner = anvil.keys()[0].clone().into();
-    let wallet = EthereumWallet::from(signer);
-    let anvil_signer = Arc::new(
-        ProviderBuilder::new()
-            .with_recommended_fillers()
-            .network::<alloy::network::AnyNetwork>()
-            .wallet(wallet)
-            .on_http(anvil.endpoint_url()),
-    );
-
-    let (opt_sender, opt_receiver) = broadcast::channel(100);
-    let (arb_sender, arb_receiver) = broadcast::channel(200);
-
-    let (reserve_update_sender, reserve_update_receiver) = broadcast::channel(10);
-
-
-    let mut receiver_clone = reserve_update_receiver.resubscribe();
-    tokio::spawn( async move {
-        while let Ok(Event::ReserveUpdate(updated_pools)) = receiver_clone.recv().await {
-        }
-    });
+    let http_provider = Arc::new(ProviderBuilder::new().on_http(http_url.parse()?));
+    let ws_provider = Arc::new(ProviderBuilder::new().on_ws(ws_url).await?);
 
     // Load in all the pools
     info!("Loading and syncing pools...");
     let pool_sync = PoolSync::builder()
         .add_pools(&[
             PoolType::UniswapV2,
-            //PoolType::SushiSwapV2,
-            //PoolType::PancakeSwapV2,
+            PoolType::SushiSwapV2,
             PoolType::UniswapV3,
-            //PoolType::SushiSwapV3,
+            PoolType::SushiSwapV3,
         ])
         .chain(Chain::Base)
-        .rate_limit(100)
-        .build()
-        .unwrap();
-    let pools = pool_sync.sync_pools().await.unwrap();
+        .build()?;
+    let pools = pool_sync.sync_pools().await?;
 
-    // construct the pool manager here and start sycning reserves
-    let pool_manager = PoolManager::new(pools.clone(), reserve_update_sender.clone()).await;
-    println!("construted pool manager");
-
-
-    // deploy the falsh contract
-    let flash = FlashSwap::deploy(anvil_signer.clone()).await.unwrap();
-    info!("Flash swap address {:#?}", flash.address());
-    let flash_address = flash.address();
-
-    // Wallet signers
-    let anvil_provider = Arc::new(ProviderBuilder::new().on_http(anvil.endpoint_url()));
-    let block = anvil_provider.get_block_number().await.unwrap();
-    print!("Block number: {:?}", block);
-
-    // load in the tokens that have had the top volume
-    info!("Getting our set of working pools...");
-    //let working_pools = get_working_pools(pools, 15000, Chain::Base).await;
-    let working_pools = filter_pools_by_liquidity(
-        http_provider.clone(),
-        pools,
-        U256::from(1e16),
-    ).await;
-    println!("Found {} working pools", working_pools.len());
-
-    // build the graph and populate mappings
-    info!("Constructing graph and generating cycles...");
-    //let weth = address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
-    let weth = address!("4200000000000000000000000000000000000006");
-    let graph = ArbGraph::new(pool_manager.clone(), working_pools.clone(), weth);
-
-    tokio::spawn(async move {
-        graph
-            .search_paths(arb_sender, reserve_update_receiver)
-            .await;
-
-    });
-
-    tokio::spawn(optimize_paths(opt_sender, arb_receiver.resubscribe(), *flash_address));
-
-    /* 
-    info!("Starting workers...");
-    start_workers(
-        http_provider,
-        anvil_provider,
-        ws_provider,
-        pool_manager,
-        graph,
-        *flash_address,
-    )
-    .await;
-*/
+    start_workers(http_provider, ws_provider, pools).await;
 
     loop {
-        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+        tokio::time::sleep(std::time::Duration::from_secs(1000)).await;
     }
-
-    Ok(())
 }

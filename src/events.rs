@@ -26,4 +26,3 @@ pub struct ArbPath {
     pub path: Vec<Address>,
     pub reserves: Vec<(U128, U128)>,
 }
-

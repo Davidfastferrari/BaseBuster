@@ -1,34 +1,23 @@
 use alloy::primitives::Address;
-use alloy::primitives::U128;
-use alloy::providers::Provider;
-use alloy::providers::ProviderBuilder;
-use alloy::providers::WsConnect;
+use alloy::providers::{Provider, ProviderBuilder, WsConnect};
+use alloy::rpc::types::Filter;
 use alloy::rpc::types::Log;
+use alloy::sol;
 use alloy_sol_types::SolEvent;
 use futures::stream::StreamExt;
-use log::info;
-use pool_sync::PoolInfo;
-use pool_sync::Pool;
-use rustc_hash::FxHashMap;
-use rustc_hash::FxHashSet;
-use std::sync::Arc;
-use std::sync::RwLock;
-use alloy::rpc::types::Filter;
-use alloy::sol;
-use tokio::sync::broadcast;
-use crate::events::Event;
+use log::{debug, info};
 use pool_sync::pools::pool_structure::{UniswapV2Pool, UniswapV3Pool};
+use pool_sync::{Pool, PoolInfo};
+use rustc_hash::{FxHashMap, FxHashSet};
+use std::sync::{Arc, RwLock};
+use tokio::sync::broadcast;
 
-sol!(
-    #[derive(Debug)]
-    contract SyncEvent {
-        event Sync(uint112 reserve0, uint112 reserve1);
-    }
-);
+use crate::events::Event;
 
 sol! {
     #[derive(Debug)]
-    contract UniswapV3Events {
+    contract DataEvent {
+        event Sync(uint112 reserve0, uint112 reserve1);
         event Swap(
             address indexed sender,
             address indexed recipient,
@@ -75,15 +64,12 @@ pub struct PoolManager {
 
 impl PoolManager {
     // construct a new instance
-    pub async fn new(
-        working_pools: Vec<Pool>,
-        sender: broadcast::Sender<Event>,
-    ) -> Arc<Self> {
+    pub async fn new(working_pools: Vec<Pool>, sender: broadcast::Sender<Event>) -> Arc<Self> {
         let address_to_pool: FxHashMap<Address, Pool> = working_pools
             .iter()
             .map(|pool| (pool.address(), pool.clone()))
             .collect();
-        
+
         let addresses = address_to_pool.keys().cloned().collect();
 
         let mut address_to_v2pool = FxHashMap::default();
@@ -113,38 +99,43 @@ impl PoolManager {
         let ws_url = std::env::var("WS").unwrap();
         let http_url = std::env::var("FULL").unwrap();
 
-        let ws = ProviderBuilder::new().on_ws(WsConnect::new(ws_url)).await.unwrap();
+        let ws = ProviderBuilder::new()
+            .on_ws(WsConnect::new(ws_url))
+            .await
+            .unwrap();
         let http = ProviderBuilder::new().on_http(http_url.parse().unwrap());
 
         let sub = ws.subscribe_blocks().await.unwrap();
         let mut stream = sub.into_stream();
         while let Some(block) = stream.next().await {
             let block_number = block.header.number.unwrap();
-            println!("Block number: {:?}", block_number);
-        
+
             // setup the log filters
-            let filter = Filter::new().events([
-                    SyncEvent::Sync::SIGNATURE,
-                    UniswapV3Events::Mint::SIGNATURE,
-                    UniswapV3Events::Burn::SIGNATURE,
-                ]).from_block(block_number);
+            let filter = Filter::new()
+                .events([
+                    DataEvent::Sync::SIGNATURE,
+                    DataEvent::Mint::SIGNATURE,
+                    DataEvent::Burn::SIGNATURE,
+                    DataEvent::Swap::SIGNATURE,
+                ])
+                .from_block(block_number);
 
             let logs = http.get_logs(&filter).await.unwrap();
 
             let updated_pools = manager.process_logs(logs);
             match sender.send(Event::ReserveUpdate(updated_pools)) {
-                Ok(_) => info!("Reserves updated"),
+                Ok(_) => debug!("Reserves updated"),
                 Err(e) => info!("Reserves update failed: {:?}", e),
             }
         }
     }
 
-    fn process_logs(&self, logs: Vec<Log>) -> Vec<Address>{
+    fn process_logs(&self, logs: Vec<Log>) -> Vec<Address> {
         let mut updated_pools = Vec::new();
         for log in logs {
             let address = log.address();
             // we know if it s v3 pool since we are processing mint/burn/swap logs
-            if self.addresses.contains(&address)  {
+            if self.addresses.contains(&address) {
                 updated_pools.push(address);
                 let pool = self.get_pool(&address);
                 if pool.is_v3() {
@@ -166,16 +157,25 @@ impl PoolManager {
     }
 
     pub fn get_v2pool(&self, address: &Address) -> UniswapV2Pool {
-        self.address_to_v2pool.read().unwrap().get(address).unwrap().clone()
+        self.address_to_v2pool
+            .read()
+            .unwrap()
+            .get(address)
+            .unwrap()
+            .clone()
     }
 
     pub fn get_v3pool(&self, address: &Address) -> UniswapV3Pool {
-        self.address_to_v3pool.read().unwrap().get(address).unwrap().clone()
+        self.address_to_v3pool
+            .read()
+            .unwrap()
+            .get(address)
+            .unwrap()
+            .clone()
     }
 
     pub fn zero_to_one(&self, token_in: Address, pool: &Address) -> bool {
         let pool = self.address_to_pool.get(pool).unwrap();
         token_in == pool.token0_address()
     }
-
 }

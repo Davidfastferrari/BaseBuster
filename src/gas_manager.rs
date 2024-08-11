@@ -1,6 +1,6 @@
 use alloy::providers::{Provider, RootProvider};
 use alloy::transports::http::{Client, Http};
-use log::info;
+use log::{debug, info, warn};
 use std::sync::Arc;
 use tokio::sync::broadcast::{Receiver, Sender};
 
@@ -47,8 +47,8 @@ impl GasPriceManager {
 
             let total_fee = base_fee_per_gas + adjusted_priority_fee; //* self.base_fee_multiplier) + adjusted_priority_fee;
             match gas_sender.send(total_fee) {
-                Ok(_) => info!("Gas price sent"),
-                Err(e) => info!("Gas price send failed: {:?}", e),
+                Ok(_) => debug!("Gas price sent"),
+                Err(e) => warn!("Gas price send failed: {:?}", e),
             }
         }
     }
