@@ -7,6 +7,6 @@ use crate::market::Market;
 
 pub async fn send_transactions(mut tx_receiver: Receiver<Vec<SwapStep>>, market: Arc<Market>) {
     while let Ok(arb_path) = tx_receiver.recv().await {
-        info!("Received arb path: {:?}", arb_path);
+        //info!("Received arb path: {:?}", arb_path);
     }
 }

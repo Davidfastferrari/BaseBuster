@@ -30,10 +30,12 @@ pub async fn start_workers(
     let (tx_sender, tx_receiver) = broadcast::channel(1000);
 
     // get out working pools and construct ethe pool manager
+    info!("Getting working pools...");
     let working_pools = get_working_pools(pools.clone(), 10000, Chain::Base).await;
     let pool_manager = PoolManager::new(pools.clone(), reserve_update_sender.clone()).await;
 
     // construct the graph and generate the cycles
+    info!("Constructing graph...");
     let weth = address!("4200000000000000000000000000000000000006");
     let graph = ArbGraph::new(pool_manager.clone(), working_pools.clone(), weth);
 
@@ -75,5 +77,4 @@ pub async fn start_workers(
             .search_paths(arb_sender, reserve_update_receiver)
             .await;
     });
-    todo!()
 }

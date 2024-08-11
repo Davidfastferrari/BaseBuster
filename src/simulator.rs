@@ -22,7 +22,7 @@ pub async fn simulate_paths(
     mut arb_receiver: Receiver<Event>,
 ) {
     // deploy the contract and get the address
-    let flash_addr = deploy_flash_swap().await;
+    let (anvil, flash_addr) = deploy_flash_swap().await;
     // setup the provider on the anvil instance and construt the contract
     let provider = ProviderBuilder::new().on_http("http://localhost:9100".parse().unwrap());
     let contract = FlashSwap::new(flash_addr, provider.clone());
@@ -69,12 +69,11 @@ pub async fn simulate_paths(
             .into_transaction_request();
         let output = provider
             .debug_trace_call(tx, alloy::eips::BlockNumberOrTag::Latest, options.clone())
-            .await
-            .unwrap();
+            .await;
 
         // process the output
         match output {
-            GethTrace::CallTracer(call_trace) => {
+            Ok(GethTrace::CallTracer(call_trace)) => {
                 if call_trace.error.is_none() {
                     // we have a profitable path, send it over to the sender
                     match tx_sender.send(converted_path) {
@@ -83,6 +82,7 @@ pub async fn simulate_paths(
                     }
                 }
             }
+            Err(e) => info!("Failed to simulate {:?}", e),
             _ => {}
         }
     }

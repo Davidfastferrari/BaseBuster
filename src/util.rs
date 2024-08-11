@@ -3,10 +3,11 @@ use alloy::signers::local::PrivateKeySigner;
 use anyhow::Result;
 use pool_sync::filter::fetch_top_volume_tokens;
 use pool_sync::{Chain, Pool, PoolInfo};
-use alloy::node_bindings::Anvil;
+use alloy::node_bindings::{Anvil, AnvilInstance};
 use std::sync::Arc;
 use alloy::providers::{Provider, ProviderBuilder};
 use serde::{Deserialize, Serialize};
+use log::info;
 use std::fs::{create_dir_all, File};
 use std::io::{BufReader, BufWriter};
 use std::path::Path;
@@ -83,7 +84,7 @@ pub async fn get_working_pools(pools: Vec<Pool>, num_results: usize, chain: Chai
 
 
 // deploy the flash swap contract
-pub async fn deploy_flash_swap() -> Address {
+pub async fn deploy_flash_swap() -> (AnvilInstance, Address) {
     let http_provider = Arc::new(ProviderBuilder::new().on_http(std::env::var("FULL").unwrap().parse().unwrap()));
     let fork_block = http_provider.get_block_number().await.unwrap();
     let anvil = Anvil::new()
@@ -92,6 +93,8 @@ pub async fn deploy_flash_swap() -> Address {
         .fork_block_number(fork_block)
         .try_spawn()
         .unwrap();
+
+    info!("Anvil started on {}", anvil.endpoint_url());
     let signer: PrivateKeySigner = anvil.keys()[0].clone().into();
     let wallet = EthereumWallet::from(signer);
     let anvil_signer = Arc::new(
@@ -104,5 +107,6 @@ pub async fn deploy_flash_swap() -> Address {
 
     let flash_contract = FlashSwap::deploy(anvil_signer.clone()).await.unwrap();
     let flash_address = flash_contract.address();
-    *flash_address
+    info!("FlashSwap deployed at: {}", flash_address);
+    (anvil, *flash_address)
 }

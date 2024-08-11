@@ -2,7 +2,7 @@ use crate::events::Event;
 use crate::pool_manager::PoolManager;
 use alloy::primitives::{Address, U256};
 use crossbeam_queue::SegQueue;
-use log::info;
+use log::{info, warn};
 use petgraph::graph::UnGraph;
 use petgraph::prelude::*;
 use pool_sync::{Pool, PoolInfo, PoolType};
@@ -251,7 +251,7 @@ impl ArbGraph {
             if profitable_paths.len() != 0 {
                 while let Some(path) = profitable_paths.pop() {
                     match arb_sender.send(Event::NewPath(path.0.clone())) {
-                        Err(e) => info!("Path send failed: {:?}", e),
+                        Err(e) => warn!("Path send failed: {:?}", e),
                         _ => {}
                     }
                 }
