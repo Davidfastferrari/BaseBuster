@@ -1,54 +1,64 @@
+use alloy::primitives::U256;
 use alloy::providers::{Provider, RootProvider};
-use alloy::transports::http::{Client, Http};
+use alloy::transports::http::{Http, Client};
 use log::{debug, info, warn};
 use std::sync::Arc;
 use tokio::sync::broadcast::{Receiver, Sender};
+use alloy::network::Ethereum;
 
 use crate::events::Event;
 
-// Update the gas price based on the block
+const BASE_FEE_MULTIPLIER: f64 = 1.1; // 10% increase
+const MAX_PRIORITY_FEE: u64 = 700_000_000; // 1.5 Gwei, adjust as needed for Base
+const MIN_PRIORITY_FEE: u64 = 100_000; // 0.1 Gwei, adjust as needed for Base
+
 pub struct GasPriceManager {
     provider: Arc<RootProvider<Http<Client>>>,
-    base_fee_multiplier: f64, // figure out what this is
-    max_priority_fee: u128,
+    
 }
-
 impl GasPriceManager {
-    // Constructor
-    pub fn new(
-        provider: Arc<RootProvider<Http<Client>>>,
-        base_fee_multiplier: f64,
-        max_priority_fee: u128,
-    ) -> Self {
-        Self {
-            provider,
-            base_fee_multiplier,
-            max_priority_fee,
-        }
+    pub fn new(provider: Arc<RootProvider<Http<Client>>>) -> Self {
+        Self { provider }
     }
 
-    // max fee per gas: max total fee you are willing to pay
-    // max priority fee: max priority fee you are willing to pay
-    // actual base fee: this is the fee set by the network
-    // actual priority fee: min(max priority fee, max fee per gas - actual base fee)
-    // 1) you always pay the full base fee, this gets burned
-    // 2) you pay up to your max priority fee, but no more than whats left after subtracting base free from max fee per gas
-    // 3) if base fee exceeds max fee per gas, tx wont process
-    // 4) your actual total fee per gas will never exceeed max fee per gas
     pub async fn update_gas_price(
         &self,
         mut block_receiver: Receiver<Event>,
-        gas_sender: Sender<u128>,
+        gas_sender: Sender<(U256, U256)>,
     ) {
         while let Ok(Event::NewBlock(block)) = block_receiver.recv().await {
-            let base_fee_per_gas = block.header.base_fee_per_gas.unwrap();
-            let priority_fee = self.provider.get_max_priority_fee_per_gas().await.unwrap();
-            let adjusted_priority_fee = priority_fee.min(self.max_priority_fee);
+            let new_base_fee = block.header.base_fee_per_gas.unwrap_or_default();
+            //let adjusted_base_fee = (base_fee as f64 * BASE_FEE_MULTIPLIER) as u64;
+            //let new_base_fee = U256::from(adjusted_base_fee);
+            let new_priority_fee = self.estimate_priority_fee().await;
+            let fee = self.provider.estimate_eip1559_fees(None).await.unwrap();
+            let gas_price = self.provider.get_gas_price().await.unwrap();
+            println!("Fee: {:?}", fee);
+            println!("Gas price: {:?}", gas_price);
 
-            let total_fee = base_fee_per_gas + adjusted_priority_fee; //* self.base_fee_multiplier) + adjusted_priority_fee;
-            match gas_sender.send(total_fee) {
-                Ok(_) => debug!("Gas price sent"),
-                Err(e) => warn!("Gas price send failed: {:?}", e),
+            // max fee per gas = base fee per gas + maxpriorityfee per gas
+            // get_gas_price() = block.header.base_fee_per_gas +  estimate_priority_fee()
+
+
+
+
+
+            info!("Gas price update - Base fee: {} wei, Priority fee: {} wei", new_base_fee, new_priority_fee);
+            /* 
+            match gas_sender.send((new_base_fee, new_priority_fee)) {
+                Ok(_) => debug!("Gas price update sent - Base fee: {} wei, Priority fee: {} wei", new_base_fee, new_priority_fee),
+                Err(e) => warn!("Failed to send gas price update: {:?}", e),
+            }
+            */
+        }
+    }
+
+    async fn estimate_priority_fee(&self) -> U256 {
+        match self.provider.get_max_priority_fee_per_gas().await {
+            Ok(priority_fee) => U256::from(priority_fee),
+            Err(e) => {
+                warn!("Failed to estimate priority fee: {:?}. Using default.", e);
+                U256::from(MIN_PRIORITY_FEE)
             }
         }
     }

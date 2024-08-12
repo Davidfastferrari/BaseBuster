@@ -1,5 +1,6 @@
 use alloy::primitives::U256;
 use alloy::providers::ext::DebugApi;
+use alloy::primitives::address;
 use alloy::providers::ProviderBuilder;
 use alloy::rpc::types::trace::geth::GethDebugBuiltInTracerType::CallTracer;
 use alloy::rpc::types::trace::geth::GethDebugTracingOptions;
@@ -21,6 +22,9 @@ pub async fn simulate_paths(
     tx_sender: Sender<Vec<FlashSwap::SwapStep>>,
     mut arb_receiver: Receiver<Event>,
 ) {
+    //let provider = ProviderBuilder::new().on_http(std::env::var("FULL").unwrap().parse().unwrap());
+    //let address = address!("Da7C2a18d51fa876C4DCd4382ae452B811C2A766");
+    //let contract = FlashSwap::new(address, provider.clone());
     // deploy the contract and get the address
     let (anvil, flash_addr) = deploy_flash_swap().await;
     // setup the provider on the anvil instance and construt the contract
@@ -77,10 +81,10 @@ pub async fn simulate_paths(
                 if call_trace.error.is_none() {
                     // we have a profitable path, send it over to the sender
                     match tx_sender.send(converted_path) {
-                        Ok(_) => debug!("Successful path sent"),
+                        Ok(_) => info!("Successful path sent"),
                         Err(e) => warn!("Successful path send failed: {:?}", e),
                     }
-                }
+                } 
             }
             Err(e) => info!("Failed to simulate {:?}", e),
             _ => {}

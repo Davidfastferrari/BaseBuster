@@ -1,26 +1,38 @@
-use alloy::primitives::U256;
-use log::{debug, info};
+use alloy::{primitives::U256, providers::{Provider, ProviderBuilder}};
+use log::{debug, info, warn};
 use std::sync::RwLock;
 use tokio::sync::broadcast::Receiver;
 
+use crate::events::Event;
+
 pub struct Market {
-    gas_price: RwLock<U256>,
+    max_priority_fee_per_gas: RwLock<u128>,
+    max_fee_per_gas: RwLock<u128>,
 }
 
 impl Market {
-    // Construct an empty market, populated on first update of block
     pub fn new() -> Self {
         Self {
-            gas_price: RwLock::new(U256::from(0)),
+            max_fee_per_gas: RwLock::new(0),
+            max_priority_fee_per_gas: RwLock::new(0),
         }
     }
 
-    // updaate the gas price
-    pub async fn update_gas_price(&self, mut gas_receiver: Receiver<u128>) {
-        while let Ok(gas_price) = gas_receiver.recv().await {
-            let mut gas_lock = self.gas_price.write().unwrap();
-            *gas_lock = U256::from(gas_price);
-            debug!("Updated gas price to {}", gas_price);
+    pub async fn update_gas_price(&self, mut block_receiver: Receiver<Event>) {
+        let url = std::env::var("FULL").unwrap();
+        let provider = ProviderBuilder::new().on_http(url.parse().unwrap());
+        while let Ok(Event::NewBlock(_block)) = block_receiver.recv().await {
+            let estimated_gas_fees = provider.estimate_eip1559_fees(None).await.unwrap();
+            *self.max_fee_per_gas.write().unwrap() = estimated_gas_fees.max_fee_per_gas;
+            *self.max_priority_fee_per_gas.write().unwrap() = estimated_gas_fees.max_priority_fee_per_gas;
         }
+    }
+
+    pub fn get_max_priority_fee(&self) -> u128 {
+        *self.max_priority_fee_per_gas.read().unwrap()
+    }
+    
+    pub fn get_max_fee(&self) -> u128 {
+        *self.max_fee_per_gas.read().unwrap()
     }
 }

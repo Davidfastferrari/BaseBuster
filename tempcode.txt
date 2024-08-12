@@ -69,3 +69,18 @@ fn print_profit_data(call_trace: &CallFrame) {
         search_calls(call_trace)
     }
     */
+
+
+
+
+
+    /* 
+    // Update the gas on each block
+    info!("Starting gas manager...");
+    let gas_manager = Arc::new(GasPriceManager::new(http.clone()));
+    tokio::spawn(async move {
+        gas_manager
+            .update_gas_price(block_receiver.resubscribe(), gas_sender)
+            .await;
+    });
+    */

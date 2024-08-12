@@ -7,7 +7,6 @@ use pool_sync::{Chain, Pool};
 use std::sync::Arc;
 use tokio::sync::broadcast;
 
-use crate::gas_manager::GasPriceManager;
 use crate::graph::ArbGraph;
 use crate::market::Market;
 use crate::pool_manager::PoolManager;
@@ -25,7 +24,6 @@ pub async fn start_workers(
     // all communication channels
     let (block_sender, block_receiver) = broadcast::channel(10);
     let (reserve_update_sender, reserve_update_receiver) = broadcast::channel(10);
-    let (gas_sender, gas_receiver) = broadcast::channel(10);
     let (arb_sender, arb_receiver) = broadcast::channel(200);
     let (tx_sender, tx_receiver) = broadcast::channel(1000);
 
@@ -43,14 +41,6 @@ pub async fn start_workers(
     info!("Starting block stream...");
     tokio::spawn(stream_new_blocks(ws.clone(), block_sender));
 
-    // Update the gas on each block
-    info!("Starting gas manager...");
-    let gas_manager = Arc::new(GasPriceManager::new(http.clone(), 0.1, 100));
-    tokio::spawn(async move {
-        gas_manager
-            .update_gas_price(block_receiver.resubscribe(), gas_sender)
-            .await;
-    });
 
     // Market state
     info!("Staring market state tracker...");
@@ -58,7 +48,7 @@ pub async fn start_workers(
     let market_clone = market.clone();
     tokio::spawn(async move {
         market_clone
-            .update_gas_price(gas_receiver.resubscribe())
+            .update_gas_price(block_receiver.resubscribe())
             .await;
     });
 
@@ -78,3 +68,4 @@ pub async fn start_workers(
             .await;
     });
 }
+
