@@ -46,21 +46,15 @@ contract FlashSwap is FlashLoanSimpleReceiverBase {
     address constant SUSHISWAP_V3_ROUTER = 0xFB7eF66a7e61224DD6FcD0D7d9C3be5C8B049b9f; // Example address, replace with actual
     address constant AAVE_ADDRESSES_PROVIDER = 0xe20fCBdBfFC4Dd138cE8b2E6FBb6CB49777ad64D;
 
-    address public owner;
+    address public immutable owner;
 
-    event DebugLog(string message, uint256 value);
     event Profit(uint256 value);
-    event DebugAddress(string message, address value);
-    event ActualValue(uint256 value);
 
     constructor() FlashLoanSimpleReceiverBase(IPoolAddressesProvider(AAVE_ADDRESSES_PROVIDER)) {
         owner = msg.sender;
     }
 
     function executeArbitrage(SwapStep[] calldata steps, uint256 amount) external {
-        require(steps.length > 0, "No swap steps provided");
-        require(amount > 0, "Amount must be greater than 0");
-
         address asset = steps[0].tokenIn;
         bytes memory params = abi.encode(steps, msg.sender);
         POOL.flashLoanSimple(address(this), asset, amount, params, 0);
@@ -78,19 +72,11 @@ contract FlashSwap is FlashLoanSimpleReceiverBase {
         (SwapStep[] memory steps, address caller) = abi.decode(params, (SwapStep[], address));
 
         uint256 amountIn = amount;
-        emit DebugLog("Flash loan received", amountIn);
-        emit DebugAddress("Asset received", asset);
 
         for (uint i = 0; i < steps.length; i++) {
             SwapStep memory step = steps[i];
             
-            emit DebugLog("Step", i);
-            emit DebugAddress("Pool Address", step.poolAddress);
-            emit DebugAddress("TokenIn", step.tokenIn);
-            emit DebugAddress("TokenOut", step.tokenOut);
-            
             uint256 balanceBefore = IERC20(step.tokenIn).balanceOf(address(this));
-            emit DebugLog("Balance before swap", balanceBefore);
 
             if (step.protocol <= 2) {
                 _swapV2(step.tokenIn, step.tokenOut, balanceBefore, _getV2Router(step.protocol));
@@ -99,7 +85,6 @@ contract FlashSwap is FlashLoanSimpleReceiverBase {
             }
 
             uint256 balanceAfter = IERC20(step.tokenOut).balanceOf(address(this));
-            emit DebugLog("Balance after swap", balanceAfter);
 
             amountIn = balanceAfter;
         }
@@ -108,14 +93,8 @@ contract FlashSwap is FlashLoanSimpleReceiverBase {
         uint256 amountToRepay = amount + premium;
         IERC20(asset).approve(address(POOL), amountToRepay);
 
-        emit DebugLog("Amount to repay", amountToRepay);
-        emit ActualValue(amount);
-
         // Calculate and transfer profit
         uint256 finalBalance = IERC20(asset).balanceOf(address(this));
-
-        emit ActualValue(finalBalance);
-
         require(finalBalance >= amountToRepay, "Insufficient balance to repay flash loan");
         uint256 profit = finalBalance - amountToRepay;
         if (profit > 0) {
@@ -175,6 +154,5 @@ contract FlashSwap is FlashLoanSimpleReceiverBase {
         require(msg.sender == owner, "Only owner can withdraw");
         uint256 balance = IERC20(token).balanceOf(address(this));
         IERC20(token).transfer(owner, balance);
-        emit DebugLog("Withdrawn", balance);
     }
 }

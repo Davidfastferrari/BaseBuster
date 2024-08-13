@@ -12,14 +12,14 @@ use log::{debug, info, warn};
 use serde_json::json;
 use tokio::sync::broadcast::{Receiver, Sender};
 
-use crate::events::*;
+use crate::{events::*, AMOUNT};
 use crate::util::deploy_flash_swap;
 use crate::FlashSwap;
 
 // recieve a stream of potential arbitrage paths from the searcher and
 // simulate them against the contract to determine if they are actually viable
 pub async fn simulate_paths(
-    tx_sender: Sender<Vec<FlashSwap::SwapStep>>,
+    tx_sender: Sender<(Vec<FlashSwap::SwapStep>, U256)>,
     mut arb_receiver: Receiver<Event>,
 ) {
     //let provider = ProviderBuilder::new().on_http(std::env::var("FULL").unwrap().parse().unwrap());
@@ -69,10 +69,10 @@ pub async fn simulate_paths(
 
         // simulate the arbitrage and get the result
         let tx = contract
-            .executeArbitrage(converted_path.clone(), U256::from(1e15))
+            .executeArbitrage(converted_path.clone(), U256::from(AMOUNT))
             .into_transaction_request();
         let output = provider
-            .debug_trace_call(tx, alloy::eips::BlockNumberOrTag::Latest, options.clone())
+            .debug_trace_call(tx, alloy::eips::BlockNumberOrTag::Pending, options.clone())
             .await;
 
         // process the output
@@ -80,7 +80,8 @@ pub async fn simulate_paths(
             Ok(GethTrace::CallTracer(call_trace)) => {
                 if call_trace.error.is_none() {
                     // we have a profitable path, send it over to the sender
-                    match tx_sender.send(converted_path) {
+                    let profit = extract_profit_log(&call_trace).unwrap();
+                    match tx_sender.send((converted_path, profit)) {
                         Ok(_) => info!("Successful path sent"),
                         Err(e) => warn!("Successful path send failed: {:?}", e),
                     }
@@ -90,4 +91,29 @@ pub async fn simulate_paths(
             _ => {}
         }
     }
+}
+
+
+fn extract_profit_log(call_frame: &CallFrame) -> Option<U256> {
+    // First, check if this frame has the Profit event log
+    for log in &call_frame.logs {
+        if log.topics.as_ref().map_or(false, |topics| {
+            topics.get(0) == Some(&"0x357d905f1831209797df4d55d79c5c5bf1d9f7311c976afd05e13d881eab9bc8".parse().unwrap())
+        }) {
+            if let Some(data) = &log.data {
+                if data.len() >= 32 {
+                    return Some(U256::from_be_bytes::<32>(data[0..32].try_into().unwrap()));
+                }
+            }
+        }
+    }
+    
+    // If not found in this frame, recursively check all subcalls
+    for subcall in &call_frame.calls {
+        if let Some(profit) = extract_profit_log(subcall) {
+            return Some(profit);
+        }
+    }
+    
+    None
 }

@@ -26,7 +26,7 @@ const TRANSACTION_TIMEOUT: Duration = Duration::from_secs(10);
 pub struct TransactionSender {}
 
 pub async fn send_transactions(
-    mut tx_receiver: Receiver<Vec<FlashSwap::SwapStep>>,
+    mut tx_receiver: Receiver<(Vec<FlashSwap::SwapStep>, U256)>,
     market: Arc<Market>,
 ) -> Result<()> {
 
@@ -40,7 +40,7 @@ pub async fn send_transactions(
     let provider = ProviderBuilder::new()
         .wallet(wallet)
         .on_http(std::env::var("FULL").unwrap().parse().unwrap());
-    let contract = FlashSwap::new(address!("Da7C2a18d51fa876C4DCd4382ae452B811C2A766"), provider.clone());
+    let contract = FlashSwap::new(address!("1701A59d81772DCf00815D4E2099Ad80e67Ee4F2"), provider.clone());
 
 
     // wait for new transactions to send
@@ -48,10 +48,10 @@ pub async fn send_transactions(
     while let Ok(arb_path) = tx_receiver.recv().await {
         let public = address!("1E0294b6e4D72857B5eC467f5c2E52BDA37CA5b8");
         let nonce = provider.get_transaction_count(public).await?;
-        let max_fee_per_gas = market.get_max_fee();
-        let max_priority_fee_per_gas = market.get_max_priority_fee();
+        let max_fee_per_gas = market.get_max_fee() * 2;
+        let max_priority_fee_per_gas = market.get_max_priority_fee() * 2;
 
-        let tx = contract.executeArbitrage(arb_path.clone(), U256::from(AMOUNT))
+        let tx = contract.executeArbitrage(arb_path.0.clone(), U256::from(AMOUNT))
             .max_fee_per_gas(max_fee_per_gas)
             .max_priority_fee_per_gas(max_priority_fee_per_gas)
             .nonce(nonce)
@@ -61,7 +61,12 @@ pub async fn send_transactions(
         println!("Sending transaction...");
         match provider.send_transaction(tx).await {
             Ok(res) => {
-                println!("Transaction sent: {:?}", res);
+                let current_block = provider.get_block_number().await.unwrap();
+                //println!("Transaction sent: {:?}", res);
+                let t = res.get_receipt().await.unwrap();
+                let landed_block = t.block_number.unwrap();
+                let hash = t.transaction_hash;
+                println!("Tx: {} Sent on block {}, landed on block {}, with expected profit of {}", hash, current_block, landed_block, arb_path.1);
             }
             Err(e) => {
                 println!("Transaction failed: {:?}", e);

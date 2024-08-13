@@ -29,7 +29,7 @@ pub async fn start_workers(
 
     // get out working pools and construct ethe pool manager
     info!("Getting working pools...");
-    let working_pools = get_working_pools(pools.clone(), 10000, Chain::Base).await;
+    let working_pools = get_working_pools(pools.clone(), 2000, Chain::Base).await;
     let pool_manager = PoolManager::new(pools.clone(), reserve_update_sender.clone()).await;
 
     // construct the graph and generate the cycles

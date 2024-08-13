@@ -7,7 +7,7 @@ use petgraph::graph::UnGraph;
 use petgraph::prelude::*;
 use pool_sync::{Pool, PoolInfo, PoolType};
 use rayon::prelude::*;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -60,8 +60,8 @@ impl SwapStep {
                 )
             }
             PoolType::UniswapV3 | PoolType::SushiSwapV3 => {
-                let v3_pool = pool_manager.get_v3pool(&self.pool_address);
-                calculate_v3_out(amount_in, v3_pool, zero_to_one).unwrap()
+                let mut v3_pool = pool_manager.get_v3pool(&self.pool_address);
+                calculate_v3_out(amount_in, &mut v3_pool, zero_to_one).unwrap()
             }
             _ => todo!(),
         }
@@ -226,10 +226,13 @@ impl ArbGraph {
             info!("Searching for arbs...");
             let start = std::time::Instant::now(); // timer
 
-            let affected_paths: HashSet<usize> = updated_pools
+            let affected_paths: FxHashSet<usize> = updated_pools
                 .iter()
-                .flat_map(|pool| self.pools_to_paths.get(pool).cloned().unwrap_or_default())
+                .flat_map(|pool| self.pools_to_paths.get(pool).into_iter().flatten())
+                .copied()
                 .collect();
+
+            info!("Searching {} paths", affected_paths.len());
 
             let profitable_paths = Arc::new(SegQueue::new());
 
@@ -238,6 +241,9 @@ impl ArbGraph {
                 let mut current_amount = U256::from(AMOUNT);
                 for swap in cycle {
                     current_amount = swap.get_amount_out(current_amount, &self.pool_manager);
+                    if current_amount < U256::from(AMOUNT) {
+                        break;
+                    }
                 }
 
                 if current_amount > U256::from(AMOUNT) {

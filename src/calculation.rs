@@ -1,3 +1,5 @@
+use std::sync::RwLockReadGuard;
+
 use alloy::primitives::{I256, U128, U256};
 use anyhow::Result;
 use pool_sync::pools::pool_structure::UniswapV3Pool;
@@ -62,7 +64,7 @@ pub struct StepComputations {
 }
 
 // calculate the amount out for a uniswapv3 swap
-pub fn calculate_v3_out(amount_in: U256, pool: UniswapV3Pool, zero_to_one: bool) -> Result<U256> {
+pub fn calculate_v3_out(amount_in: U256, pool: &mut RwLockReadGuard<UniswapV3Pool>, zero_to_one: bool) -> Result<U256> {
     if amount_in.is_zero() {
         return Ok(U256::ZERO);
     }
