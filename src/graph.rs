@@ -39,9 +39,13 @@ impl SwapStep {
             PoolType::UniswapV2 => 0,
             PoolType::SushiSwapV2 => 1,
             PoolType::PancakeSwapV2 => 2,
-            PoolType::UniswapV3 => 3,
-            PoolType::SushiSwapV3 => 4,
-            _ => panic!("Unsupported protocol"),
+            PoolType::BaseSwapV2 => 3,
+            PoolType::UniswapV3 => 4,
+            PoolType::PancakeSwapV3 => 5,
+            PoolType::SushiSwapV3 => 6,
+            PoolType::BaseSwapV3 => 7,
+            PoolType::Slipstream => 8,
+            PoolType::Aerodome => 9,
         }
     }
 }
@@ -50,7 +54,7 @@ impl SwapStep {
     pub fn get_amount_out(&self, amount_in: U256, pool_manager: &PoolManager) -> U256 {
         let zero_to_one = pool_manager.zero_to_one(self.token_in, &self.pool_address);
         match self.protocol {
-            PoolType::UniswapV2 | PoolType::SushiSwapV2 | PoolType::PancakeSwapV2 => {
+            PoolType::UniswapV2 | PoolType::SushiSwapV2 | PoolType::PancakeSwapV2 | PoolType::BaseSwapV2 | PoolType::Aerodome=> {
                 let v2_pool = pool_manager.get_v2pool(&self.pool_address);
                 calculate_v2_out(
                     amount_in,
@@ -59,7 +63,7 @@ impl SwapStep {
                     zero_to_one,
                 )
             }
-            PoolType::UniswapV3 | PoolType::SushiSwapV3 => {
+            PoolType::UniswapV3 | PoolType::SushiSwapV3 | PoolType::BaseSwapV3=> {
                 let mut v3_pool = pool_manager.get_v3pool(&self.pool_address);
                 calculate_v3_out(amount_in, &mut v3_pool, zero_to_one).unwrap()
             }

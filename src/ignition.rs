@@ -20,6 +20,7 @@ pub async fn start_workers(
     http: Arc<RootProvider<Http<Client>>>,
     ws: Arc<RootProvider<PubSubFrontend>>,
     pools: Vec<Pool>,
+    last_synced_block: u64,
 ) {
     // all communication channels
     let (block_sender, block_receiver) = broadcast::channel(10);
@@ -30,7 +31,7 @@ pub async fn start_workers(
     // get out working pools and construct ethe pool manager
     info!("Getting working pools...");
     let working_pools = get_working_pools(pools.clone(), 2000, Chain::Base).await;
-    let pool_manager = PoolManager::new(pools.clone(), reserve_update_sender.clone()).await;
+    let pool_manager = PoolManager::new(pools.clone(), reserve_update_sender.clone(), last_synced_block).await;
 
     // construct the graph and generate the cycles
     info!("Constructing graph...");

@@ -8,8 +8,10 @@ use futures::stream::StreamExt;
 use log::{debug, info};
 use pool_sync::pools::pool_structure::{TickInfo, UniswapV2Pool, UniswapV3Pool};
 use pool_sync::{Pool, PoolInfo};
+use revm::primitives::SpecId::LATEST;
 use rustc_hash::{FxHashMap, FxHashSet};
 use tokio::sync::broadcast;
+use std::collections::HashSet;
 use std::sync::{Arc, RwLock, RwLockWriteGuard};
 use std::sync::RwLockReadGuard;
 
@@ -65,7 +67,7 @@ pub struct PoolManager {
 
 impl PoolManager {
     // construct a new instance
-    pub async fn new(working_pools: Vec<Pool>, sender: broadcast::Sender<Event>) -> Arc<Self> {
+    pub async fn new(working_pools: Vec<Pool>, sender: broadcast::Sender<Event>, last_synced_block: u64) -> Arc<Self> {
         let address_to_pool: FxHashMap<Address, Pool> = working_pools
             .iter()
             .map(|pool| (pool.address(), pool.clone()))
@@ -93,11 +95,11 @@ impl PoolManager {
             address_to_v3pool,
         });
 
-        tokio::spawn(PoolManager::state_updater(manager.clone(), sender));
+        tokio::spawn(PoolManager::state_updater(manager.clone(), sender, last_synced_block));
         manager
     }
 
-    pub async fn state_updater(manager: Arc<PoolManager>, sender: broadcast::Sender<Event>) {
+    pub async fn state_updater(manager: Arc<PoolManager>, sender: broadcast::Sender<Event>, mut last_synced_block: u64) {
         let ws_url = std::env::var("WS").unwrap();
         let http_url = std::env::var("FULL").unwrap();
 
@@ -107,9 +109,31 @@ impl PoolManager {
             .unwrap();
         let http = ProviderBuilder::new().on_http(http_url.parse().unwrap());
 
+
+        // process the missed blocks
+        let mut latest_block = http.get_block_number().await.unwrap();
+        while last_synced_block < latest_block {
+            println!("processing block from {} to {}", last_synced_block, latest_block);
+            let filter = Filter::new()
+                .events([
+                    DataEvent::Sync::SIGNATURE,
+                    DataEvent::Mint::SIGNATURE,
+                    DataEvent::Burn::SIGNATURE,
+                    DataEvent::Swap::SIGNATURE,
+                ])
+                .from_block(last_synced_block + 1)
+                .to_block(latest_block);
+            let logs = http.get_logs(&filter).await.unwrap();
+            let _ = manager.process_logs(logs);
+            last_synced_block = latest_block;
+            latest_block = http.get_block_number().await.unwrap();
+        }
+
+        // start block stream to continuously process blocks
         let sub = ws.subscribe_blocks().await.unwrap();
         let mut stream = sub.into_stream();
         while let Some(block) = stream.next().await {
+            info!("New block: {:?}", block.header.number.unwrap());
             let block_number = block.header.number.unwrap();
 
             // setup the log filters
@@ -133,23 +157,27 @@ impl PoolManager {
     }
 
     fn process_logs(&self, logs: Vec<Log>) -> Vec<Address> {
-        let mut updated_pools = Vec::new();
+        let mut updated_pools = HashSet::new();
         for log in logs {
             let address = log.address();
             // we know if it s v3 pool since we are processing mint/burn/swap logs
             if self.addresses.contains(&address) {
-                updated_pools.push(address);
+                updated_pools.insert(address);
                 let pool = self.get_pool(&address);
                 if pool.is_v3() {
-                    let mut pool = self.address_to_v3pool.get(&pool.address()).unwrap().write().unwrap();
-                    process_tick_data(&mut pool, log);
+                    if let Some(pool_lock) = self.address_to_v3pool.get(&address) {
+                        let mut pool = pool_lock.write().unwrap();
+                        process_tick_data(&mut pool, log);
+                    }
                 } else if pool.is_v2() {
-                    let mut pool = self.address_to_v2pool.get(&pool.address()).unwrap().write().unwrap();
-                    process_sync_data(&mut pool, log);
+                    if let Some(pool_lock) = self.address_to_v2pool.get(&pool.address()) {
+                        let mut pool = pool_lock.write().unwrap();
+                        process_sync_data(&mut pool, log);
+                    }
                 }
             }
         }
-        updated_pools
+        updated_pools.into_iter().collect()
     }
 
     pub fn get_pool(&self, address: &Address) -> Pool {
@@ -171,7 +199,7 @@ impl PoolManager {
 }
 
 
-pub fn process_tick_data(pool: &mut RwLockWriteGuard<UniswapV3Pool>, log: Log) {
+pub fn process_tick_data(pool: &mut UniswapV3Pool, log: Log) {
     let event_sig = log.topic0().unwrap();
 
     if *event_sig == DataEvent::Burn::SIGNATURE_HASH {
@@ -183,7 +211,7 @@ pub fn process_tick_data(pool: &mut RwLockWriteGuard<UniswapV3Pool>, log: Log) {
     }
 }
 
-fn process_burn(pool: &mut RwLockWriteGuard<UniswapV3Pool>, log: Log) {
+fn process_burn(pool: &mut UniswapV3Pool, log: Log) {
     let burn_event = DataEvent::Burn::decode_log(log.as_ref(), true).unwrap();
     modify_position(
         pool,
@@ -193,7 +221,7 @@ fn process_burn(pool: &mut RwLockWriteGuard<UniswapV3Pool>, log: Log) {
     );
 }
 
-fn process_mint(pool: &mut RwLockWriteGuard<UniswapV3Pool>, log: Log) {
+fn process_mint(pool: &mut UniswapV3Pool, log: Log) {
     let mint_event = DataEvent::Mint::decode_log(log.as_ref(), true).unwrap();
     modify_position(
         pool,
@@ -203,7 +231,7 @@ fn process_mint(pool: &mut RwLockWriteGuard<UniswapV3Pool>, log: Log) {
     );
 }
 
-fn process_swap(pool: &mut RwLockWriteGuard<UniswapV3Pool>, log: Log) {
+fn process_swap(pool: &mut UniswapV3Pool, log: Log) {
     let swap_event = DataEvent::Swap::decode_log(log.as_ref(), true).unwrap();
     pool.tick = swap_event.tick;
     pool.sqrt_price = swap_event.sqrtPriceX96;
@@ -212,7 +240,7 @@ fn process_swap(pool: &mut RwLockWriteGuard<UniswapV3Pool>, log: Log) {
 
 /// Modifies a positions liquidity in the pool.
 pub fn modify_position(
-    pool: &mut RwLockWriteGuard<UniswapV3Pool>,
+    pool: &mut UniswapV3Pool,
     tick_lower: i32,
     tick_upper: i32,
     liquidity_delta: i128,
@@ -234,7 +262,7 @@ pub fn modify_position(
 }
 
 pub fn update_position(
-    pool: &mut RwLockWriteGuard<UniswapV3Pool>,
+    pool: &mut UniswapV3Pool,
     tick_lower: i32,
     tick_upper: i32,
     liquidity_delta: i128,
@@ -265,7 +293,7 @@ pub fn update_position(
 }
 
 pub fn update_tick(
-    pool: &mut RwLockWriteGuard<UniswapV3Pool>,
+    pool: &mut UniswapV3Pool,
     tick: i32,
     liquidity_delta: i128,
     upper: bool,
@@ -307,7 +335,7 @@ pub fn update_tick(
     flipped
 }
 
-pub fn flip_tick(pool: &mut RwLockWriteGuard<UniswapV3Pool>, tick: i32, tick_spacing: i32) {
+pub fn flip_tick(pool: &mut UniswapV3Pool, tick: i32, tick_spacing: i32) {
     let (word_pos, bit_pos) = uniswap_v3_math::tick_bitmap::position(tick / tick_spacing);
     let mask = U256::from(1) << bit_pos;
 
@@ -318,7 +346,7 @@ pub fn flip_tick(pool: &mut RwLockWriteGuard<UniswapV3Pool>, tick: i32, tick_spa
     }
 }
 
-pub fn process_sync_data(pool: &mut RwLockWriteGuard<UniswapV2Pool>, log: Log) {
+pub fn process_sync_data(pool: &mut UniswapV2Pool, log: Log) {
     let sync_event = DataEvent::Sync::decode_log(log.as_ref(), true).unwrap();
     pool.token0_reserves = U128::from(sync_event.reserve0);
     pool.token1_reserves = U128::from(sync_event.reserve1);

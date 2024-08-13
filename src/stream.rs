@@ -12,7 +12,7 @@ pub async fn stream_new_blocks(ws: Arc<RootProvider<PubSubFrontend>>, block_send
     let sub = ws.subscribe_blocks().await.unwrap();
     let mut stream = sub.into_stream();
     while let Some(block) = stream.next().await {
-        info!("New block: {:?}", block.header.number.unwrap());
+        //info!("New block: {:?}", block.header.number.unwrap());
         match block_sender.send(Event::NewBlock(block)) {
             Ok(_) => debug!("Block sent"),
             Err(e) => warn!("Block send failed: {:?}", e),

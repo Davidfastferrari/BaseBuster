@@ -8,6 +8,7 @@ use uniswap_v3_math::tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_T
 pub const U256_1: U256 = U256::from_limbs([1, 0, 0, 0]);
 
 // Calcualte the amount out for a uniswapv2 swap
+#[inline]
 pub fn calculate_v2_out(
     amount_in: U256,
     reserve0: U128,

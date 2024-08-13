@@ -2411,9 +2411,9 @@ dependencies = [
 
 [[package]]
 name = "gweiyser"
-version = "0.1.2"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "67a5efea9368f88093abf95b71fcb353626e42dbb4026ef36a5447416025592d"
+checksum = "8d1ea64de373eb2c17931a6388a41d01c81b45321ea42e7db34b555ff6812b98"
 dependencies = [
  "alloy 0.2.0",
  "alloy-contract 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",

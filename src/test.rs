@@ -1,9 +1,13 @@
+
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::*;
-    use alloy::network::EthereumWallet;
+    use alloy::network::{AnyNetwork, EthereumWallet, Network};
     use alloy::primitives::{Address, address};
-    use alloy::providers::{Provider, ProviderBuilder, RootProvider};
+    use alloy::providers::{Provider, ProviderBuilder, RootProvider, WsConnect};
+    use alloy::pubsub::PubSubFrontend;
     use alloy::signers::k256::elliptic_curve::consts::U25;
     use alloy::signers::local::PrivateKeySigner;
     use alloy::node_bindings::Anvil;
@@ -14,21 +18,151 @@ mod tests {
     };
     use alloy::rpc::types::trace::geth::GethDebugBuiltInTracerType::CallTracer;
     use alloy::transports::http::{Client, Http};
+    use alloy::transports::Transport;
     use alloy_sol_types::{SolCall, SolEvent};
     use alloy::primitives::U256;
-    use pool_sync::PoolSync;
+    use futures::StreamExt;
+    use gweiyser::protocols::uniswap::v2::UniswapV2Pool;
+    use gweiyser::protocols::uniswap::v3::UniswapV3Pool;
+    use log::info;
+    use pool_sync::*;
+    use pool_sync::Chain::Base;
+    use revm::primitives::SpecId::LATEST;
     use tokio::sync::broadcast;
-    use crate::graph::SwapStep;
-    use crate::pool_manager;
     use serde_json::json;
     use alloy::network::Ethereum;
-    use FlashSwap::FlashSwapInstance;
     use alloy::providers::ext::DebugApi;
     use gweiyser::{Gweiyser, Chain};
     use gweiyser::addresses::tokens::base_tokens::WETH;
 
+    use crate::events::Event;
+    use crate::graph::SwapStep;
+    use crate::pool_manager::{self, PoolManager};
+    use crate::util::get_working_pools;
+    use crate::FlashSwap;
+
 
     #[tokio::test]
+    pub async fn test_state_updates() {
+        dotenv::dotenv().ok();
+        let (pools, last_synced_block) = load_pools().await;
+        let working_pools = get_working_pools(pools, 100, pool_sync::Chain::Base).await;
+        let (pool_manager, mut reserve_receiver) = construct_pool_manager(working_pools.clone(), last_synced_block).await;
+
+
+        let mut gweiyser_pools_v2 = vec![];
+        let mut gweiyser_pools_v3 = vec![];
+        println!("constructing pools");
+        for pool in working_pools.iter() {
+            if pool.is_v3() {
+                let pool = get_v3_pool(&pool.address()).await;
+                gweiyser_pools_v3.push(pool);
+            } else {
+                let pool = get_v2_pool(pool.address()).await;
+                gweiyser_pools_v2.push(pool);
+            }
+        }
+        println!("constructined pools");
+
+
+        while let Ok(Event::ReserveUpdate(updated_pools)) = reserve_receiver.recv().await {
+            println!("Got update {}", updated_pools.len());
+
+            for pool in gweiyser_pools_v3.iter() {
+                let slot0 = pool.slot0().await;
+                let liquidity = pool.liquidity().await;
+
+                let pool_manager_pool = pool_manager.get_v3pool(&pool.address());
+                assert_eq!(slot0.tick, pool_manager_pool.tick);
+                assert_eq!(liquidity, pool_manager_pool.liquidity);
+                assert_eq!(slot0.sqrt_price_x96, pool_manager_pool.sqrt_price);
+            }
+
+            for pool in gweiyser_pools_v2.iter_mut() {
+                let reserve0 = pool.token0_reserves().await;
+                let reserve1 = pool.token1_reserves().await;
+
+                let pool_manager_pool = pool_manager.get_v2pool(&pool.address());
+                assert_eq!(reserve0, U256::from(pool_manager_pool.token0_reserves));
+                assert_eq!(reserve1, U256::from(pool_manager_pool.token1_reserves));
+            }
+
+            println!("success");
+        }
+    }
+
+
+    #[tokio::test]
+    pub async fn test_sim_speed() {
+        todo!()
+
+    }
+
+
+    // Get a v3 pool from gweiyser
+    pub async fn get_v3_pool(pool_address: &Address)
+     -> UniswapV3Pool<RootProvider<Http<Client>>, Http<Client>, Ethereum> 
+    {
+        let provider = Arc::new(ProviderBuilder::new()
+            .network::<Ethereum>()
+            .on_http(std::env::var("FULL").unwrap().parse().unwrap()));
+        let gweiyser = Gweiyser::new(provider.clone(), Chain::Base);
+        gweiyser.uniswap_v3_pool(*pool_address).await
+    }
+
+    // Get a v3 pool fro gweiyser
+    pub async fn get_v2_pool(pool_address: Address)-> 
+    UniswapV2Pool<RootProvider<Http<Client>>, Http<Client>, Ethereum>
+    {
+        let provider = Arc::new(ProviderBuilder::new()
+            .network::<Ethereum>()
+            .on_http(std::env::var("FULL").unwrap().parse().unwrap()));
+        let gweiyser = Gweiyser::new(provider.clone(), Chain::Base);
+        gweiyser.uniswap_v2_pool(pool_address).await
+    }
+
+    // get a websocket connection
+    pub async fn get_websocket() -> RootProvider<PubSubFrontend> {
+        let ws = WsConnect::new(std::env::var("WS").unwrap());
+        ProviderBuilder::new().on_ws(ws).await.unwrap()
+    }
+
+    pub async fn get_provider() -> RootProvider<Http<Client>> {
+        ProviderBuilder::new()
+            .on_http(std::env::var("FULL").unwrap().parse().unwrap())
+    }
+
+
+    // load all the pools from pool_sync
+    pub async fn load_pools() -> (Vec<Pool>, u64) {
+        dotenv::dotenv().ok();
+
+        let pool_sync = PoolSync::builder()
+            .add_pools(&[
+                PoolType::UniswapV2,
+                PoolType::SushiSwapV2,
+                PoolType::UniswapV3,
+                PoolType::SushiSwapV3,
+            ])
+            .chain(pool_sync::Chain::Base)
+            .build()
+            .unwrap();
+        pool_sync.sync_pools().await.unwrap() 
+    }
+
+
+    pub async fn construct_pool_manager(pools: Vec<Pool>, last_synced_block: u64) -> (Arc<PoolManager>, broadcast::Receiver<Event>) {
+        let (update_sender, update_receiver) = broadcast::channel(200);
+        let pool_manager = PoolManager::new(pools, update_sender, last_synced_block).await;
+        (pool_manager, update_receiver)
+    }
+
+ 
+}
+
+
+
+/* 
     pub async fn multi() {
         /* 
         let steps = vec![
@@ -268,7 +402,6 @@ fn extract_final_balance(call_trace: &CallFrame) -> Option<U256> {
 
     search_calls(call_trace)
 }
-  /* 
         let anvil = Anvil::new().fork(url).port(8500_u16).try_spawn().unwrap();
         let signer: PrivateKeySigner = anvil.keys()[0].clone().into();
         println!("{:?}", anvil.endpoint());
@@ -332,6 +465,6 @@ fn extract_final_balance(call_trace: &CallFrame) -> Option<U256> {
 
         let res = step_test.get_amount_out(U256::from(5e16), &manager);
         println!("Amount out: {:?}", res);
+*/
 
-        */
     

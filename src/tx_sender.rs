@@ -40,7 +40,7 @@ pub async fn send_transactions(
     let provider = ProviderBuilder::new()
         .wallet(wallet)
         .on_http(std::env::var("FULL").unwrap().parse().unwrap());
-    let contract = FlashSwap::new(address!("1701A59d81772DCf00815D4E2099Ad80e67Ee4F2"), provider.clone());
+    let contract = FlashSwap::new(address!("3CFC95d11AFA860A3fb5eE0dDC95bEe67bcA7906"), provider.clone());
 
 
     // wait for new transactions to send

@@ -18,6 +18,7 @@ mod simulator;
 mod stream;
 mod tx_sender;
 mod util;
+mod test;
 
 // define our flash swap contract
 sol!(
@@ -50,15 +51,19 @@ async fn main() -> Result<()> {
     let pool_sync = PoolSync::builder()
         .add_pools(&[
             PoolType::UniswapV2,
-            PoolType::SushiSwapV2,
             PoolType::UniswapV3,
-            //PoolType::SushiSwapV3,
+            PoolType::SushiSwapV2,
+            PoolType::SushiSwapV3,
+            PoolType::Aerodome,
+            PoolType::PancakeSwapV2,
+            PoolType::BaseSwapV2,
+            PoolType::BaseSwapV3,
         ])
         .chain(Chain::Base)
         .build()?;
-    let pools = pool_sync.sync_pools().await?;
+    let (pools, last_synced_block) = pool_sync.sync_pools().await?;
 
-    start_workers(http_provider, ws_provider, pools).await;
+    start_workers(http_provider, ws_provider, pools, last_synced_block).await;
 
     loop {
         tokio::time::sleep(std::time::Duration::from_secs(1000)).await;
