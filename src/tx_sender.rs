@@ -40,7 +40,7 @@ pub async fn send_transactions(
     let provider = ProviderBuilder::new()
         .wallet(wallet)
         .on_http(std::env::var("FULL").unwrap().parse().unwrap());
-    let contract = FlashSwap::new(address!("3CFC95d11AFA860A3fb5eE0dDC95bEe67bcA7906"), provider.clone());
+    let contract = FlashSwap::new(address!("57E110960173B0CFd86BEb1dcE70419BAaF29FA3"), provider.clone());
 
 
     // wait for new transactions to send
@@ -48,8 +48,8 @@ pub async fn send_transactions(
     while let Ok(arb_path) = tx_receiver.recv().await {
         let public = address!("1E0294b6e4D72857B5eC467f5c2E52BDA37CA5b8");
         let nonce = provider.get_transaction_count(public).await?;
-        let max_fee_per_gas = market.get_max_fee() * 2;
-        let max_priority_fee_per_gas = market.get_max_priority_fee() * 2;
+        let max_fee_per_gas = market.get_max_fee();
+        let max_priority_fee_per_gas = market.get_max_priority_fee();
 
         let tx = contract.executeArbitrage(arb_path.0.clone(), U256::from(AMOUNT))
             .max_fee_per_gas(max_fee_per_gas)

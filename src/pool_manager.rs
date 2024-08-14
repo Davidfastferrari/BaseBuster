@@ -133,7 +133,7 @@ impl PoolManager {
         let sub = ws.subscribe_blocks().await.unwrap();
         let mut stream = sub.into_stream();
         while let Some(block) = stream.next().await {
-            info!("New block: {:?}", block.header.number.unwrap());
+            println!("New block: {:?}", block.header.number.unwrap());
             let block_number = block.header.number.unwrap();
 
             // setup the log filters

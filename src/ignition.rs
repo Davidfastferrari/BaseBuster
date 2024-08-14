@@ -25,12 +25,12 @@ pub async fn start_workers(
     // all communication channels
     let (block_sender, block_receiver) = broadcast::channel(10);
     let (reserve_update_sender, reserve_update_receiver) = broadcast::channel(10);
-    let (arb_sender, arb_receiver) = broadcast::channel(200);
+    let (arb_sender, arb_receiver) = broadcast::channel(1000);
     let (tx_sender, tx_receiver) = broadcast::channel(1000);
 
     // get out working pools and construct ethe pool manager
     info!("Getting working pools...");
-    let working_pools = get_working_pools(pools.clone(), 2000, Chain::Base).await;
+    let working_pools = get_working_pools(pools.clone(), 5000, Chain::Base).await;
     let pool_manager = PoolManager::new(pools.clone(), reserve_update_sender.clone(), last_synced_block).await;
 
     // construct the graph and generate the cycles

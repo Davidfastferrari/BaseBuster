@@ -23,7 +23,7 @@ pub async fn simulate_paths(
     mut arb_receiver: Receiver<Event>,
 ) {
     let FLASH_LOAN_FEE: U256 = U256::from(9) / U256::from(10000); // 0.09% flash loan fee
-    let GAS_ESTIMATE: U256 = U256::from(500_000); // Estimated gas used
+    let GAS_ESTIMATE: U256 = U256::from(400_000); // Estimated gas used
     let MIN_PROFIT_WEI: U256 = U256::from(1e15); // Minimum profit in wei (0.001 ETH)
 
     //let provider = ProviderBuilder::new().on_http(std::env::var("FULL").unwrap().parse().unwrap());
@@ -59,6 +59,8 @@ pub async fn simulate_paths(
     // wait for a new arbitrage path
     while let Ok(Event::NewPath(arb_path)) = arb_receiver.recv().await {
         // convert the path from the searcher format to the flash swap format
+        let expected = arb_path.1;
+        let arb_path = arb_path.0;
         let converted_path: Vec<FlashSwap::SwapStep> = arb_path
             .clone()
             .iter()
@@ -84,26 +86,29 @@ pub async fn simulate_paths(
             Ok(GethTrace::CallTracer(call_trace)) => {
                 if call_trace.error.is_none() {
                     // we have a profitable path, send it over to the sender
-                    let profit = extract_profit_log(&call_trace).unwrap();
 
+                    let profit = extract_profit_log(&call_trace).unwrap();
                     let flash_loan_fee = U256::from(AMOUNT) * FLASH_LOAN_FEE;
                     let gas_cost = U256::from(provider.get_gas_price().await.unwrap()) * GAS_ESTIMATE;
                     
                     let total_cost = U256::from(AMOUNT) + flash_loan_fee + gas_cost;
                     let profit = profit.checked_sub(total_cost).unwrap_or(U256::ZERO);
                     info!("about to send a path");
-                    if profit > MIN_PROFIT_WEI {
-                        match tx_sender.send((converted_path, profit)) {
-                            Ok(_) => info!("Successful path sent"),
-                            Err(e) => warn!("Successful path send failed: {:?}", e),
-                        }
-                    } else {
-                        info!("Not sending path, profit too low");
+                    match tx_sender.send((converted_path, profit)) {
+                        Ok(_) => info!("Successful path sent"),
+                        Err(e) => warn!("Successful path send failed: {:?}", e),
                     }
+                    //if profit > MIN_PROFIT_WEI {
+                    //} else {
+                        //info!("Not sending path, profit too low");
+                    //}
+                }  else {
+                    info!("Path, {:#?}", converted_path);
+                    info!("Expected profit: {:#?}", expected);
+                    info!("Failed to simulate {:#?}", call_trace.revert_reason);
 
                 } 
             }
-            Err(e) => info!("Failed to simulate {:?}", e),
             _ => {}
         }
     }

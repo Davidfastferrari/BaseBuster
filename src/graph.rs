@@ -2,6 +2,7 @@ use crate::events::Event;
 use crate::pool_manager::PoolManager;
 use alloy::primitives::{Address, U256};
 use crossbeam_queue::SegQueue;
+use dashmap::DashMap;
 use log::{info, warn};
 use petgraph::graph::UnGraph;
 use petgraph::prelude::*;
@@ -13,7 +14,7 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::sync::broadcast::{Receiver, Sender};
 
-use crate::calculation::{calculate_v2_out, calculate_v3_out};
+use crate::calculation::{calculate_v2_out, calculate_v3_out, calculate_aerodrome_out};
 use crate::AMOUNT;
 
 // All information we need to look for arbitrage opportunities
@@ -22,6 +23,7 @@ pub struct ArbGraph {
     pool_manager: Arc<PoolManager>,
     cycles: Vec<Vec<SwapStep>>,
     pools_to_paths: FxHashMap<Address, HashSet<usize>>,
+    path_index: DashMap<Address, Vec<usize>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -45,7 +47,7 @@ impl SwapStep {
             PoolType::SushiSwapV3 => 6,
             PoolType::BaseSwapV3 => 7,
             PoolType::Slipstream => 8,
-            PoolType::Aerodome => 9,
+            PoolType::Aerodrome => 9,
         }
     }
 }
@@ -54,18 +56,23 @@ impl SwapStep {
     pub fn get_amount_out(&self, amount_in: U256, pool_manager: &PoolManager) -> U256 {
         let zero_to_one = pool_manager.zero_to_one(self.token_in, &self.pool_address);
         match self.protocol {
-            PoolType::UniswapV2 | PoolType::SushiSwapV2 | PoolType::PancakeSwapV2 | PoolType::BaseSwapV2 | PoolType::Aerodome=> {
+            PoolType::UniswapV2 | PoolType::SushiSwapV2 | PoolType::PancakeSwapV2 | PoolType::BaseSwapV2 => {
                 let v2_pool = pool_manager.get_v2pool(&self.pool_address);
                 calculate_v2_out(
                     amount_in,
                     v2_pool.token0_reserves,
                     v2_pool.token1_reserves,
                     zero_to_one,
+                    self.protocol
                 )
             }
             PoolType::UniswapV3 | PoolType::SushiSwapV3 | PoolType::BaseSwapV3=> {
                 let mut v3_pool = pool_manager.get_v3pool(&self.pool_address);
                 calculate_v3_out(amount_in, &mut v3_pool, zero_to_one).unwrap()
+            }
+            PoolType::Aerodrome => {
+               let v2_pool = pool_manager.get_v2pool(&self.pool_address);
+               calculate_aerodrome_out(amount_in, self.token_in, &v2_pool)
             }
             _ => todo!(),
         }
@@ -86,12 +93,16 @@ impl ArbGraph {
         let cycles = ArbGraph::find_all_arbitrage_paths(&graph, start_node, 4);
         info!("Found {}  paths", cycles.len());
         let mut pools_to_paths = FxHashMap::default();
+        let path_index = DashMap::new(); 
         for (index, cycle) in cycles.iter().enumerate() {
             for step in cycle {
+                path_index.entry(step.pool_address).or_insert_with(Vec::new).push(index);
+                /* 
                 pools_to_paths
                     .entry(step.pool_address)
                     .or_insert_with(HashSet::new)
                     .insert(index);
+                */
             }
         }
 
@@ -100,6 +111,7 @@ impl ArbGraph {
             pool_manager,
             cycles,
             pools_to_paths,
+            path_index
         }
     }
 
@@ -226,46 +238,53 @@ impl ArbGraph {
         arb_sender: Sender<Event>,
         mut reserve_update_receiver: Receiver<Event>,
     ) {
+        let FLASH_LOAN_FEE: U256 = U256::from(9) / U256::from(10000); // 0.09% flash loan fee
+        let GAS_ESTIMATE: U256 = U256::from(400_000); // Estimated gas used
+        let MIN_PROFIT_WEI: U256 = U256::from(1e15); // Minimum profit in wei (0.001 ETH)
         while let Ok(Event::ReserveUpdate(updated_pools)) = reserve_update_receiver.recv().await {
             info!("Searching for arbs...");
             let start = std::time::Instant::now(); // timer
 
-            let affected_paths: FxHashSet<usize> = updated_pools
-                .iter()
-                .flat_map(|pool| self.pools_to_paths.get(pool).into_iter().flatten())
-                .copied()
+            let affected_paths: Vec<usize> = updated_pools.iter()
+                .flat_map(|pool| self.path_index.get(pool).map(|indices| indices.clone()))
+                .flatten()
                 .collect();
-
             info!("Searching {} paths", affected_paths.len());
 
-            let profitable_paths = Arc::new(SegQueue::new());
 
-            affected_paths.into_par_iter().for_each(|path_index| {
-                let cycle = &self.cycles[path_index];
-                let mut current_amount = U256::from(AMOUNT);
-                for swap in cycle {
-                    current_amount = swap.get_amount_out(current_amount, &self.pool_manager);
-                    if current_amount < U256::from(AMOUNT) {
-                        break;
+            let profitable_paths: Vec<_> = affected_paths.par_iter()
+                .filter_map(|&path_index| {
+                    let cycle = &self.cycles[path_index];
+                    let mut current_amount = U256::from(AMOUNT);
+                    //println!("cycle: {:#?}", cycle);
+                    for swap in cycle {
+                        current_amount = swap.get_amount_out(current_amount, &self.pool_manager);
+                        if current_amount <= U256::from(AMOUNT) {
+                            return None;
+                        }
                     }
-                }
 
-                if current_amount > U256::from(AMOUNT) {
-                    profitable_paths.push((cycle.clone(), current_amount));
-                }
-            });
+                    if current_amount >= U256::from(AMOUNT) * FLASH_LOAN_FEE {
+                        //println!("path: {:#?} Current amount: {:#?}", cycle, current_amount);
+                        Some((cycle.clone(), current_amount))
+                    } else  {
+                        None
+                    }
+                })
+                .collect();
 
             info!("Searched all paths in {:?}", start.elapsed());
             info!("Found {} profitable paths", profitable_paths.len());
 
-            if profitable_paths.len() != 0 {
-                while let Some(path) = profitable_paths.pop() {
-                    match arb_sender.send(Event::NewPath(path.0.clone())) {
-                        Err(e) => warn!("Path send failed: {:?}", e),
-                        _ => {}
-                    }
+            for path in profitable_paths {
+                if let Err(e) = arb_sender.send(Event::NewPath(path)) {
+                    warn!("Path send failed: {:?}", e);
                 }
             }
+
+
+            //info!("Found {} profitable paths", profitable_paths.len());
+
         }
     }
 }
