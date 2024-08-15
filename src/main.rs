@@ -1,15 +1,11 @@
-use alloy::providers::{ProviderBuilder, WsConnect};
 use alloy::sol;
 use anyhow::Result;
-use alloy::node_bindings::Anvil;
 use ignition::start_workers;
 use log::{info, LevelFilter};
 use pool_sync::*;
-use std::sync::Arc;
 
 mod calculation;
 mod events;
-mod gas_manager;
 mod graph;
 mod ignition;
 mod market;
@@ -29,7 +25,7 @@ sol!(
 );
 
 // initial amount we are trying to arb over
-pub const AMOUNT: u128 = 1_000_000_000_000_000;
+pub const AMOUNT: u128 = 5_000_000_000_000_000;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -38,13 +34,6 @@ async fn main() -> Result<()> {
     env_logger::Builder::new()
         .filter_level(LevelFilter::Info) // or Info, Warn, etc.
         .init();
-
-    // http provider and websocket provider
-    info!("Constructing providers");
-    let http_url = std::env::var("FULL").unwrap();
-    let ws_url = WsConnect::new(std::env::var("WS").unwrap());
-    let http_provider = Arc::new(ProviderBuilder::new().on_http(http_url.parse()?));
-    let ws_provider = Arc::new(ProviderBuilder::new().on_ws(ws_url).await?);
 
     // Load in all the pools
     info!("Loading and syncing pools...");
@@ -57,13 +46,13 @@ async fn main() -> Result<()> {
             PoolType::Aerodrome,
             PoolType::PancakeSwapV2,
             PoolType::BaseSwapV2,
-            //PoolType::BaseSwapV3,
+            PoolType::BaseSwapV3,
         ])
         .chain(Chain::Base)
         .build()?;
     let (pools, last_synced_block) = pool_sync.sync_pools().await?;
 
-    start_workers(http_provider, ws_provider, pools, last_synced_block).await;
+    start_workers(pools, last_synced_block).await;
 
     loop {
         tokio::time::sleep(std::time::Duration::from_secs(1000)).await;

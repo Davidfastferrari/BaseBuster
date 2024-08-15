@@ -8,12 +8,11 @@ use futures::stream::StreamExt;
 use log::{debug, info};
 use pool_sync::pools::pool_structure::{TickInfo, UniswapV2Pool, UniswapV3Pool};
 use pool_sync::{Pool, PoolInfo};
-use revm::primitives::SpecId::LATEST;
 use rustc_hash::{FxHashMap, FxHashSet};
-use tokio::sync::broadcast;
 use std::collections::HashSet;
-use std::sync::{Arc, RwLock, RwLockWriteGuard};
 use std::sync::RwLockReadGuard;
+use std::sync::{Arc, RwLock};
+use tokio::sync::broadcast;
 
 use crate::events::Event;
 
@@ -67,8 +66,22 @@ pub struct PoolManager {
 
 impl PoolManager {
     // construct a new instance
-    pub async fn new(working_pools: Vec<Pool>, sender: broadcast::Sender<Event>, last_synced_block: u64) -> Arc<Self> {
-        let address_to_pool: FxHashMap<Address, Pool> = working_pools
+    pub async fn new(
+        working_pools: Vec<Pool>,
+        sender: broadcast::Sender<Event>,
+        last_synced_block: u64,
+    ) -> Arc<Self> {
+        // if a pool is v3, make sure it has liuqidity
+        let filtered_pools: Vec<Pool> = working_pools.into_iter().filter(|pool| {
+            if pool.is_v3() {
+                let v3_pool = pool.get_v3().unwrap();
+                return v3_pool.liquidity > 0;
+            };
+            // keep all other pools
+            true
+        }).collect();
+
+        let address_to_pool: FxHashMap<Address, Pool> = filtered_pools
             .iter()
             .map(|pool| (pool.address(), pool.clone()))
             .collect();
@@ -77,11 +90,10 @@ impl PoolManager {
 
         let mut address_to_v2pool = FxHashMap::default();
         let mut address_to_v3pool = FxHashMap::default();
-        for pool in working_pools {
+        for pool in filtered_pools {
             if pool.is_v2() {
                 let v2_pool = pool.get_v2().unwrap().clone();
                 address_to_v2pool.insert(pool.address(), RwLock::new(v2_pool));
-
             } else if pool.is_v3() {
                 let v3_pool = pool.get_v3().unwrap().clone();
                 address_to_v3pool.insert(pool.address(), RwLock::new(v3_pool));
@@ -95,11 +107,19 @@ impl PoolManager {
             address_to_v3pool,
         });
 
-        tokio::spawn(PoolManager::state_updater(manager.clone(), sender, last_synced_block));
+        tokio::spawn(PoolManager::state_updater(
+            manager.clone(),
+            sender,
+            last_synced_block,
+        ));
         manager
     }
 
-    pub async fn state_updater(manager: Arc<PoolManager>, sender: broadcast::Sender<Event>, mut last_synced_block: u64) {
+    pub async fn state_updater(
+        manager: Arc<PoolManager>,
+        sender: broadcast::Sender<Event>,
+        mut last_synced_block: u64,
+    ) {
         let ws_url = std::env::var("WS").unwrap();
         let http_url = std::env::var("FULL").unwrap();
 
@@ -109,11 +129,13 @@ impl PoolManager {
             .unwrap();
         let http = ProviderBuilder::new().on_http(http_url.parse().unwrap());
 
-
         // process the missed blocks
         let mut latest_block = http.get_block_number().await.unwrap();
         while last_synced_block < latest_block {
-            println!("processing block from {} to {}", last_synced_block, latest_block);
+            println!(
+                "processing block from {} to {}",
+                last_synced_block, latest_block
+            );
             let filter = Filter::new()
                 .events([
                     DataEvent::Sync::SIGNATURE,
@@ -198,9 +220,11 @@ impl PoolManager {
     }
 }
 
-
 pub fn process_tick_data(pool: &mut UniswapV3Pool, log: Log) {
     let event_sig = log.topic0().unwrap();
+    //println!("Processing event for pool {}: {:?}", pool.address, event_sig);
+    //println!("Before processing: liquidity = {}", pool.liquidity);
+
 
     if *event_sig == DataEvent::Burn::SIGNATURE_HASH {
         process_burn(pool, log);
@@ -209,6 +233,8 @@ pub fn process_tick_data(pool: &mut UniswapV3Pool, log: Log) {
     } else if *event_sig == DataEvent::Swap::SIGNATURE_HASH {
         process_swap(pool, log);
     }
+    //println!("After processing: liquidity = {}", pool.liquidity);
+
 }
 
 fn process_burn(pool: &mut UniswapV3Pool, log: Log) {
@@ -217,7 +243,7 @@ fn process_burn(pool: &mut UniswapV3Pool, log: Log) {
         pool,
         burn_event.tickLower,
         burn_event.tickUpper,
-        -(burn_event.amount as i128)
+        -(burn_event.amount as i128),
     );
 }
 
@@ -227,15 +253,20 @@ fn process_mint(pool: &mut UniswapV3Pool, log: Log) {
         pool,
         mint_event.tickLower,
         mint_event.tickUpper,
-        mint_event.amount as i128
+        mint_event.amount as i128,
     );
 }
 
 fn process_swap(pool: &mut UniswapV3Pool, log: Log) {
     let swap_event = DataEvent::Swap::decode_log(log.as_ref(), true).unwrap();
+    //println!("Processing swap: tick = {}, sqrt_price = {}, liquidity = {}", swap_event.tick, swap_event.sqrtPriceX96, swap_event.liquidity);
+    //println!("Before swap: tick = {}, sqrt_price = {}, liquidity = {}", pool.tick, pool.sqrt_price, pool.liquidity);
+
     pool.tick = swap_event.tick;
     pool.sqrt_price = swap_event.sqrtPriceX96;
+
     pool.liquidity = swap_event.liquidity;
+    //println!("After swap: tick = {}, sqrt_price = {}, liquidity = {}", pool.tick, pool.sqrt_price, pool.liquidity);
 }
 
 /// Modifies a positions liquidity in the pool.
@@ -247,6 +278,8 @@ pub fn modify_position(
 ) {
     //We are only using this function when a mint or burn event is emitted,
     //therefore we do not need to checkTicks as that has happened before the event is emitted
+    //println!("Modifying position: tick_lower = {}, tick_upper = {}, liquidity_delta = {}", tick_lower, tick_upper, liquidity_delta);
+    //println!("Before modification: liquidity = {}", pool.liquidity);
     update_position(pool, tick_lower, tick_upper, liquidity_delta);
 
     if liquidity_delta != 0 {
@@ -257,8 +290,10 @@ pub fn modify_position(
             } else {
                 pool.liquidity + (liquidity_delta as u128)
             }
+
         }
     }
+    //println!("After modification: liquidity = {}", pool.liquidity);
 }
 
 pub fn update_position(
@@ -348,6 +383,8 @@ pub fn flip_tick(pool: &mut UniswapV3Pool, tick: i32, tick_spacing: i32) {
 
 pub fn process_sync_data(pool: &mut UniswapV2Pool, log: Log) {
     let sync_event = DataEvent::Sync::decode_log(log.as_ref(), true).unwrap();
+    //println!("Processing sync: reserve0 = {}, reserve1 = {}", sync_event.reserve0, sync_event.reserve1);
     pool.token0_reserves = U128::from(sync_event.reserve0);
     pool.token1_reserves = U128::from(sync_event.reserve1);
+    //println!("After sync: reserve0 = {}, reserve1 = {}", pool.token0_reserves, pool.token1_reserves);
 }

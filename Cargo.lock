@@ -29,9 +29,11 @@ dependencies = [
  "rustc-hash",
  "serde",
  "serde_json",
+ "sha2",
  "tokio",
  "uniswap_v3_math",
  "variant_count",
+ "zerocopy",
 ]
 
 [[package]]
@@ -2410,9 +2412,9 @@ dependencies = [
 
 [[package]]
 name = "gweiyser"
-version = "0.1.3"
+version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d1ea64de373eb2c17931a6388a41d01c81b45321ea42e7db34b555ff6812b98"
+checksum = "575c678c4265559a8a3168248718eb3f11f4c4fc6d8c8ea470b224efc4eac278"
 dependencies = [
  "alloy 0.2.0",
  "alloy-contract 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",

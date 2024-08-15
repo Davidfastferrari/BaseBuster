@@ -1,7 +1,4 @@
 use alloy::primitives::address;
-use alloy::providers::RootProvider;
-use alloy::pubsub::PubSubFrontend;
-use alloy::transports::http::{Client, Http};
 use log::info;
 use pool_sync::{Chain, Pool};
 use std::sync::Arc;
@@ -12,13 +9,11 @@ use crate::market::Market;
 use crate::pool_manager::PoolManager;
 use crate::simulator::simulate_paths;
 use crate::stream::*;
-use crate::tx_sender::send_transactions;
+use crate::tx_sender::TransactionSender;
 use crate::util::get_working_pools;
 
 /// Start all of the workers
 pub async fn start_workers(
-    http: Arc<RootProvider<Http<Client>>>,
-    ws: Arc<RootProvider<PubSubFrontend>>,
     pools: Vec<Pool>,
     last_synced_block: u64,
 ) {
@@ -30,18 +25,25 @@ pub async fn start_workers(
 
     // get out working pools and construct ethe pool manager
     info!("Getting working pools...");
-    let working_pools = get_working_pools(pools.clone(), 5000, Chain::Base).await;
-    let pool_manager = PoolManager::new(pools.clone(), reserve_update_sender.clone(), last_synced_block).await;
+    let working_pools = get_working_pools(pools.clone(), 2000, Chain::Base).await;
+    let filtered_pools: Vec<Pool> = working_pools.into_iter().filter(|pool| {
+        if pool.is_v3() {
+            let v3_pool = pool.get_v3().unwrap();
+            return v3_pool.liquidity > 0;
+        };
+        // keep all other pools
+        true
+    }).collect();
+    let pool_manager = PoolManager::new(filtered_pools.clone(), reserve_update_sender.clone(), last_synced_block).await;
 
     // construct the graph and generate the cycles
     info!("Constructing graph...");
     let weth = address!("4200000000000000000000000000000000000006");
-    let graph = ArbGraph::new(pool_manager.clone(), working_pools.clone(), weth);
+    let graph = ArbGraph::new(pool_manager.clone(), filtered_pools.clone(), weth);
 
     // Stream in new blocks
     info!("Starting block stream...");
-    tokio::spawn(stream_new_blocks(ws.clone(), block_sender));
-
+    tokio::spawn(stream_new_blocks(block_sender));
 
     // Market state
     info!("Staring market state tracker...");
@@ -59,7 +61,10 @@ pub async fn start_workers(
 
     // transaction sender
     info!("Starting transaction sender...");
-    tokio::spawn(send_transactions(tx_receiver.resubscribe(), market));
+    let tx_sender = TransactionSender::new(market);
+    tokio::spawn(async move {
+        let _ = tx_sender.send_transactions(tx_receiver.resubscribe()).await;
+    });
 
     // finally.... start the searcher!!!!!
     info!("Starting arbitrage searcher...");

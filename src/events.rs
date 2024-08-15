@@ -11,7 +11,7 @@ pub enum Event {
     NewBlock(Block),
     // We have updated the reserves for the pools based on the new block sync events
     ReserveUpdate(Vec<Address>),
-    NewPath((Vec<SwapStep>, U256)),
+    NewPath(Vec<SwapStep>),
     OptimizedPath(OptPath),
 }
 

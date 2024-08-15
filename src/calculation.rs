@@ -1,9 +1,11 @@
-use core::panic;
-use std::sync::RwLockReadGuard;
-
-use alloy::{primitives::{Address, I256, U128, U256}, signers::k256::elliptic_curve::consts::U25};
+use alloy::primitives::{Address, I256, U128, U256};
 use anyhow::Result;
-use pool_sync::{pools::pool_structure::{UniswapV2Pool, UniswapV3Pool}, PoolType};
+use core::panic;
+use pool_sync::{
+    pools::pool_structure::{UniswapV2Pool, UniswapV3Pool},
+    PoolType,
+};
+use std::sync::RwLockReadGuard;
 use uniswap_v3_math::tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK};
 
 pub const U256_1: U256 = U256::from_limbs([1, 0, 0, 0]);
@@ -17,14 +19,9 @@ pub fn calculate_v2_out(
     zero_to_one: bool,
     pool_type: PoolType,
 ) -> U256 {
-
     let (fee, scalar) = match pool_type {
-        PoolType::UniswapV2 | PoolType::SushiSwapV2 => {
-            (U256::from(997), U256::from(1000))
-        }
-        PoolType::PancakeSwapV2 | PoolType::BaseSwapV2 => {
-            (U256::from(9975), U256::from(10000))
-        }
+        PoolType::UniswapV2 | PoolType::SushiSwapV2 => (U256::from(997), U256::from(1000)),
+        PoolType::PancakeSwapV2 | PoolType::BaseSwapV2 => (U256::from(9975), U256::from(10000)),
         _ => panic!("Invalid pool type"),
     };
 
@@ -63,7 +60,11 @@ pub struct StepComputations {
 }
 
 // calculate the amount out for a uniswapv3 swap
-pub fn calculate_v3_out(amount_in: U256, pool: &mut RwLockReadGuard<UniswapV3Pool>, zero_to_one: bool) -> Result<U256> {
+pub fn calculate_v3_out(
+    amount_in: U256,
+    pool: &mut RwLockReadGuard<UniswapV3Pool>,
+    zero_to_one: bool,
+) -> Result<U256> {
     if amount_in.is_zero() {
         return Ok(U256::ZERO);
     }
@@ -190,10 +191,15 @@ pub fn calculate_v3_out(amount_in: U256, pool: &mut RwLockReadGuard<UniswapV3Poo
     Ok(amount_out)
 }
 
-
-
-pub fn calculate_aerodrome_out(amount_in: U256, token_in: Address, pool: &RwLockReadGuard<UniswapV2Pool>) -> U256 {
-    let (mut _reserve0, mut _reserve1) = (U256::from(pool.token0_reserves), U256::from(pool.token1_reserves));
+pub fn calculate_aerodrome_out(
+    amount_in: U256,
+    token_in: Address,
+    pool: &RwLockReadGuard<UniswapV2Pool>,
+) -> U256 {
+    let (mut _reserve0, mut _reserve1) = (
+        U256::from(pool.token0_reserves),
+        U256::from(pool.token1_reserves),
+    );
     let mut amount_in = amount_in;
     amount_in -= (amount_in * pool.fee.unwrap()) / U256::from(10000);
 
@@ -201,7 +207,13 @@ pub fn calculate_aerodrome_out(amount_in: U256, token_in: Address, pool: &RwLock
     let token1_decimals = U256::from(10).pow(U256::from(pool.token1_decimals));
     let stable = pool.stable.unwrap();
     if stable {
-        let xy = _k(_reserve0, _reserve1, stable, token0_decimals, token1_decimals);
+        let xy = _k(
+            _reserve0,
+            _reserve1,
+            stable,
+            token0_decimals,
+            token1_decimals,
+        );
         _reserve0 = (_reserve0 * U256::from(1e18)) / token0_decimals;
         _reserve1 = (_reserve1 * U256::from(1e18)) / token1_decimals;
         let (reserve_a, reserve_b) = if token_in == pool.token0 {
@@ -214,7 +226,15 @@ pub fn calculate_aerodrome_out(amount_in: U256, token_in: Address, pool: &RwLock
         } else {
             (amount_in * U256::from(1e18)) / token1_decimals
         };
-        let y = reserve_b - _get_y(amount_in + reserve_a, xy, reserve_b, stable, token0_decimals, token1_decimals);
+        let y = reserve_b
+            - _get_y(
+                amount_in + reserve_a,
+                xy,
+                reserve_b,
+                stable,
+                token0_decimals,
+                token1_decimals,
+            );
         if token_in == pool.token0 {
             return (y * token1_decimals) / U256::from(1e18);
         } else {
@@ -226,7 +246,7 @@ pub fn calculate_aerodrome_out(amount_in: U256, token_in: Address, pool: &RwLock
         } else {
             (_reserve1, _reserve0)
         };
-        return (amount_in * reserve_b) / (reserve_a + amount_in)
+        return (amount_in * reserve_b) / (reserve_a + amount_in);
     }
 }
 
@@ -244,7 +264,7 @@ fn _k(x: U256, y: U256, stable: bool, decimals0: U256, decimals1: U256) -> U256 
 
 fn _get_y(x0: U256, xy: U256, y: U256, stable: bool, decimals0: U256, decimals1: U256) -> U256 {
     let mut y = y;
-    for _ in 0..255{
+    for _ in 0..255 {
         let k = _f(x0, y);
         if k < xy {
             let mut dy = ((xy - k) * U256::from(1e18)) / _d(x0, y);
@@ -279,5 +299,6 @@ fn _f(x0: U256, y: U256) -> U256 {
 }
 
 fn _d(x0: U256, y: U256) -> U256 {
-    return U256::from(3) * x0 * ((y * y) / U256::from(1e18)) / U256::from(1e18) + (((x0 * x0) / U256::from(1e18)) * x0) / U256::from(1e18);
+    return U256::from(3) * x0 * ((y * y) / U256::from(1e18)) / U256::from(1e18)
+        + (((x0 * x0) / U256::from(1e18)) * x0) / U256::from(1e18);
 }

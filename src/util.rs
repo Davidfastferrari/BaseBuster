@@ -1,17 +1,17 @@
+use alloy::network::EthereumWallet;
+use alloy::node_bindings::{Anvil, AnvilInstance};
 use alloy::primitives::{address, Address};
+use alloy::providers::{Provider, ProviderBuilder};
 use alloy::signers::local::PrivateKeySigner;
 use anyhow::Result;
+use log::info;
 use pool_sync::filter::fetch_top_volume_tokens;
 use pool_sync::{Chain, Pool, PoolInfo};
-use alloy::node_bindings::{Anvil, AnvilInstance};
-use std::sync::Arc;
-use alloy::providers::{Provider, ProviderBuilder};
 use serde::{Deserialize, Serialize};
-use log::info;
 use std::fs::{create_dir_all, File};
 use std::io::{BufReader, BufWriter};
 use std::path::Path;
-use alloy::network::EthereumWallet;
+use std::sync::Arc;
 
 use crate::FlashSwap;
 #[derive(Serialize, Deserialize)]
@@ -68,7 +68,7 @@ pub async fn get_working_pools(pools: Vec<Pool>, num_results: usize, chain: Chai
         address!("940181a94A35A4569E4529A3CDfB74e38FD98631"),
         address!("04D5ddf5f3a8939889F11E97f8c4BB48317F1938"),
         address!("c1CBa3fCea344f92D9239c08C0568f6F2F0ee452"),
-        address!("50c5725949A6F0c72E6C4a641F24049A917DB0Cb")
+        address!("50c5725949A6F0c72E6C4a641F24049A917DB0Cb"),
     ];
     top_volume_tokens.retain(|token| !blacklist.contains(token));
 
@@ -82,10 +82,10 @@ pub async fn get_working_pools(pools: Vec<Pool>, num_results: usize, chain: Chai
         .collect()
 }
 
-
 // deploy the flash swap contract
 pub async fn deploy_flash_swap() -> (AnvilInstance, Address) {
-    let http_provider = Arc::new(ProviderBuilder::new().on_http(std::env::var("FULL").unwrap().parse().unwrap()));
+    let http_provider =
+        Arc::new(ProviderBuilder::new().on_http(std::env::var("FULL").unwrap().parse().unwrap()));
     let fork_block = http_provider.get_block_number().await.unwrap();
     let anvil = Anvil::new()
         .fork(std::env::var("FULL").unwrap())

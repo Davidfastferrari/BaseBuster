@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "@aave/core-v3/contracts/flashloan/base/FlashLoanSimpleReceiverBase.sol";
 import "@aave/core-v3/contracts/interfaces/IPool.sol";
 import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import "./ISwappers.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract FlashSwap is FlashLoanSimpleReceiverBase {
+contract FlashQuoter {
     struct SwapStep {
         address poolAddress;
         address tokenIn;
@@ -34,31 +33,11 @@ contract FlashSwap is FlashLoanSimpleReceiverBase {
 
     address constant AAVE_ADDRESSES_PROVIDER =0xe20fCBdBfFC4Dd138cE8b2E6FBb6CB49777ad64D;
 
-    address public immutable owner;
+    address constant WETH = 0x4200000000000000000000000000000000000006;
 
     event Profit(uint256 value);
 
-    constructor() FlashLoanSimpleReceiverBase(IPoolAddressesProvider(AAVE_ADDRESSES_PROVIDER) ){
-        owner = msg.sender;
-    }
-
-    function executeArbitrage(SwapStep[] calldata steps, uint256 amount) external {
-        address asset = steps[0].tokenIn;
-        bytes memory params = abi.encode(steps, msg.sender);
-        POOL.flashLoanSimple(address(this), asset, amount, params, 0);
-    }
-
-    function executeOperation(
-        address asset,
-        uint256 amount,
-        uint256 premium,
-        address initiator,
-        bytes calldata params
-    ) external override returns (bool) {
-        require(msg.sender == address(POOL), "Caller must be Aave Pool");
-
-        (SwapStep[] memory steps, address caller) = abi.decode(params,(SwapStep[], address));
-
+    function executeArbitrage(SwapStep[] calldata steps, uint256 amount) external returns (uint256){
         uint256 amountIn = amount;
 
         for (uint i = 0; i < steps.length; i++) {
@@ -79,17 +58,8 @@ contract FlashSwap is FlashLoanSimpleReceiverBase {
             amountIn = IERC20(step.tokenOut).balanceOf(address(this));
         }
 
-        uint256 amountToRepay = amount + premium;
-        uint256 finalBalance = IERC20(asset).balanceOf(address(this));
-        IERC20(asset).approve(address(POOL), finalBalance);
-        require(finalBalance >= amountToRepay, "Insufficient balance to repay flash loan");
-        
-        uint256 profit = finalBalance - amountToRepay;
-        if (profit > 0) {
-            IERC20(asset).transfer(caller, profit);
-            emit Profit(profit);
-        }
-        return true;
+        uint256 finalBalance = IERC20(WETH).balanceOf(address(this));
+        return finalBalance;
     }
 
     function _swapV2(address tokenIn, address tokenOut, uint256 amountIn, address router) internal {
@@ -174,9 +144,5 @@ contract FlashSwap is FlashLoanSimpleReceiverBase {
         revert("Invalid V3 protocol");
     }
 
-    function withdraw(address token) external {
-        require(msg.sender == owner, "Only owner can withdraw");
-        uint256 balance = IERC20(token).balanceOf(address(this));
-        IERC20(token).transfer(owner, balance);
-    }
+    receive() external payable {}
 }
