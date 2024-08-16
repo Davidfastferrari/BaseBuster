@@ -75,7 +75,7 @@ pub async fn simulate_paths(
             .executeArbitrage(converted_path.clone(), U256::from(AMOUNT))
             .into_transaction_request();
         let output = provider
-            .debug_trace_call(tx, alloy::eips::BlockNumberOrTag::Latest, options.clone())
+            .debug_trace_call(tx, alloy::eips::BlockNumberOrTag::Pending, options.clone())
             .await;
 
         // process the output
@@ -89,7 +89,7 @@ pub async fn simulate_paths(
                     }
                 }  else {
                     //info!("Path, {:#?} failed to simulate {:#?}", converted_path, call_trace.revert_reason);
-                    debug!("Failed to simulate {:#?}", call_trace.revert_reason);
+                    info!("Failed to simulate {:#?}", call_trace.revert_reason);
                 }
             }
             _ => {}

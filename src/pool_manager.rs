@@ -7,7 +7,7 @@ use alloy_sol_types::SolEvent;
 use futures::stream::StreamExt;
 use log::{debug, info};
 use pool_sync::pools::pool_structure::{TickInfo, UniswapV2Pool, UniswapV3Pool};
-use pool_sync::{Pool, PoolInfo};
+use pool_sync::{Pool, PoolInfo, PoolType};
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::HashSet;
 use std::sync::RwLockReadGuard;
@@ -16,8 +16,35 @@ use tokio::sync::broadcast;
 
 use crate::events::Event;
 
+sol!(
+    #[derive(Debug)]
+    contract AerodromeEvent {
+        event Sync(uint256 reserve0, uint256 reserve1);
+    }
+);
+
+sol!(
+    #[derive(Debug)]
+    #[sol(rpc)]
+    contract PancakeSwap {
+        event Swap(
+            address indexed sender,
+            address indexed recipient,
+            int256 amount0,
+            int256 amount1,
+            uint160 sqrtPriceX96,
+            uint128 liquidity,
+            int24 tick,
+            uint128 protocolFeesToken0,
+            uint128 protocolFeesToken1
+        );
+    }
+);
+
+
 sol! {
     #[derive(Debug)]
+    
     contract DataEvent {
         event Sync(uint112 reserve0, uint112 reserve1);
         event Swap(
@@ -132,12 +159,14 @@ impl PoolManager {
         // process the missed blocks
         let mut latest_block = http.get_block_number().await.unwrap();
         while last_synced_block < latest_block {
-            println!(
-                "processing block from {} to {}",
-                last_synced_block, latest_block
-            );
+            //println!(
+            //    "processing block from {} to {}",
+                //last_synced_block, latest_block
+            //);
             let filter = Filter::new()
                 .events([
+                    PancakeSwap::Swap::SIGNATURE,
+                    AerodromeEvent::Sync::SIGNATURE,
                     DataEvent::Sync::SIGNATURE,
                     DataEvent::Mint::SIGNATURE,
                     DataEvent::Burn::SIGNATURE,
@@ -161,6 +190,8 @@ impl PoolManager {
             // setup the log filters
             let filter = Filter::new()
                 .events([
+                    PancakeSwap::Swap::SIGNATURE,
+                    AerodromeEvent::Sync::SIGNATURE,
                     DataEvent::Sync::SIGNATURE,
                     DataEvent::Mint::SIGNATURE,
                     DataEvent::Burn::SIGNATURE,
@@ -186,15 +217,16 @@ impl PoolManager {
             if self.addresses.contains(&address) {
                 updated_pools.insert(address);
                 let pool = self.get_pool(&address);
+                let pool_type = pool.pool_type();
                 if pool.is_v3() {
                     if let Some(pool_lock) = self.address_to_v3pool.get(&address) {
                         let mut pool = pool_lock.write().unwrap();
-                        process_tick_data(&mut pool, log);
+                        process_tick_data(&mut pool, log, pool_type);
                     }
                 } else if pool.is_v2() {
                     if let Some(pool_lock) = self.address_to_v2pool.get(&pool.address()) {
                         let mut pool = pool_lock.write().unwrap();
-                        process_sync_data(&mut pool, log);
+                        process_sync_data(&mut pool, log, pool_type);
                     }
                 }
             }
@@ -220,19 +252,21 @@ impl PoolManager {
     }
 }
 
-pub fn process_tick_data(pool: &mut UniswapV3Pool, log: Log) {
+pub fn process_tick_data(pool: &mut UniswapV3Pool, log: Log, pool_type: PoolType) {
     let event_sig = log.topic0().unwrap();
-    //println!("Processing event for pool {}: {:?}", pool.address, event_sig);
-    //println!("Before processing: liquidity = {}", pool.liquidity);
+    //println!("Before");
+    //println!("address {}, liquidity {}, tick {}, sqrt_price {}", pool.address, pool.liquidity, pool.tick, pool.sqrt_price);
 
 
     if *event_sig == DataEvent::Burn::SIGNATURE_HASH {
         process_burn(pool, log);
     } else if *event_sig == DataEvent::Mint::SIGNATURE_HASH {
         process_mint(pool, log);
-    } else if *event_sig == DataEvent::Swap::SIGNATURE_HASH {
-        process_swap(pool, log);
+    } else if *event_sig == DataEvent::Swap::SIGNATURE_HASH || *event_sig == PancakeSwap::Swap::SIGNATURE_HASH {
+        process_swap(pool, log, pool_type);
     }
+    //println!("After");
+    //println!("address {}, liquidity {}, tick {}, sqrt_price {}", pool.address, pool.liquidity, pool.tick, pool.sqrt_price);
     //println!("After processing: liquidity = {}", pool.liquidity);
 
 }
@@ -257,16 +291,18 @@ fn process_mint(pool: &mut UniswapV3Pool, log: Log) {
     );
 }
 
-fn process_swap(pool: &mut UniswapV3Pool, log: Log) {
-    let swap_event = DataEvent::Swap::decode_log(log.as_ref(), true).unwrap();
-    //println!("Processing swap: tick = {}, sqrt_price = {}, liquidity = {}", swap_event.tick, swap_event.sqrtPriceX96, swap_event.liquidity);
-    //println!("Before swap: tick = {}, sqrt_price = {}, liquidity = {}", pool.tick, pool.sqrt_price, pool.liquidity);
-
-    pool.tick = swap_event.tick;
-    pool.sqrt_price = swap_event.sqrtPriceX96;
-
-    pool.liquidity = swap_event.liquidity;
-    //println!("After swap: tick = {}, sqrt_price = {}, liquidity = {}", pool.tick, pool.sqrt_price, pool.liquidity);
+fn process_swap(pool: &mut UniswapV3Pool, log: Log, pool_type: PoolType) {
+    if pool_type == PoolType::PancakeSwapV3{
+        let swap_event = PancakeSwap::Swap::decode_log(log.as_ref(), true).unwrap();
+        pool.tick = swap_event.tick;
+        pool.sqrt_price = swap_event.sqrtPriceX96;
+        pool.liquidity = swap_event.liquidity;
+    } else {
+        let swap_event = DataEvent::Swap::decode_log(log.as_ref(), true).unwrap();
+        pool.tick = swap_event.tick;
+        pool.sqrt_price = swap_event.sqrtPriceX96;
+        pool.liquidity = swap_event.liquidity;
+    }
 }
 
 /// Modifies a positions liquidity in the pool.
@@ -278,22 +314,18 @@ pub fn modify_position(
 ) {
     //We are only using this function when a mint or burn event is emitted,
     //therefore we do not need to checkTicks as that has happened before the event is emitted
-    //println!("Modifying position: tick_lower = {}, tick_upper = {}, liquidity_delta = {}", tick_lower, tick_upper, liquidity_delta);
-    //println!("Before modification: liquidity = {}", pool.liquidity);
     update_position(pool, tick_lower, tick_upper, liquidity_delta);
 
     if liquidity_delta != 0 {
         //if the tick is between the tick lower and tick upper, update the liquidity between the ticks
-        if pool.tick > tick_lower && pool.tick < tick_upper {
-            pool.liquidity = if liquidity_delta < 0 {
-                pool.liquidity - ((-liquidity_delta) as u128)
+        if pool.tick >= tick_lower && pool.tick < tick_upper {
+            if liquidity_delta < 0 {
+                pool.liquidity = pool.liquidity.checked_sub((-liquidity_delta) as u128).unwrap_or(0);
             } else {
-                pool.liquidity + (liquidity_delta as u128)
+                pool.liquidity = pool.liquidity.checked_add(liquidity_delta as u128).unwrap_or(u128::MAX);
             }
-
         }
     }
-    //println!("After modification: liquidity = {}", pool.liquidity);
 }
 
 pub fn update_position(
@@ -381,10 +413,14 @@ pub fn flip_tick(pool: &mut UniswapV3Pool, tick: i32, tick_spacing: i32) {
     }
 }
 
-pub fn process_sync_data(pool: &mut UniswapV2Pool, log: Log) {
-    let sync_event = DataEvent::Sync::decode_log(log.as_ref(), true).unwrap();
-    //println!("Processing sync: reserve0 = {}, reserve1 = {}", sync_event.reserve0, sync_event.reserve1);
-    pool.token0_reserves = U128::from(sync_event.reserve0);
-    pool.token1_reserves = U128::from(sync_event.reserve1);
-    //println!("After sync: reserve0 = {}, reserve1 = {}", pool.token0_reserves, pool.token1_reserves);
+pub fn process_sync_data(pool: &mut UniswapV2Pool, log: Log, pool_type: PoolType) {
+    if pool_type == PoolType::Aerodrome {
+        let sync_event = AerodromeEvent::Sync::decode_log(log.as_ref(), true).unwrap();
+        pool.token0_reserves = U128::from(sync_event.reserve0);
+        pool.token1_reserves = U128::from(sync_event.reserve1);
+    } else {
+        let sync_event = DataEvent::Sync::decode_log(log.as_ref(), true).unwrap();
+        pool.token0_reserves = U128::from(sync_event.reserve0);
+        pool.token1_reserves = U128::from(sync_event.reserve1);
+    }
 }

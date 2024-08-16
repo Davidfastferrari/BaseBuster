@@ -9,6 +9,7 @@ use alloy::primitives::{Address, U256};
 use alloy::providers::ProviderBuilder;
 use alloy::signers::local::PrivateKeySigner;
 use crossbeam_queue::SegQueue;
+use std::time::{SystemTime, UNIX_EPOCH};
 use dashmap::DashMap;
 use gweiyser::{Chain, Gweiyser};
 use log::{info, warn};
@@ -68,6 +69,7 @@ impl SwapStep {
         match self.protocol {
             PoolType::UniswapV2 | PoolType::SushiSwapV2 | PoolType::PancakeSwapV2 | PoolType::BaseSwapV2 => {
                 let v2_pool = pool_manager.get_v2pool(&self.pool_address);
+                //println!("V2 pool: {:#?}", v2_pool);
                 calculate_v2_out(
                     amount_in,
                     v2_pool.token0_reserves,
@@ -76,12 +78,14 @@ impl SwapStep {
                     self.protocol
                 )
             }
-            PoolType::UniswapV3 | PoolType::SushiSwapV3 | PoolType::BaseSwapV3=> {
+            PoolType::UniswapV3 | PoolType::SushiSwapV3 | PoolType::BaseSwapV3 | PoolType::Slipstream | PoolType::PancakeSwapV3 => {
                 let mut v3_pool = pool_manager.get_v3pool(&self.pool_address);
+                //println!("V3 pool: {:#?}", v3_pool);
                 calculate_v3_out(amount_in, &mut v3_pool, zero_to_one).unwrap()
             }
             PoolType::Aerodrome => {
                let v2_pool = pool_manager.get_v2pool(&self.pool_address);
+               //println!("V2 pool: {:#?}", v2_pool);
                calculate_aerodrome_out(amount_in, self.token_in, &v2_pool)
             }
             _ => todo!(),
@@ -242,6 +246,8 @@ impl ArbGraph {
         mut reserve_update_receiver: Receiver<Event>,
     ) {
         let FLASH_LOAN_FEE: U256 = U256::from(9) / U256::from(10000); // 0.09% flash loan fee
+        let MINIMUM_PROFIT_PERCENTAGE: U256 = U256::from(2) / U256::from(100); // 2% minimum profit
+
         while let Ok(Event::ReserveUpdate(updated_pools)) = reserve_update_receiver.recv().await {
             info!("Searching for arbs...");
             let start = std::time::Instant::now(); // timer
@@ -256,7 +262,8 @@ impl ArbGraph {
             let profitable_paths: Vec<_> = affected_paths.par_iter()
                 .filter_map(|&path_index| {
                     let cycle = &self.cycles[path_index];
-                    let mut current_amount = U256::from(AMOUNT);
+                    let initial_amount = U256::from(AMOUNT);
+                    let mut current_amount = initial_amount;
                     for swap in cycle {
                         current_amount = swap.get_amount_out(current_amount, &self.pool_manager);
                         if current_amount <= U256::from(AMOUNT) {
@@ -264,37 +271,73 @@ impl ArbGraph {
                         }
                     }
 
-                    if current_amount >= U256::from(AMOUNT) * FLASH_LOAN_FEE {
-                        //println!("path: {:#?} Current amount: {:#?}", cycle, current_amount);
-                        Some((cycle.clone(), current_amount))
-                    } else  {
+                    let repayment_amount = initial_amount + (initial_amount * FLASH_LOAN_FEE);
+                    if current_amount >= repayment_amount {
+                        let profit = current_amount - repayment_amount;
+                        let profit_percentage = profit * U256::from(10000) / initial_amount;
+
+                        if profit_percentage >= MINIMUM_PROFIT_PERCENTAGE * U256::from(10000) {
+                            Some((cycle.clone(), profit))
+                        } else {
+                            None
+                        }
+                    } else {
                         None
                     }
+
+                    //if current_amount >= required_amount * PROFIT_THRESHOLD {//* FLASH_LOAN_FEE {
+                        //println!("path: {:#?} Current amount: {:#?}", cycle, current_amount);
+                        //Some((cycle.clone(), current_amount))
+                    //} else  {
+                     //   None
+                    //}
+
                 })
                 .collect();
 
-            info!("Searched all paths in {:?}", start.elapsed());
-            info!("Found {} profitable paths", profitable_paths.len());
-
-
-            simulate_quote(profitable_paths.clone(), U256::from(AMOUNT)).await;
-
-            /* 
+            //info!("Searched all paths in {:?}", start.elapsed());
+            let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
+            info!("done sim at timestamp {}:", now);
+            //info!("Found {} profitable paths", profitable_paths.len());
+            //simulate_quote(profitable_paths.clone(), U256::from(AMOUNT)).await;
             for path in profitable_paths {
-                if let Err(e) = arb_sender.send(Event::NewPath(path)) {
+                if let Err(e) = arb_sender.send(Event::NewPath(path.0)) {
                     warn!("Path send failed: {:?}", e);
                 }
             }
-            */
+            /* 
+            if !profitable_paths.is_empty() {
+                // Find the most profitable path
+                let most_profitable_path = profitable_paths.iter()
+                    .max_by_key(|&(_, profit)| profit)
+                    .unwrap();
+                let (most_profitable_cycle, profit) = most_profitable_path;
+                if let Err(e) = arb_sender.send(Event::NewPath(most_profitable_cycle.clone())) {
+                    warn!("Path send failed: {:?}", e);
+                }
+            } 
+            info!("Searched all paths in {:?}", start.elapsed());
 
 
             //info!("Found {} profitable paths", profitable_paths.len());
 
+
+            for path in profitable_paths {
+                if let Err(e) = arb_sender.send(Event::NewPath(path.0)) {
+                    warn!("Path send failed: {:?}", e);
+                }
+            }
+
+
+            //info!("Found {} profitable paths", profitable_paths.len());
+
+            */
         }
     }
 }
 
 pub async fn simulate_quote(swap_steps: Vec<(Vec<SwapStep>, U256)>, amount: U256) {
+    info!("running");
     // deploy the quoter
     let url = std::env::var("FULL").unwrap();
     let provider = ProviderBuilder::new().on_http(url.parse().unwrap());
@@ -325,6 +368,7 @@ pub async fn simulate_quote(swap_steps: Vec<(Vec<SwapStep>, U256)>, amount: U256
 
 
     for path in swap_steps {
+        info!("Simulating quote for path ");
         let swap_steps = path.0;
         let calculated_profit = path.1;
         let converted_path: Vec<FlashQuoter::SwapStep> = swap_steps
@@ -341,15 +385,21 @@ pub async fn simulate_quote(swap_steps: Vec<(Vec<SwapStep>, U256)>, amount: U256
             .collect();
 
 
-        let FlashQuoter::executeArbitrageReturn { _0: profit } = flash_quoter
+        match  flash_quoter
             .executeArbitrage(converted_path, amount)
             .call()
-            .await
-            .unwrap();
+            .await {
+                Ok(FlashQuoter::executeArbitrageReturn { _0: profit }) => {
+                    if profit != calculated_profit {
+                        println!("Profit mismatch, path {:#?}, calculated profit: {}, actual profit: {}", swap_steps, calculated_profit, profit);
+                    } else {
+                        println!("Quote profit: {:?}, Calculated profit: {:?}", profit, calculated_profit);
+                    }
 
-        if profit != calculated_profit {
-            println!("Profit mismatch, path {:#?}, calculated profit: {}, actual profit: {}", swap_steps, calculated_profit, profit);
-        }
+                },
+                Err(e) => println!("Error simulating quote: {:?}, path: {:#?}", e, swap_steps),
+            }
+
     }
 
 }

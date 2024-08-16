@@ -48,8 +48,10 @@ contract FlashQuoter {
                 _swapV2(step.tokenIn, step.tokenOut, balanceBefore, _getV2Router(step.protocol));
             } else if (step.protocol <= 5) {
                 _swapV3(step.tokenIn, step.tokenOut, balanceBefore, step.fee, _getV3Router(step.protocol));
-            } else if (step.protocol <= 8) {
+            } else if (step.protocol <= 7) {
                 _swapV3Deadline(step.tokenIn, step.tokenOut, balanceBefore, step.fee, _getV3RouterDeadline(step.protocol));
+            }  else if (step.protocol == 8) {
+                 _swapSlipstream(step.tokenIn, step.tokenOut, balanceBefore, step.poolAddress, SLIPSTREAM_ROUTER);
             } else if (step.protocol == 9) {
                 _swapAerodome(step.tokenIn, step.tokenOut, balanceBefore, step.stable, AERODOME_ROUTER);
             } else {
@@ -104,6 +106,23 @@ contract FlashQuoter {
         });
         V3Deadline(router).exactInputSingle(params);
     }
+
+    function _swapSlipstream(address tokenIn, address tokenOut, uint256 amountIn, address poolAddress, address router) internal {
+        int24 tickSpacing = SlipstreamPool(poolAddress).tickSpacing();
+        IERC20(tokenIn).approve(router, amountIn);
+        SlipstreamRouter.ExactInputSingleParams memory params = SlipstreamRouter.ExactInputSingleParams({
+            tokenIn: tokenIn,
+            tokenOut: tokenOut,
+            tickSpacing: tickSpacing,
+            recipient: address(this),
+            deadline: block.timestamp + 100,
+            amountIn: amountIn,
+            amountOutMinimum: 0,
+            sqrtPriceLimitX96: 0
+        });
+        SlipstreamRouter(router).exactInputSingle(params);
+    }
+
 
     function _swapAerodome(address tokenIn, address tokenOut, uint256 amountIn, bool stable,address router) internal {
         IERC20(tokenIn).approve(router, amountIn);

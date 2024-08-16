@@ -59,16 +59,15 @@ pub async fn get_working_pools(pools: Vec<Pool>, num_results: usize, chain: Chai
     // get all the top volume tokens
     let mut top_volume_tokens = get_top_volume_tokens(chain, num_results).await.unwrap();
     let blacklist = vec![
-        address!("4752ba5dbc23f44d87826276bf6fd6b1c372ad24"),
-        address!("236aa50979d5f3de3bd1eeb40e81137f22ab794b"),
-        address!("8b03d30b88e86fc5f447069c79ec56b8e7d87ab6"),
-        address!("B79DD08EA68A908A97220C76d19A6aA9cBDE4376"),
-        address!("d9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA"),
-        address!("fde4C96c8593536E31F229EA8f37b2ADa2699bb2"),
-        address!("940181a94A35A4569E4529A3CDfB74e38FD98631"),
+        address!("60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42"),
         address!("04D5ddf5f3a8939889F11E97f8c4BB48317F1938"),
-        address!("c1CBa3fCea344f92D9239c08C0568f6F2F0ee452"),
+        address!("fde4C96c8593536E31F229EA8f37b2ADa2699bb2"),
+        address!("d9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA"),
+        address!("B79DD08EA68A908A97220C76d19A6aA9cBDE4376"),
+        address!("2Ae3F1Ec7F1F5012CFEab0185bfc7aa3cf0DEc22"),
+        address!("2416092f143378750bb29b79eD961ab195CcEea5"),
         address!("50c5725949A6F0c72E6C4a641F24049A917DB0Cb"),
+        address!("833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
     ];
     top_volume_tokens.retain(|token| !blacklist.contains(token));
 

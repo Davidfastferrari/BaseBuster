@@ -25,7 +25,8 @@ pub async fn start_workers(
 
     // get out working pools and construct ethe pool manager
     info!("Getting working pools...");
-    let working_pools = get_working_pools(pools.clone(), 2000, Chain::Base).await;
+    let num_tokens: usize = std::env::var("NUM_TOKENS").unwrap().parse().unwrap();
+    let working_pools = get_working_pools(pools.clone(), num_tokens, Chain::Base).await;
     let filtered_pools: Vec<Pool> = working_pools.into_iter().filter(|pool| {
         if pool.is_v3() {
             let v3_pool = pool.get_v3().unwrap();

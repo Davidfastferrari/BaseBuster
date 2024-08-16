@@ -25,7 +25,7 @@ sol!(
 );
 
 // initial amount we are trying to arb over
-pub const AMOUNT: u128 = 5_000_000_000_000_000;
+pub const AMOUNT: u128 = 3_000_000_000_000_000;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -44,7 +44,9 @@ async fn main() -> Result<()> {
             PoolType::SushiSwapV2,
             PoolType::SushiSwapV3,
             PoolType::Aerodrome,
+            PoolType::Slipstream,
             PoolType::PancakeSwapV2,
+            PoolType::PancakeSwapV3,
             PoolType::BaseSwapV2,
             PoolType::BaseSwapV3,
         ])

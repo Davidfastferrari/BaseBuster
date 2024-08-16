@@ -55,7 +55,7 @@ impl TransactionSender {
         &self,
         mut tx_receiver: Receiver<Vec<FlashSwap::SwapStep>>,
     ) -> Result<()> {
-        let contract = FlashSwap::new(address!("F7bb189601155E8f522AbBd2061e9691fbE89E51"), self.provider.clone());
+        let contract = FlashSwap::new(address!("5C770adBAfcaE556f58B91b3aD2c276B3F0F7D6B"), self.provider.clone());
         let wallet_address = address!("1E0294b6e4D72857B5eC467f5c2E52BDA37CA5b8");
 
         // wait for a new transaction that has passed simulation
