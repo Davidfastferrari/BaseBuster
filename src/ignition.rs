@@ -40,7 +40,7 @@ pub async fn start_workers(
     // construct the graph and generate the cycles
     info!("Constructing graph...");
     let weth = address!("4200000000000000000000000000000000000006");
-    let graph = ArbGraph::new(pool_manager.clone(), filtered_pools.clone(), weth);
+    let graph = ArbGraph::new(pool_manager.clone(), filtered_pools.clone(), weth).await;
 
     // Stream in new blocks
     info!("Starting block stream...");

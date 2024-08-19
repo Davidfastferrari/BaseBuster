@@ -11,6 +11,8 @@ use alloy::signers::local::PrivateKeySigner;
 use crossbeam_queue::SegQueue;
 use std::time::{SystemTime, UNIX_EPOCH};
 use dashmap::DashMap;
+use alloy::providers::RootProvider;
+use alloy::transports::http::{Client, Http};
 use gweiyser::{Chain, Gweiyser};
 use log::{info, warn};
 use petgraph::graph::UnGraph;
@@ -23,7 +25,7 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::sync::broadcast::{Receiver, Sender};
 
-use crate::calculation::{calculate_v2_out, calculate_v3_out, calculate_aerodrome_out};
+use crate::calculation::Calculator;
 use crate::AMOUNT;
 
 // All information we need to look for arbitrage opportunities
@@ -33,6 +35,7 @@ pub struct ArbGraph {
     cycles: Vec<Vec<SwapStep>>,
     pools_to_paths: FxHashMap<Address, HashSet<usize>>,
     path_index: DashMap<Address, Vec<usize>>,
+    calculator: Calculator,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -42,7 +45,6 @@ pub struct SwapStep {
     pub token_out: Address,
     pub protocol: PoolType,
     pub fee: u32,
-    pub stable: bool,
 }
 
 impl SwapStep {
@@ -59,18 +61,23 @@ impl SwapStep {
             PoolType::Slipstream => 8,
             PoolType::Aerodrome => 9,
             PoolType::AlienBase => 10,
+            PoolType::MaverickV1 => 11,
+            PoolType::MaverickV2 => 12,
+            PoolType::BalancerV2 => 13,
+            PoolType::CurveTwoCrypto => 14,
+            PoolType::CurveTriCrypto => 15,
         }
     }
 }
 
 impl SwapStep {
-    pub fn get_amount_out(&self, amount_in: U256, pool_manager: &PoolManager) -> U256 {
+    pub fn get_amount_out(&self, amount_in: U256, pool_manager: &PoolManager, calculator: &Calculator) -> U256 {
         let zero_to_one = pool_manager.zero_to_one(self.token_in, &self.pool_address);
         match self.protocol {
             PoolType::UniswapV2 | PoolType::SushiSwapV2 | PoolType::PancakeSwapV2 | PoolType::BaseSwapV2 => {
                 let v2_pool = pool_manager.get_v2pool(&self.pool_address);
                 //println!("V2 pool: {:#?}", v2_pool);
-                calculate_v2_out(
+                Calculator::calculate_v2_out(
                     amount_in,
                     v2_pool.token0_reserves,
                     v2_pool.token1_reserves,
@@ -81,21 +88,38 @@ impl SwapStep {
             PoolType::UniswapV3 | PoolType::SushiSwapV3 | PoolType::BaseSwapV3 | PoolType::Slipstream | PoolType::PancakeSwapV3 => {
                 let mut v3_pool = pool_manager.get_v3pool(&self.pool_address);
                 //println!("V3 pool: {:#?}", v3_pool);
-                calculate_v3_out(amount_in, &mut v3_pool, zero_to_one).unwrap()
+                Calculator::calculate_v3_out(amount_in, &mut v3_pool, zero_to_one).unwrap()
             }
             PoolType::Aerodrome => {
                let v2_pool = pool_manager.get_v2pool(&self.pool_address);
                //println!("V2 pool: {:#?}", v2_pool);
-               calculate_aerodrome_out(amount_in, self.token_in, &v2_pool)
+               Calculator::calculate_aerodrome_out(amount_in, self.token_in, &v2_pool)
             }
-            _ => todo!(),
+            PoolType::MaverickV1 | PoolType::MaverickV2 => {
+                let zero_for_one = pool_manager.zero_to_one(self.token_in, &self.pool_address);
+                let tick_lim = if zero_for_one { i32::MAX } else { i32::MIN };
+                calculator.calculate_maverick_out(amount_in, self.pool_address, zero_for_one, tick_lim)
+            }
+            PoolType::BalancerV2 => {
+                //let balancer_pool = pool_manager.get_balancer_pool(&self.pool_address);
+                //calculate_balancer_out(amount_in, self.token_in, &balancer_pool)
+                todo!()
+            }
+            PoolType::CurveTwoCrypto | PoolType::CurveTriCrypto => {
+                //let curve_pool = pool_manager.get_curve_pool(&self.pool_address);
+                //calculate_curve_out(amount_in, self.token_in, &curve_pool)
+                todo!()
+            }
+            PoolType::AlienBase => {
+                todo!()
+            }
         }
     }
 }
 
 impl ArbGraph {
     // Constructor, takes the set of working tokens we are interested in searching over
-    pub fn new(pool_manager: Arc<PoolManager>, working_pools: Vec<Pool>, token: Address) -> Self {
+    pub async fn new(pool_manager: Arc<PoolManager>, working_pools: Vec<Pool>, token: Address) -> Self {
         // build the graph
         let graph = ArbGraph::build_graph(working_pools);
 
@@ -114,12 +138,16 @@ impl ArbGraph {
             }
         }
 
+        // construct provider for simulations
+        let calculator = Calculator::new().await;
+
         Self {
             graph,
             pool_manager,
             cycles,
             pools_to_paths,
-            path_index
+            path_index,
+            calculator
         }
     }
 
@@ -212,7 +240,6 @@ impl ArbGraph {
                             token_out: graph[*quote].clone(),
                             protocol: pool.pool_type().clone(),
                             fee: pool.fee(),
-                            stable: pool.stable(),
                         };
                         swap_path.push(swap);
                     }
@@ -265,7 +292,7 @@ impl ArbGraph {
                     let initial_amount = U256::from(AMOUNT);
                     let mut current_amount = initial_amount;
                     for swap in cycle {
-                        current_amount = swap.get_amount_out(current_amount, &self.pool_manager);
+                        current_amount = swap.get_amount_out(current_amount, &self.pool_manager, &self.calculator);
                         if current_amount <= U256::from(AMOUNT) {
                             return None;
                         }
@@ -380,7 +407,6 @@ pub async fn simulate_quote(swap_steps: Vec<(Vec<SwapStep>, U256)>, amount: U256
                 tokenOut: step.token_out,
                 protocol: step.as_u8(),
                 fee: step.fee,
-                stable: step.stable,
             })
             .collect();
 

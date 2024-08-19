@@ -25,6 +25,7 @@ use sha2::digest::consts::U25;
 use std::sync::Arc;
 use tokio::sync::broadcast;
 
+use crate::calculation::Calculator;
 use crate::events::Event;
 use crate::graph::SwapStep;
 use crate::pool_manager;
@@ -61,7 +62,6 @@ mod offchain_calculations {
             token_out: address!("833589fcd6edb6e08f4c7c32d4f71b54bda02913"),
             protocol: PoolType::UniswapV2,
             fee: 0,
-            stable: false,
         };
         let amount_in = U256::from(1e16);
         let offchain_amount_out = calculate_single_quote(swap_step.clone(), amount_in).await;
@@ -81,7 +81,6 @@ mod offchain_calculations {
             token_out: address!("6985884c4392d348587b19cb9eaaf157f13271cd"),
             protocol: PoolType::UniswapV3,
             fee: 3000,
-            stable: false,
         };
         let amount_in = U256::from(1e16);
         let offchain_amount_out = calculate_single_quote(swap_step.clone(), amount_in).await;
@@ -101,7 +100,6 @@ mod offchain_calculations {
             token_out: address!("4200000000000000000000000000000000000006"),
             protocol: PoolType::SushiSwapV2,
             fee: 0,
-            stable: false,
         };
 
         let amount_in = U256::from(1e16);
@@ -123,7 +121,6 @@ mod offchain_calculations {
             token_out: address!("833589fcd6edb6e08f4c7c32d4f71b54bda02913"),
             protocol: PoolType::SushiSwapV3,
             fee: 10000,
-            stable: false,
         };
         let amount_in = U256::from(1e16);
         let offchain_amount_out = calculate_single_quote(swap_step.clone(), amount_in).await;
@@ -143,7 +140,6 @@ mod offchain_calculations {
             token_out: address!("833589fcd6edb6e08f4c7c32d4f71b54bda02913"),
             protocol: PoolType::PancakeSwapV2,
             fee: 0,
-            stable: false,
         };
         let amount_in = U256::from(1e16);
         let offchain_amount_out = calculate_single_quote(swap_step.clone(), amount_in).await;
@@ -163,7 +159,6 @@ mod offchain_calculations {
                 token_out: address!("b1a03eda10342529bbf8eb700a06c60441fef25d"),
                 protocol: PoolType::PancakeSwapV3,
                 fee: 500,
-                stable: false,
             };
         let amount_in = U256::from(1e16);
         let offchain_amount_out = calculate_single_quote(swap_step.clone(), amount_in).await;
@@ -184,7 +179,6 @@ mod offchain_calculations {
             token_out: address!("4200000000000000000000000000000000000006"),
             protocol: PoolType::Aerodrome,
             fee: 0,
-            stable: false,
         };
         let amount_in = U256::from(1e16);
         let offchain_amount_out = calculate_single_quote(swap_step.clone(), amount_in).await;
@@ -211,7 +205,6 @@ mod offchain_calculations {
             token_out: address!("833589fcd6edb6e08f4c7c32d4f71b54bda02913"),
             protocol: PoolType::BaseSwapV2,
             fee: 0,
-            stable: false,
         };
 
         let amount_in = U256::from(1e16);
@@ -232,7 +225,6 @@ mod offchain_calculations {
             token_out: address!("833589fcd6edb6e08f4c7c32d4f71b54bda02913"),
             protocol: PoolType::BaseSwapV3,
             fee: 0,
-            stable: false,
         };
         let amount_in = U256::from(1e16);
         let offchain_amount_out = calculate_single_quote(swap_step.clone(), amount_in).await;
@@ -252,7 +244,6 @@ mod offchain_calculations {
             token_out: address!("833589fcd6edb6e08f4c7c32d4f71b54bda02913"),
             protocol: PoolType::BaseSwapV3,
             fee: 0,
-            stable: false,
         };
         let amount_in = U256::from(1e16);
         let offchain_amount_out = calculate_single_quote(swap_step.clone(), amount_in).await;
@@ -261,6 +252,26 @@ mod offchain_calculations {
         println!("offchain amount out: {:?}", offchain_amount_out);
         println!("onchain amount out: {:?}", onchain_amount_out);
         assert_eq!(offchain_amount_out, onchain_amount_out);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    pub async fn test_maverick_out() {
+        dotenv::dotenv().ok();
+        env_logger::init();
+        let swap_step = SwapStep {
+            pool_address: address!("5b6a0771c752e35b2ca2aff4f22a66b1598a2bc5"),
+            token_in: address!("a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"),
+            token_out: address!("dac17f958d2ee523a2206206994597c13d831ec7"),
+            protocol: PoolType::MaverickV2,
+            fee: 0,
+        };
+        let amount_in = U256::from(1e7);
+        let calculator = Calculator::new().await;
+        let zero_for_one = true;
+        let tick_lim = i32::MAX;
+        let amount_out = calculator.calculate_maverick_out(amount_in, swap_step.pool_address, zero_for_one, tick_lim);
+        println!("amount out: {:?}", amount_out);
+
     }
 }
 
@@ -280,7 +291,6 @@ pub mod flash_swap {
                 token_out: address!("2075f6e2147d4ac26036c9b4084f8e28b324397d"),
                 protocol: PoolType::UniswapV2,
                 fee: 0,
-                stable: false,
             },
             SwapStep {
                 pool_address: address!("f609cdba05f08e850676f7434db0d9468b3701bd"),
@@ -288,7 +298,6 @@ pub mod flash_swap {
                 token_out: address!("6921b130d297cc43754afba22e5eac0fbf8db75b"),
                 protocol: PoolType::UniswapV3,
                 fee: 10000,
-                stable: false,
             },
             SwapStep {
                 pool_address: address!("088c39ee29fc30df8adc394e9f7dea33e3a26507"),
@@ -296,7 +305,6 @@ pub mod flash_swap {
                 token_out: address!("4200000000000000000000000000000000000006"),
                 protocol: PoolType::Slipstream,
                 fee: 8000,
-                stable: false,
             },
         ];
 
@@ -309,7 +317,6 @@ pub mod flash_swap {
                 tokenOut: step.token_out,
                 protocol: step.as_u8(),
                 fee: step.fee,
-                stable: step.stable,
             })
             .collect();
 
@@ -412,7 +419,6 @@ mod test_path_quotes{
                 token_out: address!("532f27101965dd16442e59d40670faf5ebb142e4"),
                 protocol: PoolType::UniswapV3,
                 fee: 500,
-                stable: false,
             },
             SwapStep {
                 pool_address: address!("4e829f8a5213c42535ab84aa40bd4adcce9cba02"),
@@ -420,7 +426,6 @@ mod test_path_quotes{
                 token_out: address!("4200000000000000000000000000000000000006"),
                 protocol: PoolType::Slipstream,
                 fee: 2500,
-                stable: false,
             },
         ];
 
@@ -490,12 +495,13 @@ pub async fn calculate_full_quote(steps: Vec<SwapStep>, amount: U256) -> U256 {
     // get all of the pools in the swap path and put them into the pool manager
     let pools = steps.iter().map(|step| step.pool_address).collect(); 
     let (pool_manager, mut reserve_receiver) = pool_manager_with_pools(pools).await;
+    let calculator = Calculator::new().await;
 
     // wait for a new update so we are working wtih fresh set
     let mut amount_in = amount;
     if let Ok(_) = reserve_receiver.recv().await {
         for step in steps {
-            amount_in = step.get_amount_out(amount_in, &pool_manager);
+            amount_in = step.get_amount_out(amount_in, &pool_manager, &calculator);
         }
     }
     amount_in
@@ -506,8 +512,10 @@ pub async fn calculate_full_quote(steps: Vec<SwapStep>, amount: U256) -> U256 {
 pub async fn calculate_single_quote(swap_step: SwapStep, amount_in: U256) -> U256 {
     let (pool_manager, mut reserve_receiver) =
         pool_manager_with_pools(vec![swap_step.pool_address]).await;
+
+    let calculator = Calculator::new().await;
     if let Ok(_) = reserve_receiver.recv().await {
-        return swap_step.get_amount_out(amount_in, &pool_manager);
+        return swap_step.get_amount_out(amount_in, &pool_manager, &calculator);
     }
     U256::ZERO
 }
@@ -642,6 +650,7 @@ pub async fn simulate_single_quote(
                 .unwrap();
             return amountOut;
         }
+        _ => todo!(),
     }
 }
 
@@ -653,7 +662,6 @@ pub async fn swappath_to_flashquote(steps: Vec<SwapStep>) -> Vec<FlashQuoter::Sw
         tokenOut: step.token_out,
         protocol: step.as_u8(),
         fee: step.fee,
-        stable: step.stable,
     }).collect()
 }
 

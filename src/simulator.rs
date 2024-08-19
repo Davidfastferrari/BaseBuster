@@ -11,9 +11,9 @@ use alloy::rpc::types::trace::geth::{
 use log::{debug, info, warn};
 use serde_json::json;
 use tokio::sync::broadcast::{Receiver, Sender};
+use alloy::node_bindings::Anvil;
 
 use crate::{events::*, AMOUNT};
-use crate::util::deploy_flash_swap;
 use crate::FlashSwap;
 
 // recieve a stream of potential arbitrage paths from the searcher and
@@ -22,16 +22,15 @@ pub async fn simulate_paths(
     tx_sender: Sender<Vec<FlashSwap::SwapStep>>,
     mut arb_receiver: Receiver<Event>,
 ) {
-    //let FLASH_LOAN_FEE: U256 = U256::from(9) / U256::from(10000); // 0.09% flash loan fee
-    //let GAS_ESTIMATE: U256 = U256::from(400_000); // Estimated gas used
-    //let MIN_PROFIT_WEI: U256 = U256::from(1e15); // Minimum profit in wei (0.001 ETH)
-
-
-
-    let (anvil, flash_addr) = deploy_flash_swap().await;
-    // setup the provider on the anvil instance and construt the contract
-    let provider = ProviderBuilder::new().on_http("http://localhost:9100".parse().unwrap());
-    let contract = FlashSwap::new(flash_addr, provider.clone());
+    // setup local anvil instance for simulation, good for caching
+    let anvil = Anvil::new()
+        .fork(std::env::var("FULL").unwrap())
+        .port(1500_u16)
+        .try_spawn()
+        .unwrap();
+    let provider = ProviderBuilder::new().on_http(anvil.endpoint_url());
+    let flash_addr = std::env::var("FLASH_ADDR").unwrap();
+    let contract = FlashSwap::new(flash_addr.parse().unwrap(), provider.clone());
 
     // simuaation options
     let options = GethDebugTracingCallOptions {
@@ -66,7 +65,6 @@ pub async fn simulate_paths(
                 tokenOut: step.token_out,
                 protocol: step.as_u8(),
                 fee: step.fee,
-                stable: step.stable,
             })
             .collect();
 
@@ -88,37 +86,10 @@ pub async fn simulate_paths(
                         Err(e) => warn!("Successful path send failed: {:?}", e),
                     }
                 }  else {
-                    //info!("Path, {:#?} failed to simulate {:#?}", converted_path, call_trace.revert_reason);
                     info!("Failed to simulate {:#?}", call_trace.revert_reason);
                 }
             }
             _ => {}
         }
     }
-}
-
-
-
-fn extract_profit_log(call_frame: &CallFrame) -> Option<U256> {
-    // First, check if this frame has the Profit event log
-    for log in &call_frame.logs {
-        if log.topics.as_ref().map_or(false, |topics| {
-            topics.get(0) == Some(&"0x357d905f1831209797df4d55d79c5c5bf1d9f7311c976afd05e13d881eab9bc8".parse().unwrap())
-        }) {
-            if let Some(data) = &log.data {
-                if data.len() >= 32 {
-                    return Some(U256::from_be_bytes::<32>(data[0..32].try_into().unwrap()));
-                }
-            }
-        }
-    }
-    
-    // If not found in this frame, recursively check all subcalls
-    for subcall in &call_frame.calls {
-        if let Some(profit) = extract_profit_log(subcall) {
-            return Some(profit);
-        }
-    }
-    
-    None
 }

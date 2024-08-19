@@ -104,7 +104,6 @@ impl TransactionSender {
             hasher.update(step.tokenOut.as_bytes());
             hasher.update(step.protocol.as_bytes());
             hasher.update(step.fee.as_bytes());
-            hasher.update(step.stable.as_bytes());
         };
         hasher.finalize().to_vec()
     }

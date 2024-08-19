@@ -6,7 +6,9 @@ use alloy::sol;
 use alloy_sol_types::SolEvent;
 use futures::stream::StreamExt;
 use log::{debug, info};
-use pool_sync::pools::pool_structure::{TickInfo, UniswapV2Pool, UniswapV3Pool};
+use pool_sync::{
+    MaverickPool, TickInfo, UniswapV2Pool, UniswapV3Pool
+};
 use pool_sync::{Pool, PoolInfo, PoolType};
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::HashSet;

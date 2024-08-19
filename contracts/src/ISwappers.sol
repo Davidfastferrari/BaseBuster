@@ -59,6 +59,10 @@ interface IAerodrome {
     ) external returns (uint[] memory amounts);
 }
 
+interface AerodromePool {
+    function stable() external view returns (bool);
+}
+
 interface SlipstreamPool {
     function tickSpacing() external view returns (int24);
 }

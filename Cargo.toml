@@ -8,12 +8,10 @@ debug = true
 
 
 [dependencies]
-alloy = { version = "0.2.0", features = ["full", "node-bindings", "rpc-types-trace", "rpc-client", "rpc-types-debug", "providers"] }
 anyhow = "1.0.86"
 env_logger = "0.11.3"
 futures = "0.3.30"
 log = "0.4.21"
-tokio = { version = "1.38.0", features = ["full"] }
 alloy-chains = {git = "https://github.com/alloy-rs/chains" }
 alloy-sol-types = { version = "0.7.7" }
 alloy-contract = { git = "https://github.com/alloy-rs/alloy" }
@@ -27,7 +25,6 @@ rand = "0.8.5"
 serde = { version = "1.0.204", features = ["derive"] }
 serde_json = "1.0.120"
 rustc-hash = "2.0.0"
-revm = { version = "12.1.0", features = ["alloydb"] }
 portpicker = "0.1.1"
 bigint = "4.4.3"
 gweiyser = "0.1.4"
@@ -36,3 +33,6 @@ crossbeam-queue = "0.3.11"
 dashmap = "6.0.1"
 sha2 = "0.10.8"
 zerocopy = "0.7.35"
+revm = { version = "13.0.0", features = ["alloydb"] }
+alloy = { version = "0.2.1", features = ["full", "node-bindings", "rpc-types-trace", "rpc-client", "rpc-types-debug", "providers"] }
+tokio = { version = "1.39.3", features = ["full"] }

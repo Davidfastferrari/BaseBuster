@@ -13,7 +13,6 @@ contract FlashQuoter {
         address tokenOut;
         uint8 protocol;
         uint24 fee;
-        bool stable; 
     }
 
     // Router addresses group by interface/swap method
@@ -53,7 +52,7 @@ contract FlashQuoter {
             }  else if (step.protocol == 8) {
                  _swapSlipstream(step.tokenIn, step.tokenOut, balanceBefore, step.poolAddress, SLIPSTREAM_ROUTER);
             } else if (step.protocol == 9) {
-                _swapAerodome(step.tokenIn, step.tokenOut, balanceBefore, step.stable, AERODOME_ROUTER);
+                _swapAerodome(step.poolAddress, step.tokenIn, step.tokenOut, balanceBefore, AERODOME_ROUTER);
             } else {
                 revert("Invalid protocol");
             }
@@ -124,9 +123,10 @@ contract FlashQuoter {
     }
 
 
-    function _swapAerodome(address tokenIn, address tokenOut, uint256 amountIn, bool stable,address router) internal {
+    function _swapAerodome(address poolAddress, address tokenIn, address tokenOut, uint256 amountIn, address router) internal {
         IERC20(tokenIn).approve(router, amountIn);
         IAerodrome.Route[] memory routes = new IAerodrome.Route[](1);
+        bool stable = AerodromePool(poolAddress).stable();
         routes[0] = IAerodrome.Route({
             from: tokenIn,
             to: tokenOut,

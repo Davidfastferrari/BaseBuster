@@ -39,18 +39,19 @@ async fn main() -> Result<()> {
     info!("Loading and syncing pools...");
     let pool_sync = PoolSync::builder()
         .add_pools(&[
-            PoolType::UniswapV2,
-            PoolType::UniswapV3,
-            PoolType::SushiSwapV2,
-            PoolType::SushiSwapV3,
-            PoolType::Aerodrome,
-            PoolType::Slipstream,
-            PoolType::PancakeSwapV2,
-            PoolType::PancakeSwapV3,
-            PoolType::BaseSwapV2,
-            PoolType::BaseSwapV3,
+            PoolType::MaverickV2
+            //PoolType::UniswapV2,
+            //PoolType::UniswapV3,
+            //PoolType::SushiSwapV2,
+            //PoolType::SushiSwapV3,
+            //PoolType::Aerodrome,
+            //PoolType::Slipstream,
+            //PoolType::PancakeSwapV2,
+            //PoolType::PancakeSwapV3,
+            //PoolType::BaseSwapV2,
+            //PoolType::BaseSwapV3,
         ])
-        .chain(Chain::Base)
+        .chain(Chain::Ethereum)
         .build()?;
     let (pools, last_synced_block) = pool_sync.sync_pools().await?;
 
