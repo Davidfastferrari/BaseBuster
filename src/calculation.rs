@@ -1,26 +1,31 @@
-use alloy::{eips::BlockId, node_bindings::GethInstance, primitives::{Address, I256, U128, U256}};
+use alloy::network::Ethereum;
+use alloy::primitives::address;
+use alloy::providers::Provider;
+use alloy::providers::ProviderBuilder;
+use alloy::providers::RootProvider;
+use alloy::sol;
+use alloy::sol_types::SolValue;
+use alloy::transports::http::{Client, Http};
+use alloy::{
+    eips::BlockId,
+    node_bindings::GethInstance,
+    primitives::{Address, I256, U128, U256},
+};
 use alloy_sol_types::{abi::token, SolCall, SolInterface};
 use anyhow::Result;
 use core::panic;
-use pool_sync::{
-    BalancerV2Pool, PoolType, UniswapV2Pool, UniswapV3Pool
-};
-use std::{cmp::min, sync::RwLockReadGuard, time::Instant};
-use std::sync::RwLock;
-use std::sync::Arc;
-use std::ops::Div;
-use alloy::providers::Provider;
-use alloy::providers::RootProvider;
-use alloy::providers::ProviderBuilder;
-use alloy::sol_types::{SolValue};
-use alloy::primitives::address;
-use alloy::transports::http::{Client, Http};
-use alloy::sol;
-use revm::{db::{states::cache, AlloyDB, CacheDB}, primitives::{keccak256, AccountInfo, ExecutionResult, Output, TransactTo}};
-use uniswap_v3_math::tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK};
-use alloy::network::Ethereum;
-use revm::Evm;
+use pool_sync::{BalancerV2Pool, PoolType, UniswapV2Pool, UniswapV3Pool};
 use revm::primitives::Bytecode;
+use revm::Evm;
+use revm::{
+    db::{states::cache, AlloyDB, CacheDB},
+    primitives::{keccak256, AccountInfo, ExecutionResult, Output, TransactTo},
+};
+use std::ops::Div;
+use std::sync::Arc;
+use std::sync::RwLock;
+use std::{cmp::min, sync::RwLockReadGuard, time::Instant};
+use uniswap_v3_math::tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK};
 
 pub type AlloyCacheDB = CacheDB<AlloyDB<Http<Client>, Ethereum, Arc<RootProvider<Http<Client>>>>>;
 
@@ -31,9 +36,9 @@ sol!(
     "src/abi/MavQuoter.json"
 );
 
-pub const U256_1: U256 = U256::from_limbs([1, 0, 0, 0]); 
+pub const U256_1: U256 = U256::from_limbs([1, 0, 0, 0]);
 
-const MAX_IN_RATIO: U256 = U256::from_limbs([999999, 0, 0, 0]); 
+const MAX_IN_RATIO: U256 = U256::from_limbs([999999, 0, 0, 0]);
 // Balancer V2 specific
 pub const BONE: U256 = U256::from_limbs([0xDE0B6B3A7640000, 0, 0, 0]);
 pub const U256_2: U256 = U256::from_limbs([2, 0, 0, 0]);
@@ -44,10 +49,10 @@ sol!(
     #[sol(rpc)]
     contract MaverickQuoter {
         function calculateSwap(
-            address pool, 
-            uint128 amount, 
-            bool tokenAIn, 
-            bool exactOutput, 
+            address pool,
+            uint128 amount,
+            bool tokenAIn,
+            bool exactOutput,
             int32 tickLimit
         ) external returns (uint256 amountIn, uint256 amountOut, uint256 gasEstimate);
     }
@@ -71,7 +76,6 @@ pub struct StepComputations {
     pub fee_amount: U256,
 }
 
-
 pub struct Calculator {
     provider: Arc<RootProvider<Http<Client>>>,
     db: RwLock<AlloyCacheDB>,
@@ -79,7 +83,9 @@ pub struct Calculator {
 
 impl Calculator {
     pub async fn new() -> Self {
-        let provider = Arc::new(ProviderBuilder::new().on_http(std::env::var("FULL").unwrap().parse().unwrap()));
+        let provider = Arc::new(
+            ProviderBuilder::new().on_http(std::env::var("FULL").unwrap().parse().unwrap()),
+        );
 
         let alloy_db = AlloyDB::new(provider.clone(), BlockId::latest()).unwrap();
 
@@ -95,11 +101,10 @@ impl Calculator {
             balance: U256::ZERO,
             nonce: 0_u64,
             code: Some(bytecode),
-            code_hash
+            code_hash,
         };
         let quoter_addr = address!("A5C381211A406b48A073E954e6949B0D49506bc0");
         db.insert_account_info(quoter_addr, account_info);
-
 
         let pool_address = address!("5b6a0771c752e35b2ca2aff4f22a66b1598a2bc5");
         let token1 = address!("a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48");
@@ -108,22 +113,12 @@ impl Calculator {
         init_account(token2, &mut db, &provider).await;
 
         let mocked_balance = U256::MAX.div(U256::from(2));
-        insert_mapping_storage_slot(
-            token1,
-            U256::from(0),
-            pool_address,
-            mocked_balance,
-            &mut db,
-        )
-        .await.unwrap();
-        insert_mapping_storage_slot(
-            token2,
-            U256::from(0),
-            pool_address,
-            mocked_balance,
-            &mut db,
-        )
-        .await.unwrap();
+        insert_mapping_storage_slot(token1, U256::from(0), pool_address, mocked_balance, &mut db)
+            .await
+            .unwrap();
+        insert_mapping_storage_slot(token2, U256::from(0), pool_address, mocked_balance, &mut db)
+            .await
+            .unwrap();
 
         //let pool = address!("5b6a0771c752e35b2ca2aff4f22a66b1598a2bc5");
         //init_account(pool, &mut db, &provider).await;
@@ -132,15 +127,13 @@ impl Calculator {
         //let token = address!("dac17f958d2ee523a2206206994597c13d831ec7/");
         //init_account(token, &mut db, &provider).await;
 
-
         // pool
 
         // outtoken
 
-
         Self {
             provider,
-            db: RwLock::new(db)
+            db: RwLock::new(db),
         }
     }
     // Calcualte the amount out for a uniswapv2 swap
@@ -295,8 +288,9 @@ impl Calculator {
                 // If the current_state sqrt price is not equal to the step sqrt price, then we are not on the same tick.
                 // Update the current_state.tick to the tick at the current_state.sqrt_price_x_96
             } else if current_state.sqrt_price_x_96 != step.sqrt_price_start_x_96 {
-                current_state.tick =
-                    uniswap_v3_math::tick_math::get_tick_at_sqrt_ratio(current_state.sqrt_price_x_96)?;
+                current_state.tick = uniswap_v3_math::tick_math::get_tick_at_sqrt_ratio(
+                    current_state.sqrt_price_x_96,
+                )?;
             }
         }
 
@@ -417,20 +411,24 @@ impl Calculator {
             + (((x0 * x0) / U256::from(1e18)) * x0) / U256::from(1e18);
     }
 
-
-    pub fn calculate_maverick_out(&self, amount_in: U256, pool: Address, zero_for_one: bool, tick_lim: i32) -> U256 {
+    pub fn calculate_maverick_out(
+        &self,
+        amount_in: U256,
+        pool: Address,
+        zero_for_one: bool,
+        tick_lim: i32,
+    ) -> U256 {
         println!("Start");
-        /* 
-        let calldata = MaverickQuoter::calculateSwapCall {
-            pool, 
-            amount: amount_in.to::<u128>(),
-            tokenAIn: zero_for_one,
-            exactOutput: false,
-            tickLimit: tick_lim
-        }.abi_encode();
-    */
+        /*
+            let calldata = MaverickQuoter::calculateSwapCall {
+                pool,
+                amount: amount_in.to::<u128>(),
+                tokenAIn: zero_for_one,
+                exactOutput: false,
+                tickLimit: tick_lim
+            }.abi_encode();
+        */
 
-            
         let mut db = self.db.write().unwrap();
         let bytecode = Bytecode::new_raw(MavQuoter::DEPLOYED_BYTECODE.clone());
         let code_hash = bytecode.hash_slow();
@@ -438,7 +436,7 @@ impl Calculator {
             balance: U256::ZERO,
             nonce: 0_u64,
             code: Some(bytecode),
-            code_hash
+            code_hash,
         };
         let quoter_addr = address!("A5C381211A406b48A073E954e6949B0D49506bc0");
         db.insert_account_info(quoter_addr, account_info);
@@ -446,8 +444,9 @@ impl Calculator {
         let calldata = MavQuoter::getAmountOutCall {
             pool,
             zeroForOne: false,
-            amountIn: amount_in
-        }.abi_encode();
+            amountIn: amount_in,
+        }
+        .abi_encode();
         let quoter_addr = address!("A5C381211A406b48A073E954e6949B0D49506bc0");
 
         let mut evm = Evm::builder()
@@ -467,7 +466,7 @@ impl Calculator {
         let result = ref_tx.result;
 
         let value = match result {
-            ExecutionResult::Revert { output: value, ..} => value.to_vec(),
+            ExecutionResult::Revert { output: value, .. } => value.to_vec(),
             _ => panic!("failed"),
         };
 
@@ -475,17 +474,15 @@ impl Calculator {
 
         let (a, b) = match <(i128, i128)>::abi_decode(last_64_bytes, false) {
             Ok((a, b)) => (a, b),
-            Err(e) => panic!("failed to decode: {:?}", e)
+            Err(e) => panic!("failed to decode: {:?}", e),
         };
         print!("a: {:#?}, b: {:#?}", a, b);
         let value_out = std::cmp::min(a, b);
         let value_out = -value_out;
         println!("value out, {:#?}", value_out);
 
-
-
         U256::ZERO
-            /* 
+        /*
         println!("result: {:#?}", ref_tx.clone());
 
         let value = match result {
@@ -503,7 +500,6 @@ impl Calculator {
         amount_out
         */
 
-
         //amountOut
     }
 
@@ -519,44 +515,30 @@ impl Calculator {
         let weight_in = pool.weights[token_in_index];
         let weight_out = pool.weights[token_out_index];
         let swap_fee_percentage = pool.swap_fee;
-        println!("swap_fee_percentage: {:#?}", swap_fee_percentage);
-        println!("balance_in: {:#?}", balance_in);
-        println!("balance_out: {:#?}", balance_out);
-        println!("weight_in: {:#?}", weight_in);
-        println!("weight_out: {:#?}", weight_out);
-    
-        // Apply swap fee
-        let amount_in_with_fee = amount_in - (amount_in * swap_fee_percentage) / U256::from(1e18);
-        println!("amount_in_with_fee: {:#?}", amount_in_with_fee);
-    
-        // Check MAX_IN_RATIO
-        if amount_in_with_fee > (balance_in * MAX_IN_RATIO) / U256::from(1e6) {
-            panic!("MAX_IN_RATIO exceeded");
-        }
-    
-        let denominator = balance_in + amount_in_with_fee;
-        println!("denominator: {:#?}", denominator);
-        //let base = U256::from(1e18) - (balance_in * U256::from(1e18) / denominator);
-        let base = balance_in / denominator;
-        println!("base: {:#?}", base);
-        let exponent = weight_in / weight_out;
-        //let exponent = weight_in * U256::from(1e18) / weight_out;
-        println!("exponent: {:#?}", exponent);
-    
-        // Custom power function
-        //let power = base.pow(exponent);
-        let power = base.pow(exponent);
-        println!("power: {:#?}", power);
-    
-        //let amount_out = balance_out * power / U256::from(1e18);
-        let amount_out = balance_out * power;
-        println!("amount_out: {:#?}", amount_out);
-        amount_out
+
+        /*
+        let scaling_factor = 18 - pool.token0_decimals as i8;
+        let scaled_amount_in = Self::scaled(amount_in, -scaling_factor);
+        let scaled_amount_in_without_fee = Self::sub(
+            scaled_amount_in,
+            Self::mul_up(scaled_amount_in, swap_fee_percentage),
+        );
+        let amount_in = Self::scaled(scaled_amount_in_without_fee, scaling_factor);
+        println!("asdf {:?}", amount_in);
+        */
+
+        let denominator = Self::add(balance_in, amount_in);
+        let base = Self::div_up(balance_in, denominator);
+        let exponent = Self::div_down(weight_in, weight_out);
+        let power = Self::pow_up(base, exponent);
+
+        Self::mul_down(balance_out, Self::complement(power))
     }
+
 
     fn div_up(a: U256, b: U256) -> U256 {
         let one = U256::from(1e18);
-        if  a == U256::ZERO {
+        if a == U256::ZERO {
             return U256::ZERO;
         }
         let a_inflated = a * one;
@@ -565,90 +547,104 @@ impl Calculator {
 
     fn div_down(a: U256, b: U256) -> U256 {
         let one = U256::from(1e18);
-        if  a == U256::ZERO {
+        if a == U256::ZERO {
             return U256::ZERO;
         }
         let a_inflated = a * one;
         a_inflated / b
     }
 
+    fn scaled(value: U256, decimals: i8) -> U256 {
+        value * U256::from(10).pow(U256::from(decimals))
+    }
+
     fn pow_up(x: U256, y: U256) -> U256 {
-        let MAX_POW_RELATIVE_ERROR = U256::from(1000);
+        let MAX_POW_RELATIVE_ERROR = U256::from(10000);
         let one = U256::from(1e18);
+        let two = one * U256::from(2);
+        let four = one * U256::from(4);
         if y == one {
             return x;
-        } else if y == U256::from(2) {
+        } else if y == two {
+            println!("ran here");
             return Self::mul_up(x, x);
-        } else if y == U256::from(4) {
+        } else if y == four {
             let square = Self::mul_up(x, x);
             return Self::mul_up(square, square);
         } else {
-            let raw = x.pow(y);
+            let raw = x.pow(y); // this raw could be wrong
+            println!("the raw {:?}", raw);
+
             let max_error = Self::add(Self::mul_up(raw, MAX_POW_RELATIVE_ERROR), U256::from(1));
             return Self::add(raw, max_error);
         }
     }
 
+
     fn sub(a: U256, b: U256) -> U256 {
-        if b <= a { return U256::ZERO; }
-        let c = a - b;
-        c
+        a - b
     }
 
     fn add(a: U256, b: U256) -> U256 {
-        let c = a + b;
-        if c >= a { return U256::ZERO; }
-        c
+        a + b
     }
-
-    https://etherscan.io/address/0x98b76fb35387142f97d601a297276bb152ae8ab0#code
 
     fn mul_down(a: U256, b: U256) -> U256 {
         let one = U256::from(1e18);
         let product = a * b;
-        if a == U256::ZERO || product / a == b { return U256::ZERO };
+        //if a != U256::ZERO || product / a != b {
+        //return U256::ZERO;
+        //};
         product / one
     }
 
     fn mul_up(a: U256, b: U256) -> U256 {
         let one = U256::from(1e18);
         let product = a * b;
-        if a == U256::ZERO || product / a == b { return U256::ZERO };
+        if a != U256::ZERO || product / a != b {
+            return U256::ZERO;
+        };
 
         if product == U256::ZERO {
-            return U256::ZERO;
+            U256::ZERO
         } else {
-            return ((product - U256::from(1)) / one) + U256::from(1);
+            ((product - U256::from(1)) / one) + U256::from(1)
         }
     }
 
     fn complement(x: U256) -> U256 {
         let one = U256::from(1e18);
         if x < one {
-            return one - x;
+            one - x
         } else {
             U256::ZERO
         }
+
+        /*
+        if x < one {
+            one - x
+        } else {
+            U256::ZERO
+        }
+        */
     }
-
-    
-
 }
 
-
-
-pub async fn init_account(address: Address, cache_db: &mut AlloyCacheDB, provider: &Arc<RootProvider<Http<Client>>>) {
+pub async fn init_account(
+    address: Address,
+    cache_db: &mut AlloyCacheDB,
+    provider: &Arc<RootProvider<Http<Client>>>,
+) {
     let bytecode = Bytecode::new_raw(provider.get_code_at(address).await.unwrap());
     let code_hash = bytecode.hash_slow();
     let account_info = AccountInfo {
         balance: U256::ZERO,
         nonce: 0_u64,
         code: Some(bytecode),
-        code_hash
+        code_hash,
     };
     cache_db.insert_account_info(address, account_info);
 }
-
 
 pub async fn insert_mapping_storage_slot(
     contract: Address,

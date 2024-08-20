@@ -285,7 +285,7 @@ mod offchain_calculations {
             protocol: PoolType::BalancerV2,
             fee: 0,
         };
-        let amount_in = U256::from(1e17);
+        let amount_in = U256::from(1e16);
         let offchain_amount_out = calculate_single_quote(swap_step.clone(), amount_in).await;
         //let onchain_amount_out =
          //   simulate_single_quote(swap_step, PoolType::BalancerV2, amount_in).await;
@@ -875,7 +875,7 @@ pub async fn load_pools() -> (Vec<Pool>, u64) {
 
     let pool_sync = PoolSync::builder()
         .add_pools(&[
-            PoolType::UniswapV2,
+            //PoolType::UniswapV2,
             PoolType::BalancerV2,
             //PoolType::SushiSwapV2,
             //PoolType::UniswapV3,
