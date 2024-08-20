@@ -3,8 +3,7 @@ use alloy_sol_types::{abi::token, SolCall, SolInterface};
 use anyhow::Result;
 use core::panic;
 use pool_sync::{
-    {UniswapV2Pool, UniswapV3Pool},
-    PoolType,
+    BalancerV2Pool, PoolType, UniswapV2Pool, UniswapV3Pool
 };
 use std::{sync::RwLockReadGuard, time::Instant};
 use std::sync::RwLock;
@@ -501,6 +500,33 @@ impl Calculator {
 
         //amountOut
     }
+
+    pub fn calculate_balancer_v2_out(
+        &self,
+        amount_in: U256,
+        pool: RwLockReadGuard<&BalancerV2Pool>,
+        token_in_index: usize,
+        token_out_index: usize,
+    ) -> U256 {
+        let balance_in = pool.balances[token_in_index];
+        let balance_out = pool.balances[token_out_index];
+        let weight_in = pool.weights[token_in_index];
+        let weight_out = pool.weights[token_out_index];
+    
+        let fee_percentage = pool.swap_fee;
+        let amount_in_after_fee = amount_in - (amount_in * fee_percentage) / U256::from(1e18);
+    
+        let weight_ratio = (U256::from(1e18) * weight_out) / weight_in;
+        
+        let base = (balance_in * U256::from(1e18)) / (balance_in + amount_in_after_fee);
+        let exp = weight_ratio / U256::from(1e18);
+        let y = base.pow(exp);
+    
+        let bar = U256::from(1e18) - y;
+        let amount_out = (balance_out * bar) / U256::from(1e18);
+    
+        amount_out
+    }  
 }
 
 

@@ -17,7 +17,7 @@ use gweiyser::{Chain, Gweiyser};
 use log::{info, warn};
 use petgraph::graph::UnGraph;
 use petgraph::prelude::*;
-use pool_sync::{Pool, PoolInfo, PoolType};
+use pool_sync::{BalancerV2Pool, Pool, PoolInfo, PoolType};
 use rayon::prelude::*;
 use rustc_hash::{FxHashMap, FxHashSet};
 use serde::{Deserialize, Serialize};
@@ -129,6 +129,7 @@ impl ArbGraph {
             .find(|node| graph[*node] == token)
             .unwrap();
         let cycles = ArbGraph::find_all_arbitrage_paths(&graph, start_node, 4);
+        println!("cycles {:#?}", cycles);
         info!("Found {}  paths", cycles.len());
         let mut pools_to_paths = FxHashMap::default();
         let path_index = DashMap::new(); 
@@ -158,29 +159,70 @@ impl ArbGraph {
 
         for pool in working_pools {
             // add the nodes ot the graph if they have not already been added
-            if !inserted_nodes.contains(&pool.token0_address()) {
-                graph.add_node(pool.token0_address());
-                inserted_nodes.insert(pool.token0_address());
+            match pool {
+                Pool::BalancerV2(balancer_pool) => {
+                    Self::add_balancer_pool_to_graph(&mut graph, &mut inserted_nodes, balancer_pool);
+                }
+                _ => {
+                    Self::add_simple_pool_to_graph(&mut graph, &mut inserted_nodes, pool);
+                }
             }
-            if !inserted_nodes.contains(&pool.token1_address()) {
-                graph.add_node(pool.token1_address());
-                inserted_nodes.insert(pool.token1_address());
-            }
-
-            // get the indicies
-            let node1 = graph
-                .node_indices()
-                .find(|node| graph[*node] == pool.token0_address())
-                .unwrap();
-            let node2 = graph
-                .node_indices()
-                .find(|node| graph[*node] == pool.token1_address())
-                .unwrap();
-
-            // add the edge
-            graph.add_edge(node1, node2, pool.clone());
         }
         graph
+    }
+
+    fn add_simple_pool_to_graph(
+        graph: &mut UnGraph<Address, Pool>,
+        inserted_nodes: &mut HashSet<Address>,
+        pool: Pool,
+    ) {
+        let token0 = pool.token0_address();
+        let token1 = pool.token1_address();
+
+        // Add nodes if they don't exist
+        if !inserted_nodes.contains(&token0) {
+            graph.add_node(token0);
+            inserted_nodes.insert(token0);
+        }
+        if !inserted_nodes.contains(&token1) {
+            graph.add_node(token1);
+            inserted_nodes.insert(token1);
+        }
+
+        // Get the node indices
+        let node0 = graph.node_indices().find(|&n| graph[n] == token0).unwrap();
+        let node1 = graph.node_indices().find(|&n| graph[n] == token1).unwrap();
+
+        // Add the edge (pool)
+        graph.add_edge(node0, node1, pool);
+    }
+
+    fn add_balancer_pool_to_graph(
+        graph: &mut UnGraph<Address, Pool>,
+        inserted_nodes: &mut HashSet<Address>,
+        balancer_pool: BalancerV2Pool,
+    ) {
+        let tokens = balancer_pool.get_tokens();
+        
+        // Add nodes for all tokens in the pool
+        for &token in &tokens {
+            if !inserted_nodes.contains(&token) {
+                graph.add_node(token);
+                inserted_nodes.insert(token);
+            }
+        }
+
+        // Add edges for all possible token pairs
+        for (i, &token_in) in tokens.iter().enumerate() {
+            for &token_out in tokens.iter().skip(i + 1) {
+                let node_in = graph.node_indices().find(|&n| graph[n] == token_in).unwrap();
+                let node_out = graph.node_indices().find(|&n| graph[n] == token_out).unwrap();
+                
+                // Create a new Pool::BalancerV2 for each edge
+                let pool = Pool::BalancerV2(balancer_pool.clone());
+                graph.add_edge(node_in, node_out, pool);
+            }
+        }
     }
 
     fn find_all_arbitrage_paths(
@@ -291,12 +333,14 @@ impl ArbGraph {
                     let cycle = &self.cycles[path_index];
                     let initial_amount = U256::from(AMOUNT);
                     let mut current_amount = initial_amount;
-                    for swap in cycle {
-                        current_amount = swap.get_amount_out(current_amount, &self.pool_manager, &self.calculator);
-                        if current_amount <= U256::from(AMOUNT) {
-                            return None;
-                        }
-                    }
+                    println!("path: {:#?}", cycle);
+
+                    //for swap in cycle {
+                     //   current_amount = swap.get_amount_out(current_amount, &self.pool_manager, &self.calculator);
+                      //  if current_amount <= U256::from(AMOUNT) {
+                       //     return None;
+                        //}
+                    //}
 
                     let repayment_amount = initial_amount + (initial_amount * FLASH_LOAN_FEE);
                     if current_amount >= repayment_amount {

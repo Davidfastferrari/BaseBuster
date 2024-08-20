@@ -39,8 +39,9 @@ async fn main() -> Result<()> {
     info!("Loading and syncing pools...");
     let pool_sync = PoolSync::builder()
         .add_pools(&[
-            PoolType::MaverickV2
-            //PoolType::UniswapV2,
+            //PoolType::MaverickV2,
+            PoolType::UniswapV2,
+            PoolType::BalancerV2
             //PoolType::UniswapV3,
             //PoolType::SushiSwapV2,
             //PoolType::SushiSwapV3,

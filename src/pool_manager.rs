@@ -7,7 +7,7 @@ use alloy_sol_types::SolEvent;
 use futures::stream::StreamExt;
 use log::{debug, info};
 use pool_sync::{
-    MaverickPool, TickInfo, UniswapV2Pool, UniswapV3Pool
+    BalancerV2Pool, MaverickPool, TickInfo, UniswapV2Pool, UniswapV3Pool
 };
 use pool_sync::{Pool, PoolInfo, PoolType};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -42,6 +42,18 @@ sol!(
         );
     }
 );
+sol! {
+    #[derive(Debug)]
+    contract BalancerV2Event {
+        event PoolBalanceChanged(
+            bytes32 indexed poolId,
+            address indexed liquidityProvider,
+            address[] tokens,
+            int256[] deltas,
+            uint256[] protocolFeeAmounts
+        );
+    }
+}
 
 
 sol! {
@@ -91,6 +103,8 @@ pub struct PoolManager {
     address_to_v2pool: FxHashMap<Address, RwLock<UniswapV2Pool>>,
     /// Mapping from address to V3Pool
     address_to_v3pool: FxHashMap<Address, RwLock<UniswapV3Pool>>,
+    /// Mapping from address to Balancer Pool
+    address_to_balancerpool: FxHashMap<Address, RwLock<BalancerV2Pool>>,
 }
 
 impl PoolManager {
@@ -119,6 +133,7 @@ impl PoolManager {
 
         let mut address_to_v2pool = FxHashMap::default();
         let mut address_to_v3pool = FxHashMap::default();
+        let mut address_to_balancerpool = FxHashMap::default();
         for pool in filtered_pools {
             if pool.is_v2() {
                 let v2_pool = pool.get_v2().unwrap().clone();
@@ -126,6 +141,9 @@ impl PoolManager {
             } else if pool.is_v3() {
                 let v3_pool = pool.get_v3().unwrap().clone();
                 address_to_v3pool.insert(pool.address(), RwLock::new(v3_pool));
+            } else if pool.is_balancer() {
+                let balancer_pool = pool.get_balancer().unwrap().clone();
+                address_to_balancerpool.insert(pool.address(), RwLock::new(balancer_pool));
             }
         }
 
@@ -134,6 +152,7 @@ impl PoolManager {
             address_to_pool,
             address_to_v2pool,
             address_to_v3pool,
+            address_to_balancerpool
         });
 
         tokio::spawn(PoolManager::state_updater(
@@ -167,6 +186,7 @@ impl PoolManager {
             //);
             let filter = Filter::new()
                 .events([
+                    BalancerV2Event::PoolBalanceChanged::SIGNATURE,
                     PancakeSwap::Swap::SIGNATURE,
                     AerodromeEvent::Sync::SIGNATURE,
                     DataEvent::Sync::SIGNATURE,
@@ -192,6 +212,7 @@ impl PoolManager {
             // setup the log filters
             let filter = Filter::new()
                 .events([
+                    BalancerV2Event::PoolBalanceChanged::SIGNATURE,
                     PancakeSwap::Swap::SIGNATURE,
                     AerodromeEvent::Sync::SIGNATURE,
                     DataEvent::Sync::SIGNATURE,
@@ -230,6 +251,11 @@ impl PoolManager {
                         let mut pool = pool_lock.write().unwrap();
                         process_sync_data(&mut pool, log, pool_type);
                     }
+                } else if pool.is_balancer() {
+                    if let Some(pool_lock) = self.address_to_balancerpool.get(&pool.address()) {
+                        let mut pool = pool_lock.write().unwrap();
+                        process_balance_data(&mut pool, log);
+                    }
                 }
             }
         }
@@ -251,6 +277,26 @@ impl PoolManager {
     pub fn zero_to_one(&self, token_in: Address, pool: &Address) -> bool {
         let pool = self.address_to_pool.get(pool).unwrap();
         token_in == pool.token0_address()
+    }
+}
+
+
+fn process_balance_data(pool: &mut BalancerV2Pool, log: Log) {
+    let event = BalancerV2Event::PoolBalanceChanged::decode_log(log.as_ref(), true).unwrap();
+    
+    // Ensure the pool ID matches
+    assert_eq!(event.poolId, pool.pool_id, "Pool ID mismatch");
+
+    for (token, delta) in event.tokens.iter().zip(event.deltas.iter()) {
+        if let Some(index) = pool.get_token_index(token) {
+            // Update the balance for the token
+            let delta_abs = delta.abs().try_into().unwrap_or(U256::MAX);
+            if delta.is_negative() {
+                pool.balances[index] = pool.balances[index].saturating_sub(delta_abs);
+            } else {
+                pool.balances[index] = pool.balances[index].saturating_add(delta_abs);
+            }
+        }
     }
 }
 
