@@ -15,6 +15,7 @@ use alloy::rpc::types::trace::geth::{
 use alloy::signers::local::PrivateKeySigner;
 use alloy::sol;
 use alloy::transports::http::{Client, Http};
+use alloy::primitives::FixedBytes;
 use gweiyser::addresses::amms;
 use gweiyser::protocols::uniswap::v2::UniswapV2Pool;
 use gweiyser::protocols::uniswap::v3::UniswapV3Pool;
@@ -39,6 +40,7 @@ sol!(
     FlashQuoter,
     "src/abi/FlashQuoter.json"
 );
+
 
 
 
@@ -271,7 +273,25 @@ mod offchain_calculations {
         let tick_lim = i32::MAX;
         let amount_out = calculator.calculate_maverick_out(amount_in, swap_step.pool_address, zero_for_one, tick_lim);
         println!("amount out: {:?}", amount_out);
+    }
 
+    #[tokio::test(flavor = "multi_thread")]
+    pub async fn test_balancer_out() {
+        dotenv::dotenv().ok();
+        let swap_step = SwapStep {
+            pool_address: address!("98b76fb35387142f97d601a297276bb152ae8ab0"),
+            token_in: address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
+            token_out: address!("faba6f8e4a5e8ab82f62fe7c39859fa577269be3"),
+            protocol: PoolType::BalancerV2,
+            fee: 0,
+        };
+        let amount_in = U256::from(1e17);
+        let offchain_amount_out = calculate_single_quote(swap_step.clone(), amount_in).await;
+        //let onchain_amount_out =
+         //   simulate_single_quote(swap_step, PoolType::BalancerV2, amount_in).await;
+        println!("offchain amount out: {:?}", offchain_amount_out);
+        //println!("onchain amount out: {:?}", onchain_amount_out);
+        //assert_eq!(offchain_amount_out, onchain_amount_out);
     }
 }
 
@@ -409,23 +429,37 @@ pub mod info_sync {
 mod test_path_quotes{
     use super::*;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn quote() {
         dotenv::dotenv().ok();
         let swaps = vec![
             SwapStep {
-                pool_address: address!("36a46dff597c5a444bbc521d26787f57867d2214"),
-                token_in: address!("4200000000000000000000000000000000000006"),
-                token_out: address!("532f27101965dd16442e59d40670faf5ebb142e4"),
-                protocol: PoolType::UniswapV3,
-                fee: 500,
+                pool_address: address!("4114fd8554e63a9e0f09ca2480977883fea06430"),
+                token_in: address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
+                token_out: address!("dac17f958d2ee523a2206206994597c13d831ec7"),
+                protocol: PoolType::BalancerV2,
+                fee: 0,
             },
             SwapStep {
-                pool_address: address!("4e829f8a5213c42535ab84aa40bd4adcce9cba02"),
-                token_in: address!("532f27101965dd16442e59d40670faf5ebb142e4"),
-                token_out: address!("4200000000000000000000000000000000000006"),
-                protocol: PoolType::Slipstream,
-                fee: 2500,
+                pool_address: address!("e618785149a1ee7d3042e304e2f899f7a4616b7d"),
+                token_in: address!("dac17f958d2ee523a2206206994597c13d831ec7"),
+                token_out: address!("34950ff2b487d9e5282c5ab342d08a2f712eb79f"),
+                protocol: PoolType::UniswapV2,
+                fee: 0,
+            },
+            SwapStep {
+                pool_address: address!("1b7143e445b4d1424fa24f0c3ba0c5778da43c5b"),
+                token_in: address!("34950ff2b487d9e5282c5ab342d08a2f712eb79f"),
+                token_out: address!("1f9840a85d5af5bf1d1762f925bdaddc4201f984"),
+                protocol: PoolType::UniswapV2,
+                fee: 0,
+            },
+            SwapStep {
+                pool_address: address!("d3d2e2692501a5c9ca623199d38826e513033a17"),
+                token_in: address!("1f9840a85d5af5bf1d1762f925bdaddc4201f984"),
+                token_out: address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
+                protocol: PoolType::UniswapV2,
+                fee: 0,
             },
         ];
 
@@ -433,7 +467,7 @@ mod test_path_quotes{
         let amount = U256::from(1e16);
         let simulated_quote = simulate_full_quote(swaps.clone(), amount).await;
         let calculated_quote = calculate_full_quote(swaps, amount).await;
-        println!("Profit: {:?}", simulated_quote);
+        //println!("Profit: {:?}", simulated_quote);
         println!("Calculated profit: {:?}", calculated_quote);
 
     }
@@ -470,8 +504,9 @@ pub async fn simulate_full_quote(swap_steps: Vec<SwapStep>, amount: U256) -> U25
             .on_http(anvil.endpoint_url()),
     );
     let flash_quoter = FlashQuoter::deploy(anvil_signer.clone()).await.unwrap();
-    let gweiyser = Gweiyser::new(anvil_signer.clone(), Chain::Base);
+    let gweiyser = Gweiyser::new(anvil_signer.clone(), Chain::Ethereum);
     let weth = gweiyser.token(address!("4200000000000000000000000000000000000006")).await;
+    let weth = gweiyser.token(address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2")).await;
     weth.deposit(amount).await; // deposit into signers account, account[0] here
     weth.transfer_from(anvil.addresses()[0], *flash_quoter.address(), amount).await;
     weth.approve(*flash_quoter.address(), amount).await;
@@ -501,7 +536,9 @@ pub async fn calculate_full_quote(steps: Vec<SwapStep>, amount: U256) -> U256 {
     let mut amount_in = amount;
     if let Ok(_) = reserve_receiver.recv().await {
         for step in steps {
+            println!("Amount in: {}", amount_in);
             amount_in = step.get_amount_out(amount_in, &pool_manager, &calculator);
+            println!("Amount out: {}", amount_in);
         }
     }
     amount_in
@@ -515,7 +552,9 @@ pub async fn calculate_single_quote(swap_step: SwapStep, amount_in: U256) -> U25
 
     let calculator = Calculator::new().await;
     if let Ok(_) = reserve_receiver.recv().await {
-        return swap_step.get_amount_out(amount_in, &pool_manager, &calculator);
+        let output = swap_step.get_amount_out(amount_in, &pool_manager, &calculator);
+        println!("output: {:#?}", output);
+        return output;
     }
     U256::ZERO
 }
@@ -650,6 +689,74 @@ pub async fn simulate_single_quote(
                 .unwrap();
             return amountOut;
         }
+        PoolType::BalancerV2 => {
+            sol!(
+                #[sol(rpc)]
+                contract BalancerV2Vault {
+                    enum SwapKind { GIVEN_IN, GIVEN_OUT }
+
+                    struct BatchSwapStep {
+                        bytes32 poolId;
+                        uint256 assetInIndex;
+                        uint256 assetOutIndex;
+                        uint256 amount;
+                        bytes userData;
+                    }
+
+                    struct FundManagement {
+                        address sender;
+                        bool fromInternalBalance;
+                        address payable recipient;
+                        bool toInternalBalance;
+                    }
+
+                    function queryBatchSwap(
+                        SwapKind kind,
+                        BatchSwapStep[] memory swaps,
+                        address[] memory assets,
+                        FundManagement memory funds
+                    ) external returns (int256[] memory);
+                }
+            );
+        
+            let vault_address = address!("BA12222222228d8Ba445958a75a0704d566BF2C8");
+            let contract = BalancerV2Vault::new(vault_address, provider);
+        
+            let pool_id = get_balancer_pool_id(swap_step.pool_address).await;
+            println!("Pool ID: {:#?}", pool_id);
+        
+            let single_swap = BalancerV2Vault::BatchSwapStep {
+                poolId: pool_id,
+                assetInIndex: U256::from(0),
+                assetOutIndex: U256::from(1),
+                amount: amount_in,
+                userData: vec![].into(),
+            };
+        
+            let fund_management = BalancerV2Vault::FundManagement {
+                sender: Address::ZERO,
+                fromInternalBalance: false,
+                recipient: Address::ZERO,
+                toInternalBalance: false,
+            };
+
+            let transaction = contract.queryBatchSwap(
+                BalancerV2Vault::SwapKind::GIVEN_IN,
+                vec![single_swap],
+                vec![swap_step.token_in, swap_step.token_out],
+                fund_management,
+            ).into_transaction_request();
+            let provider =
+                ProviderBuilder::new().on_http(std::env::var("FULL").unwrap().parse().unwrap());
+            
+            let trace = provider.debug_trace_call(transaction, alloy::eips::BlockNumberOrTag::Latest, get_tracing_options().clone()).await.unwrap();
+            println!("Trace: {:#?}", trace);
+
+            // Process the trace to extract the amount out
+            // This part depends on how you want to interpret the trace
+            // For now, we'll return a placeholder value
+            U256::from(0)
+        }
         _ => todo!(),
     }
 }
@@ -768,9 +875,10 @@ pub async fn load_pools() -> (Vec<Pool>, u64) {
 
     let pool_sync = PoolSync::builder()
         .add_pools(&[
-            //PoolType::UniswapV2,
+            PoolType::UniswapV2,
+            PoolType::BalancerV2,
             //PoolType::SushiSwapV2,
-            PoolType::UniswapV3,
+            //PoolType::UniswapV3,
             //PoolType::Slipstream,
             //PoolType::SushiSwapV3,
             //PoolType::PancakeSwapV2,
@@ -779,7 +887,7 @@ pub async fn load_pools() -> (Vec<Pool>, u64) {
             //PoolType::BaseSwapV3,
             //PoolType::BaseSwapV2
         ])
-        .chain(pool_sync::Chain::Base)
+        .chain(pool_sync::Chain::Ethereum)
         .build()
         .unwrap();
     pool_sync.sync_pools().await.unwrap()
@@ -849,4 +957,20 @@ fn extract_final_balance(call_trace: &CallFrame) -> Option<U256> {
         None
     }
     search_calls(call_trace)
+}
+
+
+async fn get_balancer_pool_id(pool_address: Address) -> FixedBytes<32> {
+    sol!(
+        #[sol(rpc)]
+        contract BalancerPool {
+            function getPoolId() external view returns (bytes32);
+        }
+    );
+
+    let provider = ProviderBuilder::new().on_http(std::env::var("FULL").unwrap().parse().unwrap());
+    let contract = BalancerPool::new(pool_address, provider);
+
+    let BalancerPool::getPoolIdReturn { _0: pool_id } = contract.getPoolId().call().await.unwrap();
+    pool_id
 }

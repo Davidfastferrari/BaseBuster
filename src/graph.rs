@@ -101,9 +101,10 @@ impl SwapStep {
                 calculator.calculate_maverick_out(amount_in, self.pool_address, zero_for_one, tick_lim)
             }
             PoolType::BalancerV2 => {
-                //let balancer_pool = pool_manager.get_balancer_pool(&self.pool_address);
-                //calculate_balancer_out(amount_in, self.token_in, &balancer_pool)
-                todo!()
+                let balancer_pool = pool_manager.get_balancer_pool(&self.pool_address);
+                let token_in_index = balancer_pool.get_token_index(&self.token_in).unwrap();
+                let token_out_index = balancer_pool.get_token_index(&self.token_out).unwrap();
+                calculator.calculate_balancer_v2_out(amount_in, &balancer_pool, token_in_index, token_out_index)
             }
             PoolType::CurveTwoCrypto | PoolType::CurveTriCrypto => {
                 //let curve_pool = pool_manager.get_curve_pool(&self.pool_address);
@@ -212,15 +213,21 @@ impl ArbGraph {
             }
         }
 
-        // Add edges for all possible token pairs
+        // Add edges for all possible token pairs with non-zero balances
         for (i, &token_in) in tokens.iter().enumerate() {
             for &token_out in tokens.iter().skip(i + 1) {
-                let node_in = graph.node_indices().find(|&n| graph[n] == token_in).unwrap();
-                let node_out = graph.node_indices().find(|&n| graph[n] == token_out).unwrap();
+                let balance_in = balancer_pool.get_balance(&token_in);
+                let balance_out = balancer_pool.get_balance(&token_out);
                 
-                // Create a new Pool::BalancerV2 for each edge
-                let pool = Pool::BalancerV2(balancer_pool.clone());
-                graph.add_edge(node_in, node_out, pool);
+                // Only add edge if both balances are non-zero
+                if !balance_in.is_zero() && !balance_out.is_zero() {
+                    let node_in = graph.node_indices().find(|&n| graph[n] == token_in).unwrap();
+                    let node_out = graph.node_indices().find(|&n| graph[n] == token_out).unwrap();
+                    
+                    // Create a new Pool::BalancerV2 for each edge
+                    let pool = Pool::BalancerV2(balancer_pool.clone());
+                    graph.add_edge(node_in, node_out, pool);
+                }
             }
         }
     }

@@ -4,7 +4,10 @@ pragma solidity ^0.8.0;
 import "@aave/core-v3/contracts/interfaces/IPool.sol";
 import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 import "./ISwappers.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@balancer-labs/v2-vault/interfaces/contracts/vault/IVault.sol";
+import "@balancer-labs/v2-vault/interfaces/contracts/vault/IAsset.sol";
+import "@balancer-labs/v2-vault/interfaces/contracts/vault/IBasePool.sol";
+
 
 contract FlashQuoter {
     struct SwapStep {
@@ -33,6 +36,8 @@ contract FlashQuoter {
     address constant AAVE_ADDRESSES_PROVIDER =0xe20fCBdBfFC4Dd138cE8b2E6FBb6CB49777ad64D;
 
     address constant WETH = 0x4200000000000000000000000000000000000006;
+    address constant BALANCER_VAULT = 0xBA12222222228d8Ba445958a75a0704d566BF2C8;
+
 
     event Profit(uint256 value);
 
@@ -53,6 +58,8 @@ contract FlashQuoter {
                  _swapSlipstream(step.tokenIn, step.tokenOut, balanceBefore, step.poolAddress, SLIPSTREAM_ROUTER);
             } else if (step.protocol == 9) {
                 _swapAerodome(step.poolAddress, step.tokenIn, step.tokenOut, balanceBefore, AERODOME_ROUTER);
+            } else if (step.protocol == 10) {
+                _swapBalancer(step.poolAddress, step.tokenIn, step.tokenOut, balanceBefore);
             } else {
                 revert("Invalid protocol");
             }
@@ -138,6 +145,34 @@ contract FlashQuoter {
             0,
             routes,
             address(this),
+            block.timestamp
+        );
+    }
+
+    function _swapBalancer(address poolAddress, address tokenIn, address tokenOut, uint256 amountIn) internal {
+        // 1. Get the pool ID from the pool address
+        bytes32 poolId = IBasePool(poolAddress).getPoolId();
+
+        // 2. Approve the Balancer Vault to spend tokens
+        IERC20(tokenIn).approve(BALANCER_VAULT, amountIn);
+
+        // 3. Perform the swap
+        IVault(BALANCER_VAULT).swap(
+            IVault.SingleSwap({
+                poolId: poolId,
+                kind: IVault.SwapKind.GIVEN_IN,
+                assetIn: IAsset(tokenIn),
+                assetOut: IAsset(tokenOut),
+                amount: amountIn,
+                userData: ""
+            }),
+            IVault.FundManagement({
+                sender: address(this),
+                fromInternalBalance: false,
+                recipient: payable(address(this)),
+                toInternalBalance: false
+            }),
+            0, // Minimum amount out (we're not enforcing a minimum in this example)
             block.timestamp
         );
     }

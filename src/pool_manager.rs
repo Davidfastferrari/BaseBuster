@@ -274,6 +274,10 @@ impl PoolManager {
         self.address_to_v3pool.get(address).unwrap().read().unwrap()
     }
 
+    pub fn get_balancer_pool(&self, address: &Address) -> RwLockReadGuard<BalancerV2Pool> {
+        self.address_to_balancerpool.get(address).unwrap().read().unwrap()
+    }
+
     pub fn zero_to_one(&self, token_in: Address, pool: &Address) -> bool {
         let pool = self.address_to_pool.get(pool).unwrap();
         token_in == pool.token0_address()

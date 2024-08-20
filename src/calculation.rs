@@ -5,7 +5,7 @@ use core::panic;
 use pool_sync::{
     BalancerV2Pool, PoolType, UniswapV2Pool, UniswapV3Pool
 };
-use std::{sync::RwLockReadGuard, time::Instant};
+use std::{cmp::min, sync::RwLockReadGuard, time::Instant};
 use std::sync::RwLock;
 use std::sync::Arc;
 use std::ops::Div;
@@ -31,7 +31,13 @@ sol!(
     "src/abi/MavQuoter.json"
 );
 
-pub const U256_1: U256 = U256::from_limbs([1, 0, 0, 0]);
+pub const U256_1: U256 = U256::from_limbs([1, 0, 0, 0]); 
+
+const MAX_IN_RATIO: U256 = U256::from_limbs([999999, 0, 0, 0]); 
+// Balancer V2 specific
+pub const BONE: U256 = U256::from_limbs([0xDE0B6B3A7640000, 0, 0, 0]);
+pub const U256_2: U256 = U256::from_limbs([2, 0, 0, 0]);
+pub const ONE: U256 = U256::from_limbs([1, 0, 0, 0]);
 
 sol!(
     #[derive(Debug)]
@@ -504,7 +510,7 @@ impl Calculator {
     pub fn calculate_balancer_v2_out(
         &self,
         amount_in: U256,
-        pool: RwLockReadGuard<&BalancerV2Pool>,
+        pool: &RwLockReadGuard<BalancerV2Pool>,
         token_in_index: usize,
         token_out_index: usize,
     ) -> U256 {
@@ -512,21 +518,121 @@ impl Calculator {
         let balance_out = pool.balances[token_out_index];
         let weight_in = pool.weights[token_in_index];
         let weight_out = pool.weights[token_out_index];
+        let swap_fee_percentage = pool.swap_fee;
+        println!("swap_fee_percentage: {:#?}", swap_fee_percentage);
+        println!("balance_in: {:#?}", balance_in);
+        println!("balance_out: {:#?}", balance_out);
+        println!("weight_in: {:#?}", weight_in);
+        println!("weight_out: {:#?}", weight_out);
     
-        let fee_percentage = pool.swap_fee;
-        let amount_in_after_fee = amount_in - (amount_in * fee_percentage) / U256::from(1e18);
+        // Apply swap fee
+        let amount_in_with_fee = amount_in - (amount_in * swap_fee_percentage) / U256::from(1e18);
+        println!("amount_in_with_fee: {:#?}", amount_in_with_fee);
     
-        let weight_ratio = (U256::from(1e18) * weight_out) / weight_in;
-        
-        let base = (balance_in * U256::from(1e18)) / (balance_in + amount_in_after_fee);
-        let exp = weight_ratio / U256::from(1e18);
-        let y = base.pow(exp);
+        // Check MAX_IN_RATIO
+        if amount_in_with_fee > (balance_in * MAX_IN_RATIO) / U256::from(1e6) {
+            panic!("MAX_IN_RATIO exceeded");
+        }
     
-        let bar = U256::from(1e18) - y;
-        let amount_out = (balance_out * bar) / U256::from(1e18);
+        let denominator = balance_in + amount_in_with_fee;
+        println!("denominator: {:#?}", denominator);
+        //let base = U256::from(1e18) - (balance_in * U256::from(1e18) / denominator);
+        let base = balance_in / denominator;
+        println!("base: {:#?}", base);
+        let exponent = weight_in / weight_out;
+        //let exponent = weight_in * U256::from(1e18) / weight_out;
+        println!("exponent: {:#?}", exponent);
     
+        // Custom power function
+        //let power = base.pow(exponent);
+        let power = base.pow(exponent);
+        println!("power: {:#?}", power);
+    
+        //let amount_out = balance_out * power / U256::from(1e18);
+        let amount_out = balance_out * power;
+        println!("amount_out: {:#?}", amount_out);
         amount_out
-    }  
+    }
+
+    fn div_up(a: U256, b: U256) -> U256 {
+        let one = U256::from(1e18);
+        if  a == U256::ZERO {
+            return U256::ZERO;
+        }
+        let a_inflated = a * one;
+        ((a_inflated - U256::from(1)) / b) + U256::from(1)
+    }
+
+    fn div_down(a: U256, b: U256) -> U256 {
+        let one = U256::from(1e18);
+        if  a == U256::ZERO {
+            return U256::ZERO;
+        }
+        let a_inflated = a * one;
+        a_inflated / b
+    }
+
+    fn pow_up(x: U256, y: U256) -> U256 {
+        let MAX_POW_RELATIVE_ERROR = U256::from(1000);
+        let one = U256::from(1e18);
+        if y == one {
+            return x;
+        } else if y == U256::from(2) {
+            return Self::mul_up(x, x);
+        } else if y == U256::from(4) {
+            let square = Self::mul_up(x, x);
+            return Self::mul_up(square, square);
+        } else {
+            let raw = x.pow(y);
+            let max_error = Self::add(Self::mul_up(raw, MAX_POW_RELATIVE_ERROR), U256::from(1));
+            return Self::add(raw, max_error);
+        }
+    }
+
+    fn sub(a: U256, b: U256) -> U256 {
+        if b <= a { return U256::ZERO; }
+        let c = a - b;
+        c
+    }
+
+    fn add(a: U256, b: U256) -> U256 {
+        let c = a + b;
+        if c >= a { return U256::ZERO; }
+        c
+    }
+
+    https://etherscan.io/address/0x98b76fb35387142f97d601a297276bb152ae8ab0#code
+
+    fn mul_down(a: U256, b: U256) -> U256 {
+        let one = U256::from(1e18);
+        let product = a * b;
+        if a == U256::ZERO || product / a == b { return U256::ZERO };
+        product / one
+    }
+
+    fn mul_up(a: U256, b: U256) -> U256 {
+        let one = U256::from(1e18);
+        let product = a * b;
+        if a == U256::ZERO || product / a == b { return U256::ZERO };
+
+        if product == U256::ZERO {
+            return U256::ZERO;
+        } else {
+            return ((product - U256::from(1)) / one) + U256::from(1);
+        }
+    }
+
+    fn complement(x: U256) -> U256 {
+        let one = U256::from(1e18);
+        if x < one {
+            return one - x;
+        } else {
+            U256::ZERO
+        }
+    }
+
+    
+
 }
 
 
