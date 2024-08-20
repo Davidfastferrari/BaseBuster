@@ -14,6 +14,7 @@ use alloy::{
 use alloy_sol_types::{abi::token, SolCall, SolInterface};
 use anyhow::Result;
 use core::panic;
+use std::str::FromStr;
 use pool_sync::{BalancerV2Pool, PoolType, UniswapV2Pool, UniswapV3Pool};
 use revm::primitives::Bytecode;
 use revm::Evm;
@@ -82,6 +83,19 @@ pub struct Calculator {
 }
 
 impl Calculator {
+
+    const ONE_18: I256 = I256::from_str("1000000000000000000").unwrap();
+    const ONE_20: I256 = I256::from_str("100000000000000000000").unwrap();
+    const ONE_36: I256 = I256::from_str("1000000000000000000000000000000000000").unwrap();
+
+    const MAX_NATURAL_EXPONENT: I256 = I256::from_str("130000000000000000000").unwrap();
+    const MIN_NATURAL_EXPONENT: I256 = I256::from_str("-41000000000000000000").unwrap();
+
+    const LN_36_LOWER_BOUND: I256 = I256::from_str("999999999999999999").unwrap();
+    const LN_36_UPPER_BOUND: I256 = I256::from_str("1000000000000000001").unwrap();
+
+    const MILD_EXPONENT_BOUND: U256 = U256::from_str("2854495385411919762116571938898990272765493248").unwrap();
+
     pub async fn new() -> Self {
         let provider = Arc::new(
             ProviderBuilder::new().on_http(std::env::var("FULL").unwrap().parse().unwrap()),
