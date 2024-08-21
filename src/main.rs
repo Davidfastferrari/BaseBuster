@@ -4,9 +4,9 @@ use ignition::start_workers;
 use log::{info, LevelFilter};
 use pool_sync::*;
 
-mod calculation;
 mod events;
 mod graph;
+mod calculation;
 mod ignition;
 mod market;
 mod pool_manager;
@@ -14,6 +14,7 @@ mod simulator;
 mod stream;
 mod tx_sender;
 mod util;
+
 mod test;
 
 // define our flash swap contract

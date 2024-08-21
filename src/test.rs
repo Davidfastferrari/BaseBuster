@@ -271,8 +271,8 @@ mod offchain_calculations {
         let calculator = Calculator::new().await;
         let zero_for_one = true;
         let tick_lim = i32::MAX;
-        let amount_out = calculator.calculate_maverick_out(amount_in, swap_step.pool_address, zero_for_one, tick_lim);
-        println!("amount out: {:?}", amount_out);
+        //let amount_out = calculator.calculate_maverick_out(amount_in, swap_step.pool_address, zero_for_one, tick_lim);
+        //println!("amount out: {:?}", amount_out);
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -537,7 +537,8 @@ pub async fn calculate_full_quote(steps: Vec<SwapStep>, amount: U256) -> U256 {
     if let Ok(_) = reserve_receiver.recv().await {
         for step in steps {
             println!("Amount in: {}", amount_in);
-            amount_in = step.get_amount_out(amount_in, &pool_manager, &calculator);
+            amount_in = calculator.get_amount_out(amount_in, &pool_manager, &step);
+
             println!("Amount out: {}", amount_in);
         }
     }
@@ -552,7 +553,7 @@ pub async fn calculate_single_quote(swap_step: SwapStep, amount_in: U256) -> U25
 
     let calculator = Calculator::new().await;
     if let Ok(_) = reserve_receiver.recv().await {
-        let output = swap_step.get_amount_out(amount_in, &pool_manager, &calculator);
+        let output = calculator.get_amount_out(amount_in, &pool_manager, &swap_step);
         println!("output: {:#?}", output);
         return output;
     }
