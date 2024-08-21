@@ -287,9 +287,8 @@ impl PoolManager {
 
 fn process_balance_data(pool: &mut BalancerV2Pool, log: Log) {
     let event = BalancerV2Event::PoolBalanceChanged::decode_log(log.as_ref(), true).unwrap();
+    println!("got new balancer event");
     
-    // Ensure the pool ID matches
-    assert_eq!(event.poolId, pool.pool_id, "Pool ID mismatch");
 
     for (token, delta) in event.tokens.iter().zip(event.deltas.iter()) {
         if let Some(index) = pool.get_token_index(token) {

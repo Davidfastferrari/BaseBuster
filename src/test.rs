@@ -499,7 +499,7 @@ pub async fn simulate_full_quote(swap_steps: Vec<SwapStep>, amount: U256) -> U25
     let anvil_signer = Arc::new(
         ProviderBuilder::new()
             .with_recommended_fillers()
-            .network::<alloy::network::AnyNetwork>()
+            //.network::<alloy::network::AnyNetwork>()
             .wallet(wallet)
             .on_http(anvil.endpoint_url()),
     );
@@ -508,8 +508,11 @@ pub async fn simulate_full_quote(swap_steps: Vec<SwapStep>, amount: U256) -> U25
     let weth = gweiyser.token(address!("4200000000000000000000000000000000000006")).await;
     let weth = gweiyser.token(address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2")).await;
     weth.deposit(amount).await; // deposit into signers account, account[0] here
+    println!("got here");
     weth.transfer_from(anvil.addresses()[0], *flash_quoter.address(), amount).await;
+    println!("got hereasdf");
     weth.approve(*flash_quoter.address(), amount).await;
+    println!("got hereasdfasdf");
 
     let converted_path = swappath_to_flashquote(swap_steps.clone()).await;
 
@@ -875,7 +878,7 @@ pub async fn load_pools() -> (Vec<Pool>, u64) {
 
     let pool_sync = PoolSync::builder()
         .add_pools(&[
-            //PoolType::UniswapV2,
+            PoolType::UniswapV2,
             PoolType::BalancerV2,
             //PoolType::SushiSwapV2,
             //PoolType::UniswapV3,
