@@ -16,7 +16,7 @@ alloy-chains = {git = "https://github.com/alloy-rs/chains" }
 alloy-sol-types = { version = "0.7.7" }
 alloy-contract = { git = "https://github.com/alloy-rs/alloy" }
 dotenv = "0.15.0"
-pool-sync = { path = "../pool-sync" }
+pool-sync = { path = "../PoolSync" }
 variant_count = "1.1.0"
 hex-literal = "0.4.1"
 rayon = "1.10.0"

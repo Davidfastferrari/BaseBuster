@@ -287,8 +287,8 @@ mod offchain_calculations {
         };
         let amount_in = U256::from(1e16);
         let offchain_amount_out = calculate_single_quote(swap_step.clone(), amount_in).await;
-        //let onchain_amount_out =
-         //   simulate_single_quote(swap_step, PoolType::BalancerV2, amount_in).await;
+        let onchain_amount_out =
+          simulate_single_quote(swap_step, PoolType::BalancerV2, amount_in).await;
         println!("offchain amount out: {:?}", offchain_amount_out);
         //println!("onchain amount out: {:?}", onchain_amount_out);
         //assert_eq!(offchain_amount_out, onchain_amount_out);
@@ -554,7 +554,6 @@ pub async fn calculate_single_quote(swap_step: SwapStep, amount_in: U256) -> U25
     let calculator = Calculator::new().await;
     if let Ok(_) = reserve_receiver.recv().await {
         let output = calculator.get_amount_out(amount_in, &pool_manager, &swap_step);
-        println!("output: {:#?}", output);
         return output;
     }
     U256::ZERO

@@ -14,11 +14,11 @@ use petgraph::prelude::*;
 use pool_sync::{BalancerV2Pool, Pool, PoolInfo, PoolType};
 use rayon::prelude::*;
 use rustc_hash::{FxHashMap, FxHashSet};
-use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::broadcast::{Receiver, Sender};
+use serde::{Serialize, Deserialize};
 
 use crate::calculation::Calculator;
 use crate::AMOUNT;
