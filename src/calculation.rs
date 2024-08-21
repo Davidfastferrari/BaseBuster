@@ -642,6 +642,200 @@ impl Calculator {
         }
         */
     }
+
+    pub fn pow(&self, x: U256, y: U256) -> Result<U256, &'static str> {
+        if y == U256::ZERO {
+            return Ok(U256::from(Self::ONE_18));
+        }
+
+        if x == U256::ZERO {
+            return Ok(U256::ZERO);
+        }
+
+        if x >> 255 != U256::ZERO {
+            return Err("X_OUT_OF_BOUNDS");
+        }
+
+        if y >= Self::MILD_EXPONENT_BOUND {
+            return Err("Y_OUT_OF_BOUNDS");
+        }
+
+        let x_int256 = I256::from_raw(x);
+        let y_int256 = I256::from_raw(y);
+
+        let logx_times_y = if Self::LN_36_LOWER_BOUND < x_int256 && x_int256 < Self::LN_36_UPPER_BOUND {
+            let ln_36_x = self._ln_36(x_int256)?;
+            ((ln_36_x / Self::ONE_18) * y_int256 + ((ln_36_x % Self::ONE_18) * y_int256) / Self::ONE_18)
+        } else {
+            self._ln(x_int256)? * y_int256
+        };
+
+        let logx_times_y = logx_times_y / Self::ONE_18;
+
+        if logx_times_y < Self::MIN_NATURAL_EXPONENT || logx_times_y > Self::MAX_NATURAL_EXPONENT {
+            return Err("PRODUCT_OUT_OF_BOUNDS");
+        }
+
+        Ok(U256::from_raw(self.exp(logx_times_y)?))
+    }
+
+    pub fn exp(&self, x: I256) -> Result<I256, &'static str> {
+        if x < Self::MIN_NATURAL_EXPONENT || x > Self::MAX_NATURAL_EXPONENT {
+            return Err("INVALID_EXPONENT");
+        }
+
+        if x < I256::ZERO {
+            return Ok(((Self::ONE_18 * Self::ONE_18) / self.exp(-x)?));
+        }
+
+        let mut x = x;
+        let first_an;
+        if x >= Self::x0 {
+            x -= Self::x0;
+            first_an = Self::a0;
+        } else if x >= Self::x1 {
+            x -= Self::x1;
+            first_an = Self::a1;
+        } else {
+            first_an = I256::ONE;
+        }
+
+        x *= I256::from(100);
+
+        let mut product = Self::ONE_20;
+
+        if x >= Self::x2 {
+            x -= Self::x2;
+            product = (product * Self::a2) / Self::ONE_20;
+        }
+        if x >= Self::x3 {
+            x -= Self::x3;
+            product = (product * Self::a3) / Self::ONE_20;
+        }
+        // ... repeat for x4 through x9 ...
+
+        let mut series_sum = Self::ONE_20;
+        let mut term = x;
+        series_sum += term;
+
+        for n in 2..=12 {
+            term = ((term * x) / Self::ONE_20) / I256::from(n);
+            series_sum += term;
+        }
+
+        Ok((((product * series_sum) / Self::ONE_20) * first_an) / I256::from(100))
+    }
+
+    fn _ln(&self, x: I256) -> Result<I256, &'static str> {
+        // Implement natural logarithm function
+        // This is a placeholder and needs to be implemented
+        Err("_ln not implemented")
+    }
+
+    fn _ln_36(&self, x: I256) -> Result<I256, &'static str> {
+        // Implement natural logarithm with 36 decimal precision
+        // This is a placeholder and needs to be implemented
+        Err("_ln_36 not implemented")
+    }
+
+
+
+    pub fn ln(&self, a: I256) -> Result<I256, &'static str> {
+        if a <= I256::ZERO {
+            return Err("OUT_OF_BOUNDS");
+        }
+        if Self::LN_36_LOWER_BOUND < a && a < Self::LN_36_UPPER_BOUND {
+            Ok(self._ln_36(a)? / Self::ONE_18)
+        } else {
+            self._ln(a)
+        }
+    }
+
+    fn _ln(&self, mut a: I256) -> Result<I256, &'static str> {
+        if a < Self::ONE_18 {
+            return Ok(-self._ln((Self::ONE_18 * Self::ONE_18) / a)?);
+        }
+
+        let mut sum = I256::ZERO;
+        if a >= Self::a0 * Self::ONE_18 {
+            a /= Self::a0;
+            sum += Self::x0;
+        }
+
+        if a >= Self::a1 * Self::ONE_18 {
+            a /= Self::a1;
+            sum += Self::x1;
+        }
+
+        sum *= I256::from(100);
+        a *= I256::from(100);
+
+        if a >= Self::a2 {
+            a = (a * Self::ONE_20) / Self::a2;
+            sum += Self::x2;
+        }
+
+        // Repeat for a3 through a11...
+
+        let z = ((a - Self::ONE_20) * Self::ONE_20) / (a + Self::ONE_20);
+        let z_squared = (z * z) / Self::ONE_20;
+
+        let mut num = z;
+        let mut series_sum = num;
+
+        num = (num * z_squared) / Self::ONE_20;
+        series_sum += num / I256::from(3);
+
+        num = (num * z_squared) / Self::ONE_20;
+        series_sum += num / I256::from(5);
+
+        num = (num * z_squared) / Self::ONE_20;
+        series_sum += num / I256::from(7);
+
+        num = (num * z_squared) / Self::ONE_20;
+        series_sum += num / I256::from(9);
+
+        num = (num * z_squared) / Self::ONE_20;
+        series_sum += num / I256::from(11);
+
+        series_sum *= I256::from(2);
+
+        Ok((sum + series_sum) / I256::from(100))
+    }
+
+    fn _ln_36(&self, x: I256) -> Result<I256, &'static str> {
+        let x = x * Self::ONE_18;
+
+        let z = ((x - Self::ONE_36) * Self::ONE_36) / (x + Self::ONE_36);
+        let z_squared = (z * z) / Self::ONE_36;
+
+        let mut num = z;
+        let mut series_sum = num;
+
+        num = (num * z_squared) / Self::ONE_36;
+        series_sum += num / I256::from(3);
+
+        num = (num * z_squared) / Self::ONE_36;
+        series_sum += num / I256::from(5);
+
+        num = (num * z_squared) / Self::ONE_36;
+        series_sum += num / I256::from(7);
+
+        num = (num * z_squared) / Self::ONE_36;
+        series_sum += num / I256::from(9);
+
+        num = (num * z_squared) / Self::ONE_36;
+        series_sum += num / I256::from(11);
+
+        num = (num * z_squared) / Self::ONE_36;
+        series_sum += num / I256::from(13);
+
+        num = (num * z_squared) / Self::ONE_36;
+        series_sum += num / I256::from(15);
+
+        Ok(series_sum * I256::from(2))
+    }
+
 }
 
 pub async fn init_account(
