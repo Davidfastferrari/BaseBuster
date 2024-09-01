@@ -25,6 +25,7 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use std::sync::RwLockReadGuard;
 
+
 pub type AlloyCacheDB = CacheDB<AlloyDB<Http<Client>, Ethereum, Arc<RootProvider<Http<Client>>>>>;
 
 sol!(
@@ -37,7 +38,7 @@ sol!(
 // Calculator used for calculatiing amoung out along steps
 pub struct Calculator {
     provider: Arc<RootProvider<Http<Client>>>,
-    db: RwLock<AlloyCacheDB>,
+    pub db: RwLock<AlloyCacheDB>,
 }
 
 impl Calculator {
@@ -46,75 +47,14 @@ impl Calculator {
             ProviderBuilder::new().on_http(std::env::var("FULL").unwrap().parse().unwrap()),
         );
 
-        let mut db = CacheDB::new(AlloyDB::new(provider.clone(), BlockId::latest()).unwrap());
-
-        // insert the quoter
-        let bytecode = Bytecode::new_raw(MavQuoter::DEPLOYED_BYTECODE.clone());
-        let code_hash = bytecode.hash_slow();
-        let account_info = AccountInfo {
-            balance: U256::ZERO,
-            nonce: 0_u64,
-            code: Some(bytecode),
-            code_hash,
-        };
-        let quoter_addr = address!("A5C381211A406b48A073E954e6949B0D49506bc0");
-        db.insert_account_info(quoter_addr, account_info);
+        // setup the db to our node
+        let db = CacheDB::new(AlloyDB::new(provider.clone(), BlockId::latest()).unwrap());
 
         Self {
             provider,
             db: RwLock::new(db),
         }
     }
-
-    pub fn calculate_maverick_out(&self, amount_in: U256, pool: Address) -> U256 {
-        // get write access to the db
-        let mut db = self.db.write().unwrap();
-
-        // construct our calldata
-        let calldata = MavQuoter::getAmountOutCall {
-            pool,
-            zeroForOne: false,
-            amountIn: amount_in,
-        }
-        .abi_encode();
-
-        let mut evm = Evm::builder()
-            .with_db(&mut *db)
-            .modify_tx_env(|tx| {
-                tx.caller = address!("0000000000000000000000000000000000000001");
-                tx.transact_to =
-                    TransactTo::Call(address!("A5C381211A406b48A073E954e6949B0D49506bc0"));
-                tx.data = calldata.into();
-                tx.value = U256::ZERO;
-            })
-            .build();
-
-        // transact
-        let ref_tx = evm.transact().unwrap();
-        let result = ref_tx.result;
-
-        let value = match result {
-            ExecutionResult::Revert { output: value, .. } => value.to_vec(),
-            _ => panic!("failed"),
-        };
-
-        // extract the output
-        let last_64_bytes = &value[value.len() - 64..];
-
-        let (a, b) = match <(i128, i128)>::abi_decode(last_64_bytes, false) {
-            Ok((a, b)) => (a, b),
-            Err(e) => panic!("failed to decode: {:?}", e),
-        };
-        print!("a: {:#?}, b: {:#?}", a, b);
-        let value_out = std::cmp::min(a, b);
-        let value_out = -value_out;
-        println!("value out, {:#?}", value_out);
-
-        U256::ZERO
-    }
-
-
-
 
     pub fn get_amount_out(
         &self,
@@ -130,13 +70,8 @@ impl Calculator {
 
         let zero_to_one = pool_manager.zero_to_one(token_in, &pool_address);
         match protocol {
-            PoolType::UniswapV2
-            | PoolType::SushiSwapV2
-            | PoolType::PancakeSwapV2
-            | PoolType::BaseSwapV2 => {
+            PoolType::UniswapV2 | PoolType::SushiSwapV2 | PoolType::PancakeSwapV2| PoolType::BaseSwapV2 => {
                 let v2_pool = pool_manager.get_v2pool(&pool_address);
-                //println!("V2 pool: {:#?}", v2_pool);
-                //
                 uniswap_v2_out(
                     amount_in,
                     v2_pool.token0_reserves,
@@ -145,24 +80,18 @@ impl Calculator {
                     protocol,
                 )
             }
-            PoolType::UniswapV3
-            | PoolType::SushiSwapV3
-            | PoolType::BaseSwapV3
-            | PoolType::Slipstream
-            | PoolType::PancakeSwapV3 => {
+            PoolType::UniswapV3 | PoolType::SushiSwapV3 | PoolType::BaseSwapV3 | PoolType::Slipstream | PoolType::PancakeSwapV3 => {
                 let mut v3_pool = pool_manager.get_v3pool(&pool_address);
-                //println!("V3 pool: {:#?}", v3_pool);
                 uniswap_v3_out(amount_in, &mut v3_pool, zero_to_one).unwrap()
             }
             PoolType::Aerodrome => {
                 let v2_pool = pool_manager.get_v2pool(&pool_address);
-                //println!("V2 pool: {:#?}", v2_pool);
                 aerodrome_out(amount_in, token_in, &v2_pool)
             }
             PoolType::MaverickV1 | PoolType::MaverickV2 => {
-                //let zero_for_one = pool_manager.zero_to_one(token_in, &pool_address);
-                //let tick_lim = if zero_for_one { i32::MAX } else { i32::MIN };
-                todo!()
+                let zero_for_one = pool_manager.zero_to_one(token_in, &pool_address);
+                let tick_lim = if zero_for_one { i32::MAX } else { i32::MIN };
+                self.maverick_out(amount_in, pool_address, zero_for_one, tick_lim)
             }
             PoolType::BalancerV2 => {
                 let balancer_pool = pool_manager.get_balancer_pool(&pool_address);
@@ -175,30 +104,22 @@ impl Calculator {
                     token_out_index,
                 )
             }
-            PoolType::CurveTwoCrypto | PoolType::CurveTriCrypto => {
-                //let curve_pool = pool_manager.get_curve_pool(&self.pool_address);
-                //calculate_curve_out(amount_in, self.token_in, &curve_pool)
+            PoolType::CurveTwoCrypto => {
+                let curve_pool = pool_manager.get_curve_two_pool(&pool_address);
+                let (index_in, index_out) = if token_in == curve_pool.token0 {
+                    (U256::ZERO, U256::from(1))
+                } else {
+                    (U256::from(1), U256::ZERO)
+                };
+                self.curve_out(index_in, index_out, amount_in, pool_address)
+            }
+            PoolType::CurveTriCrypto => {
                 todo!()
             }
             PoolType::AlienBase => {
                 todo!()
             }
+            _=> todo!()
         }
     }
-}
-
-pub async fn init_account(
-    address: Address,
-    cache_db: &mut AlloyCacheDB,
-    provider: &Arc<RootProvider<Http<Client>>>,
-) {
-    let bytecode = Bytecode::new_raw(provider.get_code_at(address).await.unwrap());
-    let code_hash = bytecode.hash_slow();
-    let account_info = AccountInfo {
-        balance: U256::ZERO,
-        nonce: 0_u64,
-        code: Some(bytecode),
-        code_hash,
-    };
-    cache_db.insert_account_info(address, account_info);
 }

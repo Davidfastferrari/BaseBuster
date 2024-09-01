@@ -1,6 +1,6 @@
 use crate::events::Event;
 use crate::pool_manager::PoolManager;
-use crate::test::FlashQuoter;
+//use crate::test::FlashQuoter;
 use alloy::network::EthereumWallet;
 use alloy::node_bindings::Anvil;
 use alloy::primitives::{address, Address, U256};
@@ -11,7 +11,7 @@ use gweiyser::{Chain, Gweiyser};
 use log::{info, warn};
 use petgraph::graph::UnGraph;
 use petgraph::prelude::*;
-use pool_sync::{BalancerV2Pool, Pool, PoolInfo, PoolType};
+use pool_sync::{BalancerV2Pool, Pool, PoolInfo, PoolType, CurveTriCryptoPool};
 use rayon::prelude::*;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::HashSet;
@@ -61,6 +61,7 @@ impl SwapStep {
             PoolType::BalancerV2 => 13,
             PoolType::CurveTwoCrypto => 14,
             PoolType::CurveTriCrypto => 15,
+            _ => 16
         }
     }
 }
@@ -122,6 +123,13 @@ impl ArbGraph {
                         balancer_pool,
                     );
                 }
+                Pool::CurveTriCrypto(curve_pool) => {
+                    Self::add_curve_pool_to_graph(
+                        &mut graph,
+                        &mut inserted_nodes,
+                        curve_pool,
+                    );
+                }
                 _ => {
                     Self::add_simple_pool_to_graph(&mut graph, &mut inserted_nodes, pool);
                 }
@@ -154,6 +162,41 @@ impl ArbGraph {
 
         // Add the edge (pool)
         graph.add_edge(node0, node1, pool);
+    }
+
+    fn add_curve_pool_to_graph(
+        graph: &mut UnGraph<Address, Pool>,
+        inserted_nodes: &mut HashSet<Address>,
+        curve_pool: CurveTriCryptoPool,
+    ) {
+        let tokens = curve_pool.get_tokens();
+
+        // Add nodes for all tokens in the pool
+        for &token in &tokens {
+            if !inserted_nodes.contains(&token) {
+                graph.add_node(token);
+                inserted_nodes.insert(token);
+            }
+        }
+
+        // Add edges for all possible token pairs with non-zero balances
+        for (i, &token_in) in tokens.iter().enumerate() {
+            for &token_out in tokens.iter().skip(i + 1) {
+                // Only add edge if both balances are non-zero
+                let node_in = graph
+                    .node_indices()
+                    .find(|&n| graph[n] == token_in)
+                    .unwrap();
+                let node_out = graph
+                    .node_indices()
+                    .find(|&n| graph[n] == token_out)
+                    .unwrap();
+
+                    // Create a new Pool::BalancerV2 for each edge
+                let pool = Pool::CurveTriCrypto(curve_pool.clone());
+                graph.add_edge(node_in, node_out, pool);
+            }
+        }
     }
 
     fn add_balancer_pool_to_graph(
@@ -307,6 +350,7 @@ impl ArbGraph {
                     let mut current_amount = initial_amount;
                     println!("path: {:#?}", cycle);
 
+                    /* 
                     for swap in cycle {
                         current_amount = self.calculator.get_amount_out(
                             current_amount,
@@ -317,6 +361,7 @@ impl ArbGraph {
                             return None;
                         }
                     }
+                    */
 
                     let repayment_amount = initial_amount + (initial_amount * FLASH_LOAN_FEE);
                     if current_amount >= repayment_amount {
@@ -385,6 +430,7 @@ impl ArbGraph {
     }
 }
 
+/* 
 pub async fn simulate_quote(swap_steps: Vec<(Vec<SwapStep>, U256)>, amount: U256) {
     info!("running");
     // deploy the quoter
@@ -456,3 +502,4 @@ pub async fn simulate_quote(swap_steps: Vec<(Vec<SwapStep>, U256)>, amount: U256
         }
     }
 }
+    */

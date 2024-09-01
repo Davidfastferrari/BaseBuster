@@ -36,3 +36,4 @@ zerocopy = "0.7.35"
 revm = { version = "13.0.0", features = ["alloydb"] }
 alloy = { version = "0.2.1", features = ["full", "node-bindings", "rpc-types-trace", "rpc-client", "rpc-types-debug", "providers"] }
 tokio = { version = "1.39.3", features = ["full"] }
+

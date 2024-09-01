@@ -7,7 +7,8 @@ use alloy_sol_types::SolEvent;
 use futures::stream::StreamExt;
 use log::{debug, info};
 use pool_sync::{
-    BalancerV2Pool, MaverickPool, TickInfo, UniswapV2Pool, UniswapV3Pool
+    BalancerV2Pool, MaverickPool, TickInfo, UniswapV2Pool, UniswapV3Pool,
+    CurveTriCryptoPool, CurveTwoCryptoPool
 };
 use pool_sync::{Pool, PoolInfo, PoolType};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -105,6 +106,10 @@ pub struct PoolManager {
     address_to_v3pool: FxHashMap<Address, RwLock<UniswapV3Pool>>,
     /// Mapping from address to Balancer Pool
     address_to_balancerpool: FxHashMap<Address, RwLock<BalancerV2Pool>>,
+    /// Mapping from address to CurveTwoCryptoPool
+    address_to_curvetwopool: FxHashMap<Address, CurveTwoCryptoPool>,
+    /// Mapping from address to CurveTriCryptoPool
+    address_to_curvetripool: FxHashMap<Address, CurveTriCryptoPool>,
 }
 
 impl PoolManager {
@@ -134,6 +139,8 @@ impl PoolManager {
         let mut address_to_v2pool = FxHashMap::default();
         let mut address_to_v3pool = FxHashMap::default();
         let mut address_to_balancerpool = FxHashMap::default();
+        let mut address_to_curvetwopool = FxHashMap::default();
+        let mut address_to_curvetripool = FxHashMap::default();
         for pool in filtered_pools {
             if pool.is_v2() {
                 let v2_pool = pool.get_v2().unwrap().clone();
@@ -144,6 +151,12 @@ impl PoolManager {
             } else if pool.is_balancer() {
                 let balancer_pool = pool.get_balancer().unwrap().clone();
                 address_to_balancerpool.insert(pool.address(), RwLock::new(balancer_pool));
+            } else if pool.is_curve_two() {
+                let curve_pool = pool.get_curve_two().unwrap().clone();
+                address_to_curvetwopool.insert(pool.address(), curve_pool);
+            } else if pool.is_curve_tri() {
+                let curve_pool = pool.get_curve_tri().unwrap().clone();
+                address_to_curvetripool.insert(pool.address(), curve_pool);
             }
         }
 
@@ -152,7 +165,9 @@ impl PoolManager {
             address_to_pool,
             address_to_v2pool,
             address_to_v3pool,
-            address_to_balancerpool
+            address_to_balancerpool,
+            address_to_curvetwopool,
+            address_to_curvetripool
         });
 
         tokio::spawn(PoolManager::state_updater(
@@ -163,6 +178,8 @@ impl PoolManager {
         manager
     }
 
+
+    /// Updater thread that will process the logs after each block and update the corresponding reserves
     pub async fn state_updater(
         manager: Arc<PoolManager>,
         sender: broadcast::Sender<Event>,
@@ -180,10 +197,6 @@ impl PoolManager {
         // process the missed blocks
         let mut latest_block = http.get_block_number().await.unwrap();
         while last_synced_block < latest_block {
-            //println!(
-            //    "processing block from {} to {}",
-                //last_synced_block, latest_block
-            //);
             let filter = Filter::new()
                 .events([
                     BalancerV2Event::PoolBalanceChanged::SIGNATURE,
@@ -232,6 +245,8 @@ impl PoolManager {
         }
     }
 
+
+    // process the logs in a block
     fn process_logs(&self, logs: Vec<Log>) -> Vec<Address> {
         let mut updated_pools = HashSet::new();
         for log in logs {
@@ -262,6 +277,10 @@ impl PoolManager {
         updated_pools.into_iter().collect()
     }
 
+
+
+    // METHODS TO RETRIEVE SPECIFIC POOLS FROM THE MANAGER
+    // ------------------------------------------------
     pub fn get_pool(&self, address: &Address) -> Pool {
         self.address_to_pool.get(address).unwrap().clone()
     }
@@ -277,6 +296,16 @@ impl PoolManager {
     pub fn get_balancer_pool(&self, address: &Address) -> RwLockReadGuard<BalancerV2Pool> {
         self.address_to_balancerpool.get(address).unwrap().read().unwrap()
     }
+
+    pub fn get_curve_two_pool(&self, address: &Address) -> &CurveTwoCryptoPool {
+        self.address_to_curvetwopool.get(address).unwrap()
+    }
+
+    pub fn get_curve_tri_pool(&self, address: &Address) -> &CurveTriCryptoPool {
+        self.address_to_curvetripool.get(address).unwrap()
+    }
+
+
 
     pub fn zero_to_one(&self, token_in: Address, pool: &Address) -> bool {
         let pool = self.address_to_pool.get(pool).unwrap();
