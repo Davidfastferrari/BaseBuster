@@ -67,6 +67,18 @@ pub async fn construct_pool_manager(
     (pool_manager, update_receiver)
 }
 
+
+// Cosntruct a pool manager that is populated with a type of pool
+pub async fn pool_manager_with_type(pool_type: PoolType) -> (Arc<PoolManager>, broadcast::Receiver<Event>) {
+    dotenv::dotenv().ok();
+    let pool_sync = PoolSync::builder()
+        .add_pool(pool_type)
+        .chain(pool_sync::Chain::Ethereum)
+        .build().unwrap();
+    let (pools , last_synced_block) = pool_sync.sync_pools().await.unwrap();
+    construct_pool_manager(pools, last_synced_block).await
+}
+
 // get a pool manaager that is populated wtih the pools from our address space
 pub async fn pool_manager_with_pools(
     addresses: Vec<Address>,
@@ -104,7 +116,7 @@ pub async fn swappath_to_flashquote(steps: Vec<SwapStep>) -> Vec<FlashQuoter::Sw
 
 
 // just return the tracing options
-fn get_tracing_options() -> GethDebugTracingCallOptions {
+pub fn get_tracing_options() -> GethDebugTracingCallOptions {
     let options = GethDebugTracingCallOptions {
         tracing_options: GethDebugTracingOptions {
             config: GethDefaultTracingOptions {

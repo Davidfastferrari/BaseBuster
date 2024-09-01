@@ -2,11 +2,15 @@ use alloy::network::Ethereum;
 use alloy::network::EthereumWallet;
 use alloy::node_bindings::Anvil;
 use alloy::node_bindings::AnvilInstance;
+use alloy::sol_types::{SolValue, SolCall};
 use alloy::primitives::U256;
 use alloy::primitives::{address, Address};
 use alloy::providers::ext::DebugApi;
 use alloy::providers::{Provider, ProviderBuilder, RootProvider, WsConnect};
 use alloy::rpc::types::trace::geth::GethDebugBuiltInTracerType::CallTracer;
+use revm::db::CacheDB;
+use alloy::primitives::U160;
+use revm::primitives::keccak256;
 use alloy::rpc::types::trace::geth::GethDebugTracingOptions;
 use alloy::rpc::types::trace::geth::{
     CallConfig, CallFrame, GethDebugTracerConfig, GethDebugTracerType,
@@ -22,10 +26,13 @@ use gweiyser::protocols::uniswap::v3::UniswapV3Pool;
 use gweiyser::{Chain, Gweiyser};
 use pool_sync::*;
 use revm::interpreter::instructions::contract;
+use revm::primitives::TransactTo;
+use revm::Evm;
 use sha2::digest::consts::U25;
 use std::sync::Arc;
 use tokio::sync::broadcast;
 
+use super::test_gen::*;
 use crate::calculation::Calculator;
 use crate::events::Event;
 use crate::graph::SwapStep;
@@ -33,6 +40,7 @@ use crate::pool_manager;
 use crate::pool_manager::PoolManager;
 use crate::util::get_working_pools;
 use crate::FlashSwap;
+use super::test_utils::*;
 
 // All offchain calculation tests
 #[cfg(test)]
@@ -50,7 +58,7 @@ mod offchain_calculations {
             fee: 0,
         };
         let amount_in = U256::from(1e16);
-        let offchain_amount_out = offchain_quote(&swap_step, amount_in).await;
+        let offchain_amount_out = offchain_quote(&swap_step, PoolType::UniswapV2, amount_in).await;
         let onchain_amount_out = onchain_quote(&swap_step, PoolType::UniswapV2, amount_in).await;
         assert_eq!(offchain_amount_out, onchain_amount_out);
     }
@@ -66,7 +74,7 @@ mod offchain_calculations {
             fee: 3000,
         };
         let amount_in = U256::from(1e16);
-        let offchain_amount_out = offchain_quote(&swap_step, amount_in).await;
+        let offchain_amount_out = offchain_quote(&swap_step, PoolType::UniswapV3, amount_in).await;
         let onchain_amount_out = onchain_quote(&swap_step, PoolType::UniswapV3, amount_in).await;
         assert_eq!(offchain_amount_out, onchain_amount_out);
     }
@@ -83,7 +91,7 @@ mod offchain_calculations {
         };
 
         let amount_in = U256::from(1e16);
-        let offchain_amount_out = offchain_quote(&swap_step, amount_in).await;
+        let offchain_amount_out = offchain_quote(&swap_step, PoolType::SushiSwapV2, amount_in).await;
         let onchain_amount_out = onchain_quote(&swap_step, PoolType::SushiSwapV2, amount_in).await;
         assert_eq!(offchain_amount_out, onchain_amount_out);
     }
@@ -99,7 +107,7 @@ mod offchain_calculations {
             fee: 10000,
         };
         let amount_in = U256::from(1e16);
-        let offchain_amount_out = offchain_quote(&swap_step, amount_in).await;
+        let offchain_amount_out = offchain_quote(&swap_step, PoolType::SushiSwapV3,amount_in).await;
         let onchain_amount_out = onchain_quote(&swap_step, PoolType::SushiSwapV3, amount_in).await;
         assert_eq!(offchain_amount_out, onchain_amount_out);
     }
@@ -115,7 +123,7 @@ mod offchain_calculations {
             fee: 0,
         };
         let amount_in = U256::from(1e16);
-        let offchain_amount_out = offchain_quote(&swap_step, amount_in).await;
+        let offchain_amount_out = offchain_quote(&swap_step, PoolType::PancakeSwapV2, amount_in).await;
         let onchain_amount_out = onchain_quote(&swap_step, PoolType::PancakeSwapV2, amount_in).await;
         assert_eq!(offchain_amount_out, onchain_amount_out);
     }
@@ -132,7 +140,7 @@ mod offchain_calculations {
                 fee: 500,
             };
         let amount_in = U256::from(1e16);
-        let offchain_amount_out = offchain_quote(&swap_step, amount_in).await;
+        let offchain_amount_out = offchain_quote(&swap_step, PoolType::PancakeSwapV3, amount_in).await;
         let onchain_amount_out = onchain_quote(&swap_step, PoolType::PancakeSwapV3, amount_in).await;
         assert_eq!(offchain_amount_out, onchain_amount_out);
     }
@@ -148,7 +156,7 @@ mod offchain_calculations {
             fee: 0,
         };
         let amount_in = U256::from(1e16);
-        let offchain_amount_out = offchain_quote(&swap_step, amount_in).await;
+        let offchain_amount_out = offchain_quote(&swap_step, PoolType::Aerodrome, amount_in).await;
         let onchain_amount_out = onchain_quote(&swap_step, PoolType::Aerodrome, amount_in).await;
         assert_eq!(offchain_amount_out, onchain_amount_out);
     }
@@ -171,7 +179,7 @@ mod offchain_calculations {
         };
 
         let amount_in = U256::from(1e16);
-        let offchain_amount_out = offchain_quote(&swap_step, amount_in).await;
+        let offchain_amount_out = offchain_quote(&swap_step, PoolType::BaseSwapV2, amount_in).await;
         let onchain_amount_out = onchain_quote(&swap_step, PoolType::BaseSwapV2, amount_in).await;
         assert_eq!(offchain_amount_out, onchain_amount_out);
     }
@@ -187,24 +195,40 @@ mod offchain_calculations {
             fee: 0,
         };
         let amount_in = U256::from(1e16);
-        let offchain_amount_out = offchain_quote(&swap_step, amount_in).await;
+        let offchain_amount_out = offchain_quote(&swap_step, PoolType::BaseSwapV3, amount_in).await;
         let onchain_amount_out = onchain_quote(&swap_step, PoolType::BaseSwapV3, amount_in).await;
         assert_eq!(offchain_amount_out, onchain_amount_out);
     }
 
     // ALIENBASE
     #[tokio::test]
-    pub async fn test_alienbase_out() {
+    pub async fn test_alienbasev2_out() {
         let swap_step = SwapStep {
             pool_address: address!("74cb6260be6f31965c239df6d6ef2ac2b5d4f020"),
             token_in: address!("4200000000000000000000000000000000000006"),
             token_out: address!("833589fcd6edb6e08f4c7c32d4f71b54bda02913"),
-            protocol: PoolType::AlienBase,
+            protocol: PoolType::AlienBaseV2,
             fee: 0,
         };
         let amount_in = U256::from(1e16);
-        let offchain_amount_out = offchain_quote(&swap_step, amount_in).await;
-        let onchain_amount_out = onchain_quote(&swap_step, PoolType::AlienBase, amount_in).await;
+        let offchain_amount_out = offchain_quote(&swap_step, PoolType::AlienBaseV2, amount_in).await;
+        let onchain_amount_out = onchain_quote(&swap_step, PoolType::AlienBaseV2, amount_in).await;
+        assert_eq!(offchain_amount_out, onchain_amount_out);
+    }
+
+    // ALIENBASEV3
+    #[tokio::test]
+    pub async fn test_alienbasev3_out() {
+        let swap_step = SwapStep {
+            pool_address: address!("74cb6260be6f31965c239df6d6ef2ac2b5d4f020"),
+            token_in: address!("4200000000000000000000000000000000000006"),
+            token_out: address!("833589fcd6edb6e08f4c7c32d4f71b54bda02913"),
+            protocol: PoolType::AlienBaseV3,
+            fee: 0,
+        };
+        let amount_in = U256::from(1e16);
+        let offchain_amount_out = offchain_quote(&swap_step, PoolType::AlienBaseV3, amount_in).await;
+        let onchain_amount_out = onchain_quote(&swap_step, PoolType::AlienBaseV3, amount_in).await;
         assert_eq!(offchain_amount_out, onchain_amount_out);
     }
 
@@ -293,7 +317,7 @@ mod offchain_calculations {
 
 
 
-// use the onchain qouters to get the amount out for a single swap
+// use the onchain quoters to get the amount out for a single swap
 pub async fn onchain_quote(
     swap_step: &SwapStep,
     pool_type: PoolType,
@@ -301,17 +325,14 @@ pub async fn onchain_quote(
 ) -> U256 {
     dotenv::dotenv().ok();
 
-
     if pool_type.is_v2() {
         onchain_v2(swap_step, pool_type, amount_in).await
     } else if pool_type.is_v3() {
         onchain_v3(swap_step, pool_type, amount_in).await
     } else if pool_type.is_balancer() {
         onchain_balancer(swap_step, amount_in).await
-    } else if pool_type.is_curve_two() {
-        todo!()
-    } else if pool_type.is_curve_tri() {
-        todo!()
+    } else if pool_type.is_curve_two() || pool_type.is_curve_tri() {
+        onchain_curve(swap_step, pool_type, amount_in).await
     } else if pool_type.is_maverick() {
         todo!()
     } else {
@@ -320,38 +341,41 @@ pub async fn onchain_quote(
     
 }
 
-
+// uses the offchain calculator to get the amount out for a single swap
 pub async fn offchain_quote(
     swap_step: &SwapStep,
+    pool_type: PoolType,
     amount_in: U256,
 ) -> U256 {
-    todo!()
+    let calculator = Calculator::new().await;
+    let (pool_manager , _) = pool_manager_with_type(pool_type).await;
+    calculator.get_amount_out(
+        amount_in,
+        &pool_manager,
+        swap_step
+    )
 }
 
 
+// ONCHAIN QUOTERSK
+// --------------------------
+
 // Get the onchain quote for a v2 pool
 pub async fn onchain_v2(swap_step: &SwapStep, pool_type: PoolType, amount_in: U256) -> U256 {
-    sol!(
-        #[sol(rpc)]
-        contract V2Router {
-            function getAmountsOut(uint amountIn, address[] calldata path) external view returns (uint[] memory amounts);
-        }
-    );
     let provider = ProviderBuilder::new().on_http(std::env::var("FULL").unwrap().parse().unwrap());
-
 
     let address = match pool_type {
         PoolType::UniswapV2 => address!("4752ba5DBc23f44D87826276BF6Fd6b1C372aD24"),
         PoolType::SushiSwapV2 => address!("6BDED42c6DA8FBf0d2bA55B2fa120C5e0c8D7891"),
         PoolType::PancakeSwapV2 => address!("8cFe327CEc66d1C090Dd72bd0FF11d690C33a2Eb"),
         PoolType::BaseSwapV2 => address!("327Df1E6de05895d2ab08513aaDD9313Fe505d86"),
-        PoolType::SwapBasedV2 => address!("327Df1E6de05895d2ab08513aaDD9313Fe505d86"), // this address is wrong
-        PoolType::DackieSwapV2 => address!("327Df1E6de05895d2ab08513aaDD9313Fe505d86"), // this address is wrong
+        PoolType::SwapBasedV2 => address!("aaa3b1F1bd7BCc97fD1917c18ADE665C5D31F066"), 
+        PoolType::DackieSwapV2 => address!("Ca4EAa32E7081b0c4Ba47e2bDF9B7163907Fe56f"), 
+        PoolType::AlienBaseV2 => address!("8c1A3cF8f83074169FE5D7aD50B978e1cD6b37c7"),
         _ => panic!("will not reach here"),
     };
 
     let contract = V2Router::new(address, provider);
-
     let V2Router::getAmountsOutReturn { amounts } = contract
         .getAmountsOut(amount_in, vec![swap_step.token_in, swap_step.token_out])
         .call()
@@ -360,42 +384,25 @@ pub async fn onchain_v2(swap_step: &SwapStep, pool_type: PoolType, amount_in: U2
     return *amounts.last().unwrap();
 }
 
-
 // Get the onchain quote for a v3 pool
 pub async fn onchain_v3(swap_step: &SwapStep, pool_type: PoolType, amount_in: U256) -> U256 {
-    sol!(
-        #[sol(rpc)]
-        contract V3Quoter {
-            struct QuoteExactInputSingleParams {
-                address tokenIn;
-                address tokenOut;
-                uint256 amountIn;
-                uint24 fee;
-                uint160 sqrtPriceLimitX96;
-            }
-            function quoteExactInputSingle(QuoteExactInputSingleParams memory params)
-            external
-            returns (
-                uint256 amountOut,
-                uint160 sqrtPriceX96After,
-                uint32 initializedTicksCrossed,
-                uint256 gasEstimate
-            );
-
+    match pool_type {
+        PoolType::UniswapV3 | PoolType::SushiSwapV3 | PoolType::PancakeSwapV3 => {
+            onchain_v3_quoter(pool_type, swap_step, amount_in).await
         }
-    );
+        _ => onchain_v3_router(pool_type, swap_step, amount_in)
+    }
+}
 
+
+// V3 amount out from the quoter
+pub async fn onchain_v3_quoter(pool_type: PoolType, swap_step: &SwapStep, amount_in: U256 ) -> U256 {
     let provider = ProviderBuilder::new().on_http(std::env::var("FULL").unwrap().parse().unwrap());
 
     let address = match pool_type {
         PoolType::UniswapV3 => address!("3d4e44Eb1374240CE5F1B871ab261CD16335B76a"),
         PoolType::PancakeSwapV3 => address!("B048Bbc1Ee6b733FFfCFb9e9CeF7375518e25997"),
         PoolType::SushiSwapV3 => address!("b1E835Dc2785b52265711e17fCCb0fd018226a6e"),
-        PoolType::Slipstream => address!("254cF9E1E6e233aa1AC962CB9B05b2cfeAaE15b0"),
-        PoolType::AlienBase => address!("8c1A3cF8f83074169FE5D7aD50B978e1cD6b37c7"),
-        PoolType::BaseSwapV3 => address!("327Df1E6de05895d2ab08513aaDD9313Fe505d86"), // this address is wrong
-        PoolType::SwapBasedV3 => address!("327Df1E6de05895d2ab08513aaDD9313Fe505d86"), // this address is wrong
-        PoolType::DackieSwapV3 => address!("327Df1E6de05895d2ab08513aaDD9313Fe505d86"), // this address is wrong
         _ => panic!("Invalid pool type"),
     };
 
@@ -418,44 +425,120 @@ pub async fn onchain_v3(swap_step: &SwapStep, pool_type: PoolType, amount_in: U2
 }
 
 
+// V3 amount out from the router
+pub fn onchain_v3_router(pool_type: PoolType, swap: &SwapStep, amount_in: U256) -> U256 {
+    // setup the db
+    let data_path = "/home/docker/volumes/eth-docker_reth-el-data/_data";
+    let mut db = CacheDB::new(RethDB::new(data_path, None).unwrap());
+
+    let weth = address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2");
+    let account = address!("18B06aaF27d44B756FCF16Ca20C1f183EB49111f");
+    let router = address!("68b3465833fb72A70ecDF485E0e4C7bD8665Fc45");
+
+    // give our test account some fake WETH and ETH
+    let weth_balance_slot = U256::from(3);
+    let one_ether = U256::from(1_000_000_000_000_000_000u128);
+    let hashed_acc_balance_slot = keccak256((account, weth_balance_slot).abi_encode());
+    db
+        .insert_account_storage(weth, hashed_acc_balance_slot.into(), one_ether)
+        .unwrap();
+
+    let mut evm = Evm::builder().with_db(db).build();
+
+    let calldata = ERC20::approveCall {
+        spender: router,
+        amount: U256::from(1e18)
+    }.abi_encode();
+
+    evm.tx_mut().caller = account;
+    evm.tx_mut().transact_to = TransactTo::Call(weth);
+    evm.tx_mut().data = calldata.into();
+    evm.tx_mut().value = U256::ZERO;
+    let ref_tx = evm.transact_commit().unwrap();
+
+    let router = match pool_type {
+        PoolType::DackieSwapV3 => address!("195FBc5B8Fbd5Ac739C1BA57D4Ef6D5a704F34f7"),
+        PoolType::SwapBasedV3 => address!("756C6BbDd915202adac7beBB1c6C89aC0886503f"),
+        PoolType::AlienBaseV3 => address!("B20C411FC84FBB27e78608C24d0056D974ea9411"),
+        PoolType::BaseSwapV3 => address!("1B8eea9315bE495187D873DA7773a874545D9D48"),
+        _ => panic!("will not reach here")
+    };
+    
+    let calldata = match pool_type {
+        PoolType::BaseSwapV3 | PoolType::SwapBasedV3 => {
+            let params = RouterDeadline::ExactInputSingleParams {
+                tokenIn: swap.token_in,
+                tokenOut: swap.token_out,
+                fee: swap.fee,
+                recipient: account,
+                amountIn: amount_in,
+                deadline: U256::MAX,
+                amountOutMinimum: U256::ZERO,
+                sqrtPriceLimitX96: U256::ZERO,
+            };
+            RouterDeadline::exactInputSingleCall { params }.abi_encode()
+        }
+        PoolType::AlienBaseV3 | PoolType::DackieSwapV3 => {
+            let params = Router::ExactInputSingleParams {
+                tokenIn: swap.token_in,
+                tokenOut: swap.token_out,
+                fee: swap.fee,
+                recipient: account,
+                amountIn: amount_in,
+                amountOutMinimum: U256::ZERO,
+                sqrtPriceLimitX96: U256::ZERO,
+            };
+            Router::exactInputSingleCall { params }.abi_encode()
+        }
+        _ => panic!("Will not reach here")
+    };
+
+    evm.tx_mut().transact_to = TransactTo::Call(weth);
+    evm.tx_mut().data = calldata.into();
+    let ref_tx = evm.transact().unwrap();
+    println!("{:?}", ref_tx);
+    U256::ZERO
+}
+
+
+pub async fn onchain_slipstream(swap_step: &SwapStep, pool_type: PoolType, amount_in: U256) -> U256 {
+    //254cF9E1E6e233aa1AC962CB9B05b2cfeAaE15b0
+    todo!()
+}
+
+// get amount out for curve pools
+pub async fn onchain_curve(swap_step: &SwapStep, pool_type: PoolType, amount_in: U256) -> U256 {
+    let data_path = "/home/docker/volumes/eth-docker_reth-el-data/_data";
+    let mut db = CacheDB::new(RethDB::new(data_path, None).unwrap());
+
+    let calldata = Curve::get_dyCall {
+        i: index_in,
+        j: index_out,
+        dx: amount_in
+    }.abi_encode();
+
+
+    let mut evm = Evm::builder()
+        .with_db(db)
+        .modify_tx_env(|tx| {
+            tx.caller = address!("0000000000000000000000000000000000000001");
+            tx.transact_to = TransactTo::Call(swap_step.pool_address);
+            tx.data = calldata.into();
+            tx.value = U256::ZERO;
+        }).build();
+
+    let ref_tx = evm.transact().unwrap();
+    let result = ref_tx.result;
+    U256::ZERO
+}
+
+pub async fn onchain_maverick(swap_step: &SwapStep, pool_type: PoolType, amount_in: U256) -> U256 {
+    todo!()
+}
+
 // Get the onchain quote for a balancer pool
 pub async fn onchain_balancer(swap_step: &SwapStep, amount_in: U256) -> U256 {
-    sol!(
-        #[sol(rpc)]
-        contract BalancerV2Vault {
-            enum SwapKind { GIVEN_IN, GIVEN_OUT }
-
-            struct BatchSwapStep {
-                bytes32 poolId;
-                uint256 assetInIndex;
-                uint256 assetOutIndex;
-                uint256 amount;
-                bytes userData;
-            }
-
-            struct FundManagement {
-                address sender;
-                bool fromInternalBalance;
-                address payable recipient;
-                bool toInternalBalance;
-            }
-
-            function queryBatchSwap(
-                SwapKind kind,
-                BatchSwapStep[] memory swaps,
-                address[] memory assets,
-                FundManagement memory funds
-            ) external returns (int256[] memory);
-        }
-    );
-
-    sol!(
-        #[sol(rpc)]
-        contract BalancerPool {
-            function getPoolId() external view returns (bytes32);
-        }
-    );
-
+    let provider = ProviderBuilder::new().on_http(std::env::var("FULL").unwrap().parse().unwrap());
     // get the pool id
     let provider = ProviderBuilder::new().on_http(std::env::var("FULL").unwrap().parse().unwrap());
     let contract = BalancerPool::new(swap_step.pool_address, provider);
@@ -498,31 +581,3 @@ pub async fn onchain_balancer(swap_step: &SwapStep, amount_in: U256) -> U256 {
     // For now, we'll return a placeholder value
     U256::from(0)
 }
-
-
-// Curve two pool
-pub async fn onchain_curve_two(swap_step: &SwapStep, pool_type: PoolType, amount_in: U256) -> U256 {
-    sol!(
-        #[sol(rpc)]
-        contract CurveTwoCryptoPool {
-            function get_dy(int128 i, int128 j, uint256 dx) external view returns (uint256);
-        }
-    );
-
-    let provider = ProviderBuilder::new().on_http(std::env::var("FULL").unwrap().parse().unwrap());
-    j
-
-
-
-    todo!()
-}
-
-
-pub async fn onchain_curve_tri(swap_step: &SwapStep, pool_type: PoolType, amount_in: U256) -> U256 {
-    todo!()
-}
-
-pub async fn onchain_maverick(swap_step: &SwapStep, pool_type: PoolType, amount_in: U256) -> U256 {
-    todo!()
-}
-
