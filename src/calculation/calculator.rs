@@ -70,7 +70,8 @@ impl Calculator {
 
         let zero_to_one = pool_manager.zero_to_one(token_in, &pool_address);
         match protocol {
-            PoolType::UniswapV2 | PoolType::SushiSwapV2 | PoolType::PancakeSwapV2| PoolType::BaseSwapV2 => {
+            PoolType::UniswapV2 | PoolType::SushiSwapV2 | PoolType::PancakeSwapV2| PoolType::BaseSwapV2 |
+            PoolType::AlienBaseV2 | PoolType::SwapBasedV2 | PoolType::DackieSwapV2 => {
                 let v2_pool = pool_manager.get_v2pool(&pool_address);
                 uniswap_v2_out(
                     amount_in,
@@ -80,7 +81,8 @@ impl Calculator {
                     protocol,
                 )
             }
-            PoolType::UniswapV3 | PoolType::SushiSwapV3 | PoolType::BaseSwapV3 | PoolType::Slipstream | PoolType::PancakeSwapV3 => {
+            PoolType::UniswapV3 | PoolType::SushiSwapV3 | PoolType::BaseSwapV3 | PoolType::Slipstream | PoolType::PancakeSwapV3 |
+            PoolType::AlienBaseV3 | PoolType::SwapBasedV3 | PoolType::DackieSwapV3 => {
                 let mut v3_pool = pool_manager.get_v3pool(&pool_address);
                 uniswap_v3_out(amount_in, &mut v3_pool, zero_to_one).unwrap()
             }
@@ -114,12 +116,11 @@ impl Calculator {
                 self.curve_out(index_in, index_out, amount_in, pool_address)
             }
             PoolType::CurveTriCrypto => {
-                todo!()
+                let curve_pool = pool_manager.get_curve_tri_pool(&pool_address);
+                let index_in= U256::from(curve_pool.get_token_index(&token_in).unwrap());
+                let index_out = U256::from(curve_pool.get_token_index(&token_out).unwrap());
+                self.curve_out(index_in, index_out, amount_in, pool_address)
             }
-            PoolType::AlienBase => {
-                todo!()
-            }
-            _=> todo!()
         }
     }
 }

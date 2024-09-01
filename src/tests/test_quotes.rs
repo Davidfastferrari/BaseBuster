@@ -3,12 +3,15 @@ use alloy::network::EthereumWallet;
 use alloy::node_bindings::Anvil;
 use alloy::node_bindings::AnvilInstance;
 use alloy::sol_types::{SolValue, SolCall};
+use crate::db::RethDB;
 use alloy::primitives::U256;
 use alloy::primitives::{address, Address};
 use alloy::providers::ext::DebugApi;
 use alloy::providers::{Provider, ProviderBuilder, RootProvider, WsConnect};
 use alloy::rpc::types::trace::geth::GethDebugBuiltInTracerType::CallTracer;
 use revm::db::CacheDB;
+use alloy::eips::BlockId;
+use alloy::eips::BlockNumberOrTag;
 use alloy::primitives::U160;
 use revm::primitives::keccak256;
 use alloy::rpc::types::trace::geth::GethDebugTracingOptions;
@@ -411,9 +414,9 @@ pub async fn onchain_v3_quoter(pool_type: PoolType, swap_step: &SwapStep, amount
     let params = V3Quoter::QuoteExactInputSingleParams {
         tokenIn: swap_step.token_in,
         tokenOut: swap_step.token_out,
-        fee: swap_step.fee,
+        fee: swap_step.fee.try_into().unwrap(),
         amountIn: amount_in,
-        sqrtPriceLimitX96: U256::ZERO,
+        sqrtPriceLimitX96: U160::ZERO,
     };
 
     let V3Quoter::quoteExactInputSingleReturn { amountOut , ..} = contract
@@ -469,12 +472,12 @@ pub fn onchain_v3_router(pool_type: PoolType, swap: &SwapStep, amount_in: U256) 
             let params = RouterDeadline::ExactInputSingleParams {
                 tokenIn: swap.token_in,
                 tokenOut: swap.token_out,
-                fee: swap.fee,
+                fee: swap.fee.try_into().unwrap(),
                 recipient: account,
                 amountIn: amount_in,
                 deadline: U256::MAX,
                 amountOutMinimum: U256::ZERO,
-                sqrtPriceLimitX96: U256::ZERO,
+                sqrtPriceLimitX96: U160::ZERO,
             };
             RouterDeadline::exactInputSingleCall { params }.abi_encode()
         }
@@ -482,13 +485,16 @@ pub fn onchain_v3_router(pool_type: PoolType, swap: &SwapStep, amount_in: U256) 
             let params = Router::ExactInputSingleParams {
                 tokenIn: swap.token_in,
                 tokenOut: swap.token_out,
-                fee: swap.fee,
+                fee: swap.fee.try_into().unwrap(),
                 recipient: account,
                 amountIn: amount_in,
                 amountOutMinimum: U256::ZERO,
-                sqrtPriceLimitX96: U256::ZERO,
+                sqrtPriceLimitX96: U160::ZERO,
             };
             Router::exactInputSingleCall { params }.abi_encode()
+        }
+        PoolType::Slipstream => {
+            todo!()
         }
         _ => panic!("Will not reach here")
     };
@@ -510,6 +516,10 @@ pub async fn onchain_slipstream(swap_step: &SwapStep, pool_type: PoolType, amoun
 pub async fn onchain_curve(swap_step: &SwapStep, pool_type: PoolType, amount_in: U256) -> U256 {
     let data_path = "/home/docker/volumes/eth-docker_reth-el-data/_data";
     let mut db = CacheDB::new(RethDB::new(data_path, None).unwrap());
+    let index_in = U256::from(0);
+    let index_out = U256::from(1);
+    let index_in = index_in.try_into().unwrap();
+    let index_out = index_out.try_into().unwrap();
 
     let calldata = Curve::get_dyCall {
         i: index_in,
@@ -538,10 +548,9 @@ pub async fn onchain_maverick(swap_step: &SwapStep, pool_type: PoolType, amount_
 
 // Get the onchain quote for a balancer pool
 pub async fn onchain_balancer(swap_step: &SwapStep, amount_in: U256) -> U256 {
-    let provider = ProviderBuilder::new().on_http(std::env::var("FULL").unwrap().parse().unwrap());
     // get the pool id
-    let provider = ProviderBuilder::new().on_http(std::env::var("FULL").unwrap().parse().unwrap());
-    let contract = BalancerPool::new(swap_step.pool_address, provider);
+    let provider = Arc::new(ProviderBuilder::new().on_http(std::env::var("FULL").unwrap().parse().unwrap()));
+    let contract = BalancerPool::new(swap_step.pool_address, provider.clone());
     let BalancerPool::getPoolIdReturn { _0: pool_id } = contract.getPoolId().call().await.unwrap();
 
     // make the vault
@@ -573,7 +582,7 @@ pub async fn onchain_balancer(swap_step: &SwapStep, amount_in: U256) -> U256 {
     let provider =
         ProviderBuilder::new().on_http(std::env::var("FULL").unwrap().parse().unwrap());
     
-    let trace = provider.debug_trace_call(transaction, alloy::eips::BlockNumberOrTag::Latest, get_tracing_options().clone()).await.unwrap();
+    let trace = provider.debug_trace_call(transaction, BlockId::Number(BlockNumberOrTag::Latest), get_tracing_options().clone()).await.unwrap();
     println!("Trace: {:#?}", trace);
 
     // Process the trace to extract the amount out

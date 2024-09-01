@@ -109,7 +109,7 @@ pub async fn swappath_to_flashquote(steps: Vec<SwapStep>) -> Vec<FlashQuoter::Sw
         tokenIn: step.token_in,
         tokenOut: step.token_out,
         protocol: step.as_u8(),
-        fee: step.fee,
+        fee: step.fee.try_into().unwrap(),
     }).collect()
 }
 

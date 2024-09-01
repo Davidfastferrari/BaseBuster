@@ -15,7 +15,7 @@ mod stream;
 mod tx_sender;
 mod util;
 mod tests;
-//mod db;
+mod db;
 
 // define our flash swap contract
 sol!(

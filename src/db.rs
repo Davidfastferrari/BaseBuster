@@ -1,4 +1,3 @@
-use reth_primitives::StorageKey;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -190,7 +189,7 @@ impl DatabaseRef for RethDB {
     }
 
     fn storage_ref(&self, address: Address, index: U256) -> Result<U256, Self::Error> {
-        let value = self.request(|provider| provider.storage(address, StorageKey::from(index)))?;
+        let value = self.request(|provider| provider.storage(address, B256::from(index)))?;
 
         Ok(value.unwrap_or_default())
     }

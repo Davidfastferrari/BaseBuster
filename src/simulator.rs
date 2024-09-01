@@ -10,6 +10,8 @@ use alloy::rpc::types::trace::geth::{
 };
 use log::{debug, info, warn};
 use serde_json::json;
+use alloy::eips::BlockId;
+use alloy::eips::BlockNumberOrTag;
 use tokio::sync::broadcast::{Receiver, Sender};
 use alloy::node_bindings::Anvil;
 
@@ -64,7 +66,7 @@ pub async fn simulate_paths(
                 tokenIn: step.token_in,
                 tokenOut: step.token_out,
                 protocol: step.as_u8(),
-                fee: step.fee,
+                fee: step.fee.try_into().unwrap(),
             })
             .collect();
 
@@ -73,7 +75,7 @@ pub async fn simulate_paths(
             .executeArbitrage(converted_path.clone(), U256::from(AMOUNT))
             .into_transaction_request();
         let output = provider
-            .debug_trace_call(tx, alloy::eips::BlockNumberOrTag::Pending, options.clone())
+            .debug_trace_call(tx, BlockId::Number(BlockNumberOrTag::Latest), options.clone())
             .await;
 
         // process the output

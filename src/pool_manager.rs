@@ -3,7 +3,7 @@ use alloy::providers::{Provider, ProviderBuilder, WsConnect};
 use alloy::rpc::types::Filter;
 use alloy::rpc::types::Log;
 use alloy::sol;
-use alloy_sol_types::SolEvent;
+use alloy::sol_types::SolEvent;
 use futures::stream::StreamExt;
 use log::{debug, info};
 use pool_sync::{
@@ -219,8 +219,8 @@ impl PoolManager {
         let sub = ws.subscribe_blocks().await.unwrap();
         let mut stream = sub.into_stream();
         while let Some(block) = stream.next().await {
-            println!("New block: {:?}", block.header.number.unwrap());
-            let block_number = block.header.number.unwrap();
+            println!("New block: {:?}", block.header.number);
+            let block_number = block.header.number;
 
             // setup the log filters
             let filter = Filter::new()
@@ -355,8 +355,8 @@ fn process_burn(pool: &mut UniswapV3Pool, log: Log) {
     let burn_event = DataEvent::Burn::decode_log(log.as_ref(), true).unwrap();
     modify_position(
         pool,
-        burn_event.tickLower,
-        burn_event.tickUpper,
+        burn_event.tickLower.as_i32(),
+        burn_event.tickUpper.as_i32(),
         -(burn_event.amount as i128),
     );
 }
@@ -365,8 +365,8 @@ fn process_mint(pool: &mut UniswapV3Pool, log: Log) {
     let mint_event = DataEvent::Mint::decode_log(log.as_ref(), true).unwrap();
     modify_position(
         pool,
-        mint_event.tickLower,
-        mint_event.tickUpper,
+        mint_event.tickLower.as_i32(),
+        mint_event.tickUpper.as_i32(),
         mint_event.amount as i128,
     );
 }
@@ -374,13 +374,13 @@ fn process_mint(pool: &mut UniswapV3Pool, log: Log) {
 fn process_swap(pool: &mut UniswapV3Pool, log: Log, pool_type: PoolType) {
     if pool_type == PoolType::PancakeSwapV3{
         let swap_event = PancakeSwap::Swap::decode_log(log.as_ref(), true).unwrap();
-        pool.tick = swap_event.tick;
-        pool.sqrt_price = swap_event.sqrtPriceX96;
+        pool.tick = swap_event.tick.as_i32();
+        pool.sqrt_price = U256::from(swap_event.sqrtPriceX96);
         pool.liquidity = swap_event.liquidity;
     } else {
         let swap_event = DataEvent::Swap::decode_log(log.as_ref(), true).unwrap();
-        pool.tick = swap_event.tick;
-        pool.sqrt_price = swap_event.sqrtPriceX96;
+        pool.tick = swap_event.tick.as_i32();
+        pool.sqrt_price = U256::from(swap_event.sqrtPriceX96);
         pool.liquidity = swap_event.liquidity;
     }
 }

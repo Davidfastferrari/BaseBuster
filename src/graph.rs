@@ -55,12 +55,13 @@ impl SwapStep {
             PoolType::BaseSwapV3 => 7,
             PoolType::Slipstream => 8,
             PoolType::Aerodrome => 9,
-            PoolType::AlienBase => 10,
-            PoolType::MaverickV1 => 11,
-            PoolType::MaverickV2 => 12,
-            PoolType::BalancerV2 => 13,
-            PoolType::CurveTwoCrypto => 14,
-            PoolType::CurveTriCrypto => 15,
+            PoolType::AlienBaseV2 => 10,
+            PoolType::AlienBaseV3 => 11,
+            PoolType::MaverickV1 => 12,
+            PoolType::MaverickV2 => 13,
+            PoolType::BalancerV2 => 14,
+            PoolType::CurveTwoCrypto => 15,
+            PoolType::CurveTriCrypto => 16,
             _ => 16
         }
     }
