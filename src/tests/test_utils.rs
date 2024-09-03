@@ -2,6 +2,9 @@ use alloy::network::Ethereum;
 use alloy::network::EthereumWallet;
 use alloy::node_bindings::Anvil;
 use alloy::node_bindings::AnvilInstance;
+use alloy::pubsub::Subscription;
+use alloy::pubsub::SubscriptionStream;
+use alloy::rpc::types::Block;
 use alloy::primitives::U256;
 use alloy::primitives::{address, Address};
 use alloy::providers::ext::DebugApi;
@@ -16,6 +19,9 @@ use alloy::signers::local::PrivateKeySigner;
 use alloy::sol;
 use alloy::transports::http::{Client, Http};
 use alloy::primitives::FixedBytes;
+use futures::stream::Take;
+use futures::Stream;
+use futures::StreamExt;
 use gweiyser::addresses::amms;
 use gweiyser::protocols::uniswap::v2::UniswapV2Pool;
 use gweiyser::protocols::uniswap::v3::UniswapV3Pool;
@@ -76,6 +82,7 @@ pub async fn pool_manager_with_type(pool_type: PoolType) -> (Arc<PoolManager>, b
         .chain(pool_sync::Chain::Ethereum)
         .build().unwrap();
     let (pools , last_synced_block) = pool_sync.sync_pools().await.unwrap();
+    println!("Pools: {:#?}", pools.len());
     construct_pool_manager(pools, last_synced_block).await
 }
 

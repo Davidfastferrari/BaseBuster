@@ -3,7 +3,7 @@ use alloy::primitives::{Address, address};
 use alloy::sol;
 use alloy::primitives::U256;
 use revm::primitives::{ExecutionResult, TransactTo};
-use alloy::sol_types::SolCall;
+use alloy::sol_types::{SolCall, SolValue, SolStruct, SolInterface};
 use revm::Evm;
 
 sol!(
@@ -45,8 +45,11 @@ impl Calculator {
                 output: value,
                 ..
             } => {
-
-                U256::ZERO
+                let a = match <U256>::abi_decode(&value.data(), false) {
+                    Ok(a) => a,
+                    Err(_) => U256::ZERO
+                };
+                a
             }
             _=> U256::ZERO
         }

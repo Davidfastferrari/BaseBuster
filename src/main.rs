@@ -40,8 +40,9 @@ async fn main() -> Result<()> {
     info!("Loading and syncing pools...");
     let pool_sync = PoolSync::builder()
         .add_pools(&[
-            PoolType::SushiSwapV2,
-            PoolType::CurveTriCrypto
+            PoolType::SushiSwapV3,
+            PoolType::PancakeSwapV2,
+            PoolType::PancakeSwapV3,
         ])
         .chain(Chain::Ethereum)
         .build()?;

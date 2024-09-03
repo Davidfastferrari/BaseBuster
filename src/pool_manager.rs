@@ -46,12 +46,12 @@ sol!(
 sol! {
     #[derive(Debug)]
     contract BalancerV2Event {
-        event PoolBalanceChanged(
+        event Swap(
             bytes32 indexed poolId,
-            address indexed liquidityProvider,
-            address[] tokens,
-            int256[] deltas,
-            uint256[] protocolFeeAmounts
+            address indexed tokenIn,
+            address indexed tokenOut,
+            uint256 amountIn,
+            uint256 amountOut
         );
     }
 }
@@ -106,6 +106,7 @@ pub struct PoolManager {
     address_to_v3pool: FxHashMap<Address, RwLock<UniswapV3Pool>>,
     /// Mapping from address to Balancer Pool
     address_to_balancerpool: FxHashMap<Address, RwLock<BalancerV2Pool>>,
+    id_to_address: FxHashMap<String, Address>,
     /// Mapping from address to CurveTwoCryptoPool
     address_to_curvetwopool: FxHashMap<Address, CurveTwoCryptoPool>,
     /// Mapping from address to CurveTriCryptoPool
@@ -141,6 +142,7 @@ impl PoolManager {
         let mut address_to_balancerpool = FxHashMap::default();
         let mut address_to_curvetwopool = FxHashMap::default();
         let mut address_to_curvetripool = FxHashMap::default();
+        let mut id_to_address = FxHashMap::default();
         for pool in filtered_pools {
             if pool.is_v2() {
                 let v2_pool = pool.get_v2().unwrap().clone();
@@ -150,6 +152,7 @@ impl PoolManager {
                 address_to_v3pool.insert(pool.address(), RwLock::new(v3_pool));
             } else if pool.is_balancer() {
                 let balancer_pool = pool.get_balancer().unwrap().clone();
+                id_to_address.insert(balancer_pool.pool_id.to_string(), pool.address());
                 address_to_balancerpool.insert(pool.address(), RwLock::new(balancer_pool));
             } else if pool.is_curve_two() {
                 let curve_pool = pool.get_curve_two().unwrap().clone();
@@ -166,6 +169,7 @@ impl PoolManager {
             address_to_v2pool,
             address_to_v3pool,
             address_to_balancerpool,
+            id_to_address,
             address_to_curvetwopool,
             address_to_curvetripool
         });
@@ -199,7 +203,7 @@ impl PoolManager {
         while last_synced_block < latest_block {
             let filter = Filter::new()
                 .events([
-                    BalancerV2Event::PoolBalanceChanged::SIGNATURE,
+                    BalancerV2Event::Swap::SIGNATURE,
                     PancakeSwap::Swap::SIGNATURE,
                     AerodromeEvent::Sync::SIGNATURE,
                     DataEvent::Sync::SIGNATURE,
@@ -225,7 +229,7 @@ impl PoolManager {
             // setup the log filters
             let filter = Filter::new()
                 .events([
-                    BalancerV2Event::PoolBalanceChanged::SIGNATURE,
+                    BalancerV2Event::Swap::SIGNATURE,
                     PancakeSwap::Swap::SIGNATURE,
                     AerodromeEvent::Sync::SIGNATURE,
                     DataEvent::Sync::SIGNATURE,
@@ -250,27 +254,31 @@ impl PoolManager {
     fn process_logs(&self, logs: Vec<Log>) -> Vec<Address> {
         let mut updated_pools = HashSet::new();
         for log in logs {
-            let address = log.address();
-            // we know if it s v3 pool since we are processing mint/burn/swap logs
-            if self.addresses.contains(&address) {
-                updated_pools.insert(address);
-                let pool = self.get_pool(&address);
-                let pool_type = pool.pool_type();
-                if pool.is_v3() {
-                    if let Some(pool_lock) = self.address_to_v3pool.get(&address) {
-                        let mut pool = pool_lock.write().unwrap();
-                        process_tick_data(&mut pool, log, pool_type);
-                    }
-                } else if pool.is_v2() {
-                    if let Some(pool_lock) = self.address_to_v2pool.get(&pool.address()) {
-                        let mut pool = pool_lock.write().unwrap();
-                        process_sync_data(&mut pool, log, pool_type);
-                    }
-                } else if pool.is_balancer() {
-                    if let Some(pool_lock) = self.address_to_balancerpool.get(&pool.address()) {
-                        let mut pool = pool_lock.write().unwrap();
-                        process_balance_data(&mut pool, log);
-                    }
+            if log.topic0().unwrap() == &BalancerV2Event::Swap::SIGNATURE_HASH {
+                let address = self.id_to_address.get(&log.topics()[1].to_string()).unwrap();
+                if let Some(pool_lock) = self.address_to_balancerpool.get(address) {
+                    let mut pool = pool_lock.write().unwrap();
+                    updated_pools.insert(pool.address);
+                    process_balance_data(&mut pool, log);
+                }
+            } else {
+                let address = log.address();
+                // we know if it s v3 pool since we are processing mint/burn/swap logs
+                if self.addresses.contains(&address) {
+                    updated_pools.insert(address);
+                    let pool = self.get_pool(&address);
+                    let pool_type = pool.pool_type();
+                    if pool.is_v3() {
+                        if let Some(pool_lock) = self.address_to_v3pool.get(&address) {
+                            let mut pool = pool_lock.write().unwrap();
+                            process_tick_data(&mut pool, log, pool_type);
+                        }
+                    } else if pool.is_v2() {
+                        if let Some(pool_lock) = self.address_to_v2pool.get(&pool.address()) {
+                            let mut pool = pool_lock.write().unwrap();
+                            process_sync_data(&mut pool, log, pool_type);
+                        }
+                    } 
                 }
             }
         }
@@ -313,24 +321,16 @@ impl PoolManager {
     }
 }
 
+pub fn process_balance_data(pool: &mut BalancerV2Pool, log: Log) {
+    let event = BalancerV2Event::Swap::decode_log(log.as_ref(), true).unwrap();
 
-fn process_balance_data(pool: &mut BalancerV2Pool, log: Log) {
-    let event = BalancerV2Event::PoolBalanceChanged::decode_log(log.as_ref(), true).unwrap();
-    println!("got new balancer event");
-    
+    let log_token_in_idx = pool.get_token_index(&event.tokenIn).unwrap();
+    let log_token_out_idx = pool.get_token_index(&event.tokenOut).unwrap();
 
-    for (token, delta) in event.tokens.iter().zip(event.deltas.iter()) {
-        if let Some(index) = pool.get_token_index(token) {
-            // Update the balance for the token
-            let delta_abs = delta.abs().try_into().unwrap_or(U256::MAX);
-            if delta.is_negative() {
-                pool.balances[index] = pool.balances[index].saturating_sub(delta_abs);
-            } else {
-                pool.balances[index] = pool.balances[index].saturating_add(delta_abs);
-            }
-        }
-    }
+    pool.balances[log_token_in_idx] = pool.balances[log_token_in_idx].saturating_add(event.amountIn);
+    pool.balances[log_token_out_idx] = pool.balances[log_token_out_idx].saturating_sub(event.amountOut);
 }
+
 
 pub fn process_tick_data(pool: &mut UniswapV3Pool, log: Log, pool_type: PoolType) {
     let event_sig = log.topic0().unwrap();

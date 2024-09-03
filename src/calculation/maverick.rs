@@ -3,7 +3,7 @@ use alloy::primitives::{Address, address};
 use alloy::sol;
 use alloy::primitives::U256;
 use revm::primitives::{ExecutionResult, TransactTo};
-use alloy::sol_types::SolCall;
+use alloy::sol_types::{SolCall, SolValue};
 use revm::Evm;
 
 sol!(
@@ -20,7 +20,7 @@ sol!(
 );
 
 impl Calculator {
-    pub fn maverick_out(&self, amount_in: U256, pool: Address, zero_for_one: bool, tick_limit: i32) -> U256 {
+    pub fn maverick_v2_out(&self, amount_in: U256, pool: Address, zero_for_one: bool, tick_limit: i32) -> U256 {
         // the function calldata
         let calldata = MaverickOut::calculateSwapCall {
             pool,
@@ -52,8 +52,11 @@ impl Calculator {
                 output: value,
                 ..
             } => {
-
-                U256::ZERO
+                let out = match <(U256, U256, U256)>::abi_decode(&value.data(), false) {
+                    Ok(out) => out.1,
+                    Err(_) => U256::ZERO
+                };
+                out
             }
             _=> U256::ZERO
         }
