@@ -11,6 +11,7 @@ use crate::simulator::simulate_paths;
 use crate::stream::*;
 use crate::tx_sender::TransactionSender;
 use crate::util::get_working_pools;
+use crate::searcher::Searchoor;
 
 /// Start all of the workers
 pub async fn start_workers(
@@ -39,8 +40,9 @@ pub async fn start_workers(
 
     // construct the graph and generate the cycles
     info!("Constructing graph...");
-    let weth = address!("4200000000000000000000000000000000000006");
-    let graph = ArbGraph::new(pool_manager.clone(), filtered_pools.clone(), weth).await;
+    let arb_token = std::env::var("ARB_TOKEN").unwrap().parse().unwrap();
+    let cycles = ArbGraph::generate_cycles(filtered_pools.clone(), arb_token).await;
+    println!("found {}", cycles.len());
 
     // Stream in new blocks
     info!("Starting block stream...");
@@ -69,10 +71,12 @@ pub async fn start_workers(
 
     // finally.... start the searcher!!!!!
     info!("Starting arbitrage searcher...");
+    let searcher = Searchoor::new(cycles, pool_manager).await;
     tokio::spawn(async move {
-        graph
-            .search_paths(arb_sender, reserve_update_receiver)
-            .await;
+        searcher.search_paths(
+            arb_sender, 
+            reserve_update_receiver.resubscribe()
+        ).await
     });
 }
 

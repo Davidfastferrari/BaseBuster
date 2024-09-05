@@ -2,6 +2,7 @@ use super::balancer::balancer_v2_out;
 use super::uniswap::{uniswap_v2_out, uniswap_v3_out};
 use super::aerodrome::aerodrome_out;
 
+use crate::swap::*;
 use alloy::eips::BlockId;
 use alloy::network::Ethereum;
 use alloy::primitives::{address, Address, U128, U256};
@@ -23,7 +24,7 @@ use revm::{
     primitives::{AccountInfo, ExecutionResult, TransactTo},
 };
 use crate::db::RethDB;
-use crate::graph::SwapStep;
+use crate::swap::SwapStep;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::sync::RwLockReadGuard;
@@ -41,11 +42,12 @@ sol!(
 // Calculator used for calculatiing amoung out along steps
 pub struct Calculator {
     provider: Arc<RootProvider<Http<Client>>>,
+    pool_manager: Arc<PoolManager>,
     pub db: RwLock<CacheDB<RethDB>>,
 }
 
 impl Calculator {
-    pub async fn new() -> Self {
+    pub async fn new(pool_manager: Arc<PoolManager>) -> Self {
         let provider = Arc::new(
             ProviderBuilder::new().on_http(std::env::var("FULL").unwrap().parse().unwrap()),
         );
@@ -56,14 +58,27 @@ impl Calculator {
 
         Self {
             provider,
+            pool_manager,
             db: RwLock::new(db),
         }
     }
 
+    pub fn calculate_output(&self, path: &SwapPath) -> U256 {
+        let mut amount = U256::from(1e16);
+        for step in &path.steps {
+            amount = self.get_amount_out(amount, &step);
+            if amount == U256::ZERO {
+                return U256::ZERO
+            }
+        }
+        amount
+    }
+
+
+
     pub fn get_amount_out(
         &self,
         amount_in: U256,
-        pool_manager: &PoolManager,
         swap_step: &SwapStep
     ) -> U256 {
         let protocol = swap_step.protocol;
@@ -72,11 +87,11 @@ impl Calculator {
         let token_out = swap_step.token_out;
 
 
-        let zero_to_one = pool_manager.zero_to_one(token_in, &pool_address);
+        let zero_to_one = self.pool_manager.zero_to_one(token_in, &pool_address);
         match protocol {
             PoolType::UniswapV2 | PoolType::SushiSwapV2 | PoolType::PancakeSwapV2| PoolType::BaseSwapV2 |
             PoolType::AlienBaseV2 | PoolType::SwapBasedV2 | PoolType::DackieSwapV2 => {
-                let v2_pool = pool_manager.get_v2pool(&pool_address);
+                let v2_pool = self.pool_manager.get_v2pool(&pool_address);
                 uniswap_v2_out(
                     amount_in,
                     v2_pool.token0_reserves,
@@ -87,20 +102,20 @@ impl Calculator {
             }
             PoolType::UniswapV3 | PoolType::SushiSwapV3 | PoolType::BaseSwapV3 | PoolType::Slipstream | PoolType::PancakeSwapV3 |
             PoolType::AlienBaseV3 | PoolType::SwapBasedV3 | PoolType::DackieSwapV3 => {
-                let mut v3_pool = pool_manager.get_v3pool(&pool_address);
+                let mut v3_pool = self.pool_manager.get_v3pool(&pool_address);
                 uniswap_v3_out(amount_in, &mut v3_pool, zero_to_one).unwrap()
             }
             PoolType::Aerodrome => {
-                let v2_pool = pool_manager.get_v2pool(&pool_address);
+                let v2_pool = self.pool_manager.get_v2pool(&pool_address);
                 aerodrome_out(amount_in, token_in, &v2_pool)
             }
             PoolType::MaverickV1 | PoolType::MaverickV2 => {
-                let zero_for_one = pool_manager.zero_to_one(token_in, &pool_address);
+                let zero_for_one = self.pool_manager.zero_to_one(token_in, &pool_address);
                 let tick_lim = if zero_for_one { i32::MAX } else { i32::MIN };
                 self.maverick_v2_out(amount_in, pool_address, zero_for_one, tick_lim)
             }
             PoolType::BalancerV2 => {
-                let balancer_pool = pool_manager.get_balancer_pool(&pool_address);
+                let balancer_pool = self.pool_manager.get_balancer_pool(&pool_address);
                 
                 let token_in_index = balancer_pool.get_token_index(&token_in).unwrap();
                 let token_out_index = balancer_pool.get_token_index(&token_out).unwrap();
@@ -112,7 +127,7 @@ impl Calculator {
                 )
             }
             PoolType::CurveTwoCrypto => {
-                let curve_pool = pool_manager.get_curve_two_pool(&pool_address);
+                let curve_pool = self.pool_manager.get_curve_two_pool(&pool_address);
                 let (index_in, index_out) = if token_in == curve_pool.token0 {
                     (U256::ZERO, U256::from(1))
                 } else {
@@ -121,7 +136,7 @@ impl Calculator {
                 self.curve_out(index_in, index_out, amount_in, pool_address)
             }
             PoolType::CurveTriCrypto => {
-                let curve_pool = pool_manager.get_curve_tri_pool(&pool_address);
+                let curve_pool = self.pool_manager.get_curve_tri_pool(&pool_address);
                 let index_in= U256::from(curve_pool.get_token_index(&token_in).unwrap());
                 let index_out = U256::from(curve_pool.get_token_index(&token_out).unwrap());
                 self.curve_out(index_in, index_out, amount_in, pool_address)

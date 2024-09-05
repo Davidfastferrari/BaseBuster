@@ -1,6 +1,6 @@
 
 use alloy::hex;
-use alloy::providers::fillers::{FillProvider, JoinFill, WalletFiller};
+use alloy::providers::fillers::{FillProvider, JoinFill, NonceFiller, WalletFiller};
 use alloy::network::EthereumWallet;
 use alloy::primitives::U256;
 use zerocopy::AsBytes;
@@ -23,7 +23,7 @@ use alloy::network::Ethereum;
 use crate::{market, FlashSwap, AMOUNT};
 use crate::market::Market;
 
-type WalletProvider = FillProvider<JoinFill<Identity, WalletFiller<EthereumWallet>>, RootProvider<Http<Client>>, Http<Client>, Ethereum>;
+type WalletProvider = FillProvider<JoinFill<JoinFill<Identity, NonceFiller>, WalletFiller<EthereumWallet>>, RootProvider<Http<Client>>, Http<Client>, Ethereum>;
 
 pub struct TransactionSender {
     provider: Arc<WalletProvider>,
@@ -42,8 +42,9 @@ impl TransactionSender {
 
         // construct the provider
         let provider = Arc::new(ProviderBuilder::new()
+            .with_nonce_management()
             .wallet(wallet)
-            .on_http(std::env::var("FULL").unwrap().parse().unwrap()));
+            .on_http(std::env::var("ARCHIVE").unwrap().parse().unwrap()));
 
         Self {
             provider,
@@ -60,6 +61,7 @@ impl TransactionSender {
 
         // wait for a new transaction that has passed simulation
         while let Ok(arb_path) = tx_receiver.recv().await {
+            println!("got the new path");
             // hash the transaction and make sure we didnt just end it
             let tx_hash = self.hash_transaction(&arb_path);
             let mut recent_txs = self.recent_transactions.lock().await;
@@ -69,7 +71,6 @@ impl TransactionSender {
             }
 
             // fetch information needed to send the transaction
-            let nonce = self.provider.get_transaction_count(wallet_address).await?;
             let max_fee_per_gas = self.market.get_max_fee();
             let max_priority_fee_per_gas = self.market.get_max_priority_fee();
 
@@ -78,7 +79,6 @@ impl TransactionSender {
             let tx = contract.executeArbitrage(arb_path.clone(), U256::from(AMOUNT))
                 .max_fee_per_gas(max_fee_per_gas * 2 )
                 .max_priority_fee_per_gas(max_priority_fee_per_gas * 2)
-                .nonce(nonce)
                 .chain_id(8453)
                 .gas(1_000_000)
                 .into_transaction_request();

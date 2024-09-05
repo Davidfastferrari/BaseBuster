@@ -3,7 +3,7 @@ use alloy::primitives::U128;
 use alloy::primitives::U256;
 use alloy::rpc::types::Block;
 
-use crate::graph::SwapStep;
+use crate::swap::SwapStep;
 
 #[derive(Debug, Clone)]
 pub enum Event {

@@ -78,8 +78,10 @@ fn _get_y(x0: U256, xy: U256, y: U256, stable: bool, decimals0: U256, decimals1:
     let mut y = y;
     for _ in 0..255 {
         let k = _f(x0, y);
+        let d = _d(x0, y);
+        if d == U256::ZERO { return U256::ZERO }
         if k < xy {
-            let mut dy = ((xy - k) * U256::from(1e18)) / _d(x0, y);
+            let mut dy = ((xy - k) * U256::from(1e18)) / d;
             if dy == U256::ZERO {
                 if k == xy {
                     return y;
@@ -91,7 +93,7 @@ fn _get_y(x0: U256, xy: U256, y: U256, stable: bool, decimals0: U256, decimals1:
             }
             y = y + dy;
         } else {
-            let mut dy = ((k - xy) * U256::from(1e18)) / _d(x0, y);
+            let mut dy = ((k - xy) * U256::from(1e18)) / d;
             if dy == U256::ZERO {
                 if k == xy || _f(x0, y - U256::from(1)) < xy {
                     return y;

@@ -1,25 +1,38 @@
 
 use crate::calculation::Calculator;
-use alloy::primitives::U256;
+use alloy::primitives::{U256, Address};
 use tokio::sync::broadcast::{Receiver, Sender};
 use crate::events::Event;
-use log::{info, warn};
+use log::{info, warn, debug};
 use rayon::prelude::*;
-use crate::graph::SwapStep;
-
-
+use std::sync::Arc;
+use crate::pool_manager::PoolManager;
+use crate::swap::{SwapStep, SwapPath};
+use dashmap::DashMap;
+use std::collections::HashSet;
+use std::time::Instant;
+use std::collections::HashMap;
 
 pub struct Searchoor {
     calculator: Calculator,
-    cycles: Vec<Vec<SwapStep>>
+    path_index: HashMap<Address, Vec<usize>>,
+    cycles: Vec<SwapPath>,
 }
-
 
 impl Searchoor {
     // Construct the searcher with the calculator and all the swap paths
-    pub async fn new(cycles: Vec<Vec<SwapStep>>) -> Self {
-        let calculator = Calculator::new().await;
-        Self { calculator, cycles }
+    pub async fn new(cycles: Vec<SwapPath>, pool_manager: Arc<PoolManager>) -> Self {
+        let calculator = Calculator::new(pool_manager).await;
+
+        // make our path mapper for easily getting touched paths
+        let mut index: HashMap<Address, Vec<usize>> = HashMap::new();
+        for (path_index, path) in cycles.iter().enumerate() {
+            for step in &path.steps {
+                index.entry(step.pool_address).or_default().push(path_index)
+            }
+        }
+
+        Self { calculator, cycles, path_index: index}
     }
 
     pub async fn search_paths(
@@ -29,98 +42,46 @@ impl Searchoor {
     ) {
         let flash_loan_fee: U256 = U256::from(9) / U256::from(10000); // 0.09% flash loan fee
         let min_profit_percentage: U256 = U256::from(2) / U256::from(100); // 2% minimum profit
-        let initial_amount = U256::from(1e17);
-        let repayment_amount = initial_amount + (initial_amount * FLASH_LOAN_FEE);
+        let initial_amount = U256::from(1e16);
+        let repayment_amount = initial_amount + (initial_amount * flash_loan_fee);
 
         // wait for a new single with the pools that have reserved updated
         while let Ok(Event::ReserveUpdate(updated_pools)) = reserve_update_receiver.recv().await {
             info!("Searching for arbs...");
-            let start = std::time::Instant::now(); // timer
+            let start = Instant::now();
 
-            let affected_paths: Vec<SwapPath> = panic!("no implemente");
+            // from the updated pools, get all paths that we want to recheck
+            let affected_paths: HashSet<&SwapPath> = updated_pools
+                .iter()
+                .filter_map(|pool| self.path_index.get(pool))
+                .flatten()
+                .map(|&index| &self.cycles[index])
+                .collect();
+            info!("{} touched paths", affected_paths.len());
 
-            let profitable_pahts: Vec<Vec<SwapStep>> = affected_paths
+
+            // get the output amount and check for profitability
+            let profitable_paths: Vec<Vec<SwapStep>> = affected_paths
                 .par_iter()
-                .flat_map(|&path| {
-                    let output_amount = path.calculate_output(initial_amount);
+                .filter_map(|path| {
+                    let output_amount = self.calculator.calculate_output(&path);
                     if output_amount > repayment_amount {
-                        path.steps
+                        Some(path.steps.clone())
                     } else {
                         None
                     }
                 }).collect();
+            let end = Instant::now();
+            println!("{:?} elapsed", start.elapsed());
+            info!("{} profitable paths", profitable_paths.len());
 
-
-
-
-
-
-
-                /* 
-            // get all paths that were touched
-            let affected_paths: Vec<usize> = updated_pools
-                .iter()
-                .flat_map(|pool| self.path_index.get(pool).map(|indices| indices.clone()))
-                .flatten()
-                .collect();
-            info!("Searching {} paths", affected_paths.len());
-
-            // check the profitability of each path
-            let profitable_paths: Vec<_> = affected_paths
-                .par_iter()
-                .filter_map(|&path_index| {
-                    let cycle = &self.cycles[path_index];
-                    let initial_amount = U256::from(amount);
-                    let mut current_amount = initial_amount;
-
-
-
-                    for swap in cycle {
-                        current_amount = self.calculator.get_amount_out(
-                            current_amount,
-                            &self.pool_manager,
-                            swap,
-                        );
-                        if current_amount <= U256::from(AMOUNT) {
-                            return None;
-                        }
-                    }
-
-                    if current_amount >= repayment_amount {
-                        let profit = current_amount - repayment_amount;
-                        let profit_percentage = profit * U256::from(10000) / initial_amount;
-
-                        if profit_percentage >= MINIMUM_PROFIT_PERCENTAGE * U256::from(10000) {
-                            Some((cycle.clone(), profit))
-                        } else {
-                            None
-                        }
-                    } else {
-                        None
-                    }
-
-                    //if current_amount >= required_amount * PROFIT_THRESHOLD {//* FLASH_LOAN_FEE {
-                    //println!("path: {:#?} Current amount: {:#?}", cycle, current_amount);
-                    //Some((cycle.clone(), current_amount))
-                    //} else  {
-                    //   None
-                    //}
-                })
-                .collect();
-
-            //info!("Searched all paths in {:?}", start.elapsed());
-            //   .as_millis();
-            //info!("done sim at timestamp {}:", now);
-            //info!("Found {} profitable paths", profitable_paths.len());
-            //simulate_quote(profitable_paths.clone(), U256::from(AMOUNT)).await;
+            // send to the simulator
             for path in profitable_paths {
-                if let Err(e) = arb_sender.send(Event::NewPath(path.0)) {
-                    warn!("Path send failed: {:?}", e);
+                match arb_sender.send(Event::NewPath(path)) {
+                    Ok(_) => debug!("Sent path"),
+                    Err(_) => warn!("Failed to send path")
                 }
             }
         }
-        */
     }
 }
-
-

@@ -44,12 +44,7 @@ impl RethDB {
                     .context("fail to open static file provider")?;
 
                 let spec = ChainSpecBuilder::mainnet().build();
-                /*
-                let spec = match chain.named() {
-                    Some(NamedChain::Mainnet) => ChainSpecBuilder::mainnet().build(),
-                    _ => panic!("unsupported chain"),
-                };
-                */
+
                 let spec = Arc::new(spec);
 
                 let database = ProviderFactory::new(db_env.clone(), spec.clone(), static_file_provider);
@@ -98,7 +93,6 @@ impl RethDB {
             if block > best_block {
                 std::thread::sleep(interval);
                 max_retries -= 1;
-                println!("blah");
                 continue;
             }
 

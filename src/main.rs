@@ -1,8 +1,10 @@
-use alloy::sol;
+use alloy::{providers::WsConnect, sol};
 use anyhow::Result;
 use ignition::start_workers;
 use log::{info, LevelFilter};
 use pool_sync::*;
+use futures::StreamExt;
+use alloy::providers::{IpcConnect, Provider, ProviderBuilder};
 
 mod events;
 mod graph;
@@ -17,6 +19,7 @@ mod util;
 mod tests;
 mod db;
 mod searcher;
+mod swap;
 
 // define our flash swap contract
 sol!(
@@ -49,11 +52,12 @@ async fn main() -> Result<()> {
         ])
         .chain(Chain::Base)
         .build()?;
+
     let (pools, last_synced_block) = pool_sync.sync_pools().await?;
 
     start_workers(pools, last_synced_block).await;
-
     loop {
         tokio::time::sleep(std::time::Duration::from_secs(1000)).await;
     }
+    
 }

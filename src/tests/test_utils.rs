@@ -34,7 +34,7 @@ use tokio::sync::broadcast;
 
 use crate::calculation::Calculator;
 use crate::events::Event;
-use crate::graph::SwapStep;
+use crate::swap::SwapStep;
 use crate::pool_manager;
 use crate::pool_manager::PoolManager;
 use crate::util::get_working_pools;
