@@ -51,7 +51,7 @@ impl Calculator {
         );
 
         // setup the db to our node
-        let data_path = "/home/docker/volumes/eth-docker_reth-el-data/_data";
+        let data_path = "/home/ubuntu/base-docker/data";
         let db = CacheDB::new(RethDB::new(data_path, None).unwrap());
 
         Self {
@@ -101,20 +101,15 @@ impl Calculator {
             }
             PoolType::BalancerV2 => {
                 let balancer_pool = pool_manager.get_balancer_pool(&pool_address);
-                println!("Balancer pool: {:#?}", balancer_pool);
                 
                 let token_in_index = balancer_pool.get_token_index(&token_in).unwrap();
                 let token_out_index = balancer_pool.get_token_index(&token_out).unwrap();
-                let start = Instant::now();
-                let amount = balancer_v2_out(
+                balancer_v2_out(
                     amount_in,
                     &balancer_pool,
                     token_in_index,
                     token_out_index,
-                );
-                let end = Instant::now();
-                println!("Balancer V2 out took {:?}", end.duration_since(start));
-                amount
+                )
             }
             PoolType::CurveTwoCrypto => {
                 let curve_pool = pool_manager.get_curve_two_pool(&pool_address);

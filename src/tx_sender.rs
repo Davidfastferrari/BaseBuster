@@ -76,8 +76,8 @@ impl TransactionSender {
             // construct and send the transaction
             info!("Sending transaction... {:#?}", arb_path);
             let tx = contract.executeArbitrage(arb_path.clone(), U256::from(AMOUNT))
-                .max_fee_per_gas(max_fee_per_gas)
-                .max_priority_fee_per_gas(max_priority_fee_per_gas)
+                .max_fee_per_gas(max_fee_per_gas * 2 )
+                .max_priority_fee_per_gas(max_priority_fee_per_gas * 2)
                 .nonce(nonce)
                 .chain_id(8453)
                 .gas(1_000_000)

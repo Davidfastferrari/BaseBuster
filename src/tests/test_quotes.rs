@@ -55,6 +55,24 @@ mod offchain_calculations {
 
     use super::*;
 
+
+    // RESULTS
+    // -----------
+    // UniswapV2: Ok
+    // UniswapV3: Ok
+    // SushiswapV2: Ok
+    // SushiswapV3: Ok
+    // PancakeswapV2: Ok
+    // PancakeswapV3: Ok
+    // CurveTwo: Ok
+    // CurveTri: Not ok
+    // MaverickV1: TODO
+    // MaverickV2: Ok
+    // BalancerV2: TODO, fix the syncing issue
+    // Aerodrome: Offchain looks good, db is late to update for some reason
+
+
+
     // UNISWAPV2
     #[tokio::test(flavor = "multi_thread")]
     pub async fn test_uniswapv2_out() {
@@ -69,9 +87,9 @@ mod offchain_calculations {
         let (pool_manager , _) = pool_manager_with_type(PoolType::UniswapV2).await;
 
         let swap_step = SwapStep {
-            pool_address: address!("B4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc"),
-            token_in: address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
-            token_out: address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"),
+            pool_address: address!("88A43bbDF9D098eEC7bCEda4e2494615dfD9bB9C"),
+            token_in: address!("4200000000000000000000000000000000000006"),
+            token_out: address!("833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
             protocol: PoolType::UniswapV2,
             fee: 0,
         };
@@ -99,9 +117,9 @@ mod offchain_calculations {
         let (pool_manager , _) = pool_manager_with_type(PoolType::UniswapV3).await;
 
         let swap_step = SwapStep {
-            pool_address: address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"),
-            token_in: address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
-            token_out: address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"),
+            pool_address: address!("d0b53D9277642d899DF5C87A3966A349A798F224"),
+            token_in: address!("4200000000000000000000000000000000000006"),
+            token_out: address!("833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
             protocol: PoolType::UniswapV3,
             fee: 500,
         };
@@ -128,9 +146,9 @@ mod offchain_calculations {
         let (pool_manager , _) = pool_manager_with_type(PoolType::SushiSwapV2).await;
 
         let swap_step = SwapStep {
-            pool_address: address!("06da0fd433c1a5d7a4faa01111c044910a184553"),
-            token_in: address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
-            token_out: address!("dac17f958d2ee523a2206206994597c13d831ec7"),
+            pool_address: address!("2F8818D1B0f3e3E295440c1C0cDDf40aAA21fA87"),
+            token_in: address!("4200000000000000000000000000000000000006"),
+            token_out: address!("833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
             protocol: PoolType::SushiSwapV2,
             fee: 0,
         };
@@ -157,9 +175,9 @@ mod offchain_calculations {
         let (pool_manager , _) = pool_manager_with_type(PoolType::SushiSwapV3).await;
 
         let swap_step =     SwapStep {
-            pool_address: address!("35644Fb61aFBc458bf92B15AdD6ABc1996Be5014"),
-            token_in: address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
-            token_out: address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"),
+            pool_address: address!("57713F7716e0b0F65ec116912F834E49805480d2"),
+            token_in: address!("4200000000000000000000000000000000000006"),
+            token_out: address!("833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
             protocol: PoolType::SushiSwapV3,
             fee: 500,
         };
@@ -186,9 +204,9 @@ mod offchain_calculations {
         let (pool_manager , _) = pool_manager_with_type(PoolType::PancakeSwapV2).await;
 
         let swap_step = SwapStep {
-            pool_address: address!("2E8135bE71230c6B1B4045696d41C09Db0414226"),
-            token_in: address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
-            token_out: address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"),
+            pool_address: address!("79474223AEdD0339780baCcE75aBDa0BE84dcBF9"),
+            token_in: address!("4200000000000000000000000000000000000006"),
+            token_out: address!("833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
             protocol: PoolType::PancakeSwapV2,
             fee: 0,
         };
@@ -216,9 +234,9 @@ mod offchain_calculations {
         let (pool_manager , _) = pool_manager_with_type(PoolType::PancakeSwapV3).await;
 
         let swap_step = SwapStep {
-            pool_address: address!("1ac1A8FEaAEa1900C4166dEeed0C11cC10669D36"),
-            token_in: address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
-            token_out: address!("a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"),
+            pool_address: address!("B775272E537cc670C65DC852908aD47015244EaF"),
+            token_in: address!("4200000000000000000000000000000000000006"),
+            token_out: address!("833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
             protocol: PoolType::PancakeSwapV3,
             fee: 500,
         };
@@ -242,13 +260,13 @@ mod offchain_calculations {
         let sub = ws.subscribe_blocks().await.unwrap();
         let mut stream = sub.into_stream().take(10);
 
-        let amount_in = U256::from(1e16);
+        let amount_in = U256::from(1e7);
         let (pool_manager , _) = pool_manager_with_type(PoolType::CurveTwoCrypto).await;
 
         let swap_step = SwapStep {
-            pool_address: address!("ca546aE6c3B2BB9Fba2b6e5EeB0881097CecE5B0"),
-            token_in: address!("f939E0A03FB07F59A73314E73794Be0E57ac1b4E"),
-            token_out: address!("1cfa5641c01406aB8AC350dEd7d735ec41298372"),
+            pool_address: address!("749ef4ab10aef61151e14c9336b07727ffa5a323"),
+            token_in: address!("833589fcd6edb6e08f4c7c32d4f71b54bda02913"),
+            token_out: address!("8ee73c484a26e0a5df2ee2a4960b789967dd0415"),
             protocol: PoolType::CurveTwoCrypto,
             fee: 0,
         };
@@ -261,7 +279,7 @@ mod offchain_calculations {
         }
     }
 
-    // CURVETRI
+    // CURVETRI, WAS NOT WORKING
     #[tokio::test(flavor = "multi_thread")]
     pub async fn test_curve_tri_out() {
         dotenv::dotenv().ok();
@@ -271,13 +289,13 @@ mod offchain_calculations {
         let sub = ws.subscribe_blocks().await.unwrap();
         let mut stream = sub.into_stream().take(10);
 
-        let amount_in = U256::from(1e10);
+        let amount_in = U256::from(1e18);
         let (pool_manager , _) = pool_manager_with_type(PoolType::CurveTriCrypto).await;
 
         let swap_step = SwapStep {
-            pool_address: address!("7F86Bf177Dd4F3494b841a37e810A34dD56c829B"),
-            token_in: address!("a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"),
-            token_out: address!("2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599"),
+            pool_address: address!("6e53131f68a034873b6bfa15502af094ef0c5854"),
+            token_in: address!("417ac0e078398c154edfadd9ef675d30be60af93"),
+            token_out: address!("236aa50979d5f3de3bd1eeb40e81137f22ab794b"),
             protocol: PoolType::CurveTriCrypto,
             fee: 0,
         };
@@ -300,13 +318,13 @@ mod offchain_calculations {
         let sub = ws.subscribe_blocks().await.unwrap();
         let mut stream = sub.into_stream().take(10);
 
-        let amount_in = U256::from(1e17);
+        let amount_in = U256::from(1e18);
 
         let (pool_manager , _) = pool_manager_with_type(PoolType::MaverickV2).await;
         let swap_step = SwapStep {
-            pool_address: address!("9Cc6044F0FC2e3896A37509dB7837Efa01F6413D"),
-            token_in: address!("7448c7456a97769F6cD04F1E83A4a23cCdC46aBD"),
-            token_out: address!("C54Ff26fd5564Ff46b14d9825A2259a0d53Bf7d9"),
+            pool_address: address!("3cfCc73dD7a81e5373CD9D50960D5bA5f113Cb7E"),
+            token_in: address!("50c5725949A6F0c72E6C4a641F24049A917DB0Cb"),
+            token_out: address!("833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
             protocol: PoolType::MaverickV2,
             fee: 0,
         };
@@ -319,7 +337,7 @@ mod offchain_calculations {
         }
     }
 
-    // BALANCER
+    // BALANCER FIX
     #[tokio::test(flavor = "multi_thread")]
     pub async fn test_balancer_out() {
         dotenv::dotenv().ok();
@@ -329,52 +347,186 @@ mod offchain_calculations {
         let sub = ws.subscribe_blocks().await.unwrap();
         let mut stream = sub.into_stream();
 
-        let amount_in = U256::from(1e17);
+        let amount_in = U256::from(1e10);
 
         let (pool_manager , _) = pool_manager_with_type(PoolType::BalancerV2).await;
 
         let swap_step = SwapStep {
-            pool_address: address!("3de27EFa2F1AA663Ae5D458857e731c129069F29"),
-            token_in: address!("7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0"),
-            token_out: address!("7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9"),
+            pool_address: address!("b328B50F1f7d97EE8ea391Ab5096DD7657555F49"),
+            token_in: address!("833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
+            token_out: address!("4158734D47Fc9692176B5085E0F52ee0Da5d47F1"),
             protocol: PoolType::BalancerV2,
             fee: 0,
         };
 
         while let Some(_) = stream.next().await {
-            let start = Instant::now();
             let offchain_amount_out = offchain_quote(&swap_step, PoolType::BalancerV2, amount_in, &pool_manager).await;
             let onchain_amount_out = onchain_quote(&swap_step, PoolType::BalancerV2, amount_in).await;
-            let end = Instant::now();
-            println!("onchain out took {:?}", end.duration_since(start));
+            println!("offchain: {:?}, onchain: {:?}", offchain_amount_out, onchain_amount_out);
+            assert_eq!(offchain_amount_out, onchain_amount_out);
+        }
+    }
+
+
+    // AERODROME
+    #[tokio::test(flavor = "multi_thread")]
+    pub async fn test_aerodrome_out() {
+
+        dotenv::dotenv().ok();
+
+        let ws = WsConnect::new(std::env::var("WS").unwrap());
+        let ws = Arc::new(ProviderBuilder::new().on_ws(ws).await.unwrap());
+        let sub = ws.subscribe_blocks().await.unwrap();
+        let mut stream = sub.into_stream();
+
+        let amount_in = U256::from(1e17);
+
+        let (pool_manager , _) = pool_manager_with_type(PoolType::Aerodrome).await;
+
+        let swap_step = SwapStep {
+            pool_address: address!("acb7907c232907934b2578315dfcfa1ba60e87af"),
+            token_in: address!("4200000000000000000000000000000000000006"),
+            token_out: address!("9beec80e62aa257ced8b0edd8692f79ee8783777"),
+            protocol: PoolType::Aerodrome,
+            fee: 0,
+        };
+
+        while let Some(_) = stream.next().await {
+            let offchain_amount_out = offchain_quote(&swap_step, PoolType::Aerodrome, amount_in, &pool_manager).await;
+            let onchain_amount_out = onchain_quote(&swap_step, PoolType::Aerodrome, amount_in).await;
+            println!("offchain: {:?}, onchain: {:?}", offchain_amount_out, onchain_amount_out);
+            //assert_eq!(offchain_amount_out, onchain_amount_out);
+        }
+
+    }
+
+
+    // AERODROME
+    #[tokio::test(flavor = "multi_thread")]
+    pub async fn test_swapbasedv2_out() {
+
+        dotenv::dotenv().ok();
+
+        let ws = WsConnect::new(std::env::var("WS").unwrap());
+        let ws = Arc::new(ProviderBuilder::new().on_ws(ws).await.unwrap());
+        let sub = ws.subscribe_blocks().await.unwrap();
+        let mut stream = sub.into_stream().take(10);
+
+        let amount_in = U256::from(1e17);
+
+        let (pool_manager , _) = pool_manager_with_type(PoolType::SwapBasedV2).await;
+
+        let swap_step = SwapStep {
+            pool_address: address!("aEeB835f3Aa21d19ea5E33772DaA9E64f1b6982F"),
+            token_in: address!("4200000000000000000000000000000000000006"),
+            token_out: address!("833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
+            protocol: PoolType::SwapBasedV2,
+            fee: 0,
+        };
+
+        while let Some(_) = stream.next().await {
+            let offchain_amount_out = offchain_quote(&swap_step, PoolType::SwapBasedV2, amount_in, &pool_manager).await;
+            let onchain_amount_out = onchain_quote(&swap_step, PoolType::SwapBasedV2, amount_in).await;
+            println!("offchain: {:?}, onchain: {:?}", offchain_amount_out, onchain_amount_out);
+            assert_eq!(offchain_amount_out, onchain_amount_out);
+        }
+
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    pub async fn test_swapbasedv3_out() {
+
+        dotenv::dotenv().ok();
+
+        let ws = WsConnect::new(std::env::var("WS").unwrap());
+        let ws = Arc::new(ProviderBuilder::new().on_ws(ws).await.unwrap());
+        let sub = ws.subscribe_blocks().await.unwrap();
+        let mut stream = sub.into_stream().take(10);
+
+        let amount_in = U256::from(1e17);
+
+        let (pool_manager , _) = pool_manager_with_type(PoolType::SwapBasedV3).await;
+
+        let swap_step = SwapStep {
+            pool_address: address!("8D4B74fe1dfa2789CAa367F670eB4AC202107635"),
+            token_in: address!("4200000000000000000000000000000000000006"),
+            token_out: address!("833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
+            protocol: PoolType::SwapBasedV3,
+            fee: 500,
+        };
+
+        while let Some(_) = stream.next().await {
+            let offchain_amount_out = offchain_quote(&swap_step, PoolType::SwapBasedV3, amount_in, &pool_manager).await;
+            let onchain_amount_out = onchain_quote(&swap_step, PoolType::SwapBasedV3, amount_in).await;
+            println!("offchain: {:?}, onchain: {:?}", offchain_amount_out, onchain_amount_out);
+            assert_eq!(offchain_amount_out, onchain_amount_out);
+        }
+
+    }
+
+
+    // DACKIESWAPV2
+    #[tokio::test(flavor = "multi_thread")]
+    pub async fn test_dackieswapv2_out() {
+        dotenv::dotenv().ok();
+
+        let ws = WsConnect::new(std::env::var("WS").unwrap());
+        let ws = Arc::new(ProviderBuilder::new().on_ws(ws).await.unwrap());
+        let sub = ws.subscribe_blocks().await.unwrap();
+        let mut stream = sub.into_stream().take(10);
+
+        let amount_in = U256::from(1e17);
+
+        let (pool_manager , _) = pool_manager_with_type(PoolType::DackieSwapV2).await;
+
+        let swap_step = SwapStep {
+            pool_address: address!("6bee1580471F38000951abd788A9C060A4ad3Ac3"),
+            token_in: address!("4200000000000000000000000000000000000006"),
+            token_out: address!("833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
+            protocol: PoolType::DackieSwapV2,
+            fee: 500,
+        };
+
+        while let Some(_) = stream.next().await {
+            let offchain_amount_out = offchain_quote(&swap_step, PoolType::DackieSwapV2, amount_in, &pool_manager).await;
+            let onchain_amount_out = onchain_quote(&swap_step, PoolType::DackieSwapV2, amount_in).await;
+            println!("offchain: {:?}, onchain: {:?}", offchain_amount_out, onchain_amount_out);
+            assert_eq!(offchain_amount_out, onchain_amount_out);
+        }
+    }
+
+    // DACKIESWAPV3
+    #[tokio::test(flavor = "multi_thread")]
+    pub async fn test_dackieswapv3_out() {
+
+        dotenv::dotenv().ok();
+
+        let ws = WsConnect::new(std::env::var("WS").unwrap());
+        let ws = Arc::new(ProviderBuilder::new().on_ws(ws).await.unwrap());
+        let sub = ws.subscribe_blocks().await.unwrap();
+        let mut stream = sub.into_stream().take(10);
+
+        let amount_in = U256::from(1e17);
+
+        let (pool_manager , _) = pool_manager_with_type(PoolType::DackieSwapV3).await;
+
+        let swap_step = SwapStep {
+            pool_address: address!("fCD3960075c00af339A4E26afC76b949E5Ff06Ec"),
+            token_in: address!("4200000000000000000000000000000000000006"),
+            token_out: address!("833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
+            protocol: PoolType::DackieSwapV3,
+            fee: 500,
+        };
+
+        while let Some(_) = stream.next().await {
+            let offchain_amount_out = offchain_quote(&swap_step, PoolType::DackieSwapV3, amount_in, &pool_manager).await;
+            let onchain_amount_out = onchain_quote(&swap_step, PoolType::DackieSwapV3, amount_in).await;
             println!("offchain: {:?}, onchain: {:?}", offchain_amount_out, onchain_amount_out);
             assert_eq!(offchain_amount_out, onchain_amount_out);
         }
     }
 
     /* 
-    // AERODROME
-    #[tokio::test(flavor = "multi_thread")]
-    pub async fn test_aerodrome_out() {
-        let swap_step =     SwapStep {
-            pool_address: address!("acb7907c232907934b2578315dfcfa1ba60e87af"),
-            token_in: address!("9beec80e62aa257ced8b0edd8692f79ee8783777"),
-            token_out: address!("4200000000000000000000000000000000000006"),
-            protocol: PoolType::Aerodrome,
-            fee: 0,
-        };
-        let amount_in = U256::from(1e16);
-        let offchain_amount_out = offchain_quote(&swap_step, PoolType::Aerodrome, amount_in).await;
-        let onchain_amount_out = onchain_quote(&swap_step, PoolType::Aerodrome, amount_in).await;
-        assert_eq!(offchain_amount_out, onchain_amount_out);
-    }
-
-    // SLIPSTREAM
-    #[tokio::test(flavor = "multi_thread")]
-    pub async fn test_slipstream_out() {
-        todo!()
-    }
-
     // BASESWAPV2
     #[tokio::test(flavor = "multi_thread")]
     pub async fn test_baseswapv2_out() {
@@ -445,35 +597,13 @@ mod offchain_calculations {
     pub async fn test_maverickv1_out() {
         todo!()
     }
-
-
-
-
-
-
-    // DACKIESWAPV2
+    // SLIPSTREAM
     #[tokio::test(flavor = "multi_thread")]
-    pub async fn test_dackiswapv2_out() {
+    pub async fn test_slipstream_out() {
         todo!()
     }
 
-    // DACKIESWAPV3
-    #[tokio::test(flavor = "multi_thread")]
-    pub async fn test_dackiswapv3_out() {
-        todo!()
-    }
 
-    // SWAPBASEDV2
-    #[tokio::test(flavor = "multi_thread")]
-    pub async fn test_swapbasedv2_out() {
-        todo!()
-    }
-
-    // SWAPBASEDV3
-    #[tokio::test(flavor = "multi_thread")]
-    pub async fn test_swapbasedv3_out() {
-        todo!()
-    }
     */
 }
 
@@ -488,7 +618,11 @@ pub async fn onchain_quote(
     dotenv::dotenv().ok();
 
     if pool_type.is_v2() {
-        onchain_v2(swap_step, pool_type, amount_in).await
+        if pool_type == PoolType::Aerodrome {
+            onchain_aerodrome(swap_step, amount_in)
+        } else {
+            onchain_v2(swap_step, pool_type, amount_in).await
+        }
     } else if pool_type.is_v3() {
         onchain_v3(swap_step, pool_type, amount_in).await
     } else if pool_type.is_balancer() {
@@ -512,17 +646,11 @@ pub async fn offchain_quote(
 ) -> U256 {
     dotenv::dotenv().ok();
     let calculator = Calculator::new().await;
-    let start = Instant::now();
-    let amt = calculator.get_amount_out(
+    calculator.get_amount_out(
         amount_in,
         &pool_manager,
         swap_step
-    );
-    let end = Instant::now();
-    println!("Calculator out took {:?}", end.duration_since(start));
-    amt
-
-
+    )
 }
 
 
@@ -534,9 +662,9 @@ pub async fn onchain_v2(swap_step: &SwapStep, pool_type: PoolType, amount_in: U2
     let provider = ProviderBuilder::new().on_http(std::env::var("FULL").unwrap().parse().unwrap());
 
     let address = match pool_type {
-        PoolType::UniswapV2 => address!("7a250d5630B4cF539739dF2C5dAcb4c659F2488D"),
-        PoolType::SushiSwapV2 => address!("d9e1cE17f2641f24aE83637ab66a2cca9C378B9F"),
-        PoolType::PancakeSwapV2 => address!("EfF92A263d31888d860bD50809A8D171709b7b1c"),
+        PoolType::UniswapV2 => address!("4752ba5dbc23f44d87826276bf6fd6b1c372ad24"),
+        PoolType::SushiSwapV2 => address!("6BDED42c6DA8FBf0d2bA55B2fa120C5e0c8D7891"),
+        PoolType::PancakeSwapV2 => address!("8cFe327CEc66d1C090Dd72bd0FF11d690C33a2Eb"),
         PoolType::BaseSwapV2 => address!("327Df1E6de05895d2ab08513aaDD9313Fe505d86"),
         PoolType::SwapBasedV2 => address!("aaa3b1F1bd7BCc97fD1917c18ADE665C5D31F066"), 
         PoolType::DackieSwapV2 => address!("Ca4EAa32E7081b0c4Ba47e2bDF9B7163907Fe56f"), 
@@ -570,9 +698,9 @@ pub async fn onchain_v3_quoter(pool_type: PoolType, swap_step: &SwapStep, amount
     let provider = ProviderBuilder::new().on_http(std::env::var("FULL").unwrap().parse().unwrap());
 
     let address = match pool_type {
-        PoolType::UniswapV3 => address!("61fFE014bA17989E743c5F6cB21bF9697530B21e"),
+        PoolType::UniswapV3 => address!("3d4e44Eb1374240CE5F1B871ab261CD16335B76a"),
         PoolType::PancakeSwapV3 => address!("B048Bbc1Ee6b733FFfCFb9e9CeF7375518e25997"),
-        PoolType::SushiSwapV3 => address!("64e8802FE490fa7cc61d3463958199161Bb608A7"),
+        PoolType::SushiSwapV3 => address!("b1E835Dc2785b52265711e17fCCb0fd018226a6e"),
         _ => panic!("Invalid pool type"),
     };
 
@@ -740,7 +868,7 @@ pub async fn onchain_balancer(swap_step: &SwapStep, amount_in: U256) -> U256 {
         funds: fund_management,
     }.abi_encode();
 
-    let data_path = "/home/docker/volumes/eth-docker_reth-el-data/_data";
+    let data_path = "/home/ubuntu/base-docker/data";
     let mut db = CacheDB::new(RethDB::new(data_path, None).unwrap());
 
     let start = Instant::now();
@@ -780,5 +908,49 @@ pub async fn onchain_balancer(swap_step: &SwapStep, amount_in: U256) -> U256 {
 
 
     //U256::ZERO
+
+}
+
+pub fn onchain_aerodrome(swap_step: &SwapStep, amount_in: U256) -> U256 {
+
+    sol!(
+        contract Aerodrome {
+            function getAmountOut(uint256 amountIn, address tokenIn) external view returns (uint256);
+        }
+    );
+
+    let data_path = "/home/ubuntu/base-docker/data";
+    let mut db = CacheDB::new(RethDB::new(data_path, None).unwrap());
+
+    let calldata = Aerodrome::getAmountOutCall {
+        amountIn: amount_in,
+        tokenIn: swap_step.token_in
+    }.abi_encode();
+
+    let mut evm = Evm::builder()
+        .with_db(db)
+        .modify_tx_env(|tx| {
+            tx.caller = address!("0000000000000000000000000000000000000001");
+            tx.transact_to = TransactTo::Call(swap_step.pool_address);
+            tx.data = calldata.into();
+            tx.value = U256::ZERO;
+        }).build();
+
+    
+    let ref_tx = evm.transact().unwrap();
+    let result = ref_tx.result; 
+    match result {
+        ExecutionResult::Success {
+            output: value,
+            ..
+        } => {
+            let a = match <U256>::abi_decode(&value.data(), false) {
+                Ok(a) => a,
+                Err(_) => U256::ZERO
+            };
+            return a;
+        }
+        _=> U256::ZERO
+    }
 
 }

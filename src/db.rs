@@ -5,7 +5,7 @@ use std::time::Duration;
 use dashmap::{DashMap, Entry};
 use eyre::{bail, Context};
 use reth_db::{DatabaseEnv, open_db_read_only};
-use reth_provider::{BlockNumReader, DatabaseProviderRO, ProviderFactory, StateProviderBox};
+use reth_provider::{BlockNumReader, DatabaseProviderRO, LatestStateProvider, ProviderFactory, StateProviderBox};
 use once_cell::sync::Lazy;
 use reth_chainspec::ChainSpecBuilder;
 use reth_db::mdbx::DatabaseArguments;
@@ -98,6 +98,7 @@ impl RethDB {
             if block > best_block {
                 std::thread::sleep(interval);
                 max_retries -= 1;
+                println!("blah");
                 continue;
             }
 

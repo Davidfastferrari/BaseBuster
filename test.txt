@@ -1,0 +1,40 @@
+ // setup the db
+    let data_path = "/home/ubuntu/base-docker/data";
+    let mut db = CacheDB::new(RethDB::new(data_path, None).unwrap());
+
+    // insert the contract
+    let flash_addr = std::env::var("FLASH_ADDR").unwrap().parse().unwrap();
+    db.insert_account_info(flash_addr, acc);
+    
+    let mut evm = Evm::builder()
+        .with_db(db)
+        .modify_tx_env(|tx|{
+            tx.caller = address!("0000000000000000000000000000000000000001");
+            tx.transact_to = TransactTo::Call(flash_addr);
+            tx.value = U256::ZERO;
+        }).build();
+
+    // wait for a new arbitrage path
+    while let Ok(Event::NewPath(arb_path)) = arb_receiver.recv() {
+        // convert the path from searcher format into flash swap format
+        let converted_path: Vec<FlashSwap::SwapStep> = arb_path
+            .clone()
+            .iter()
+            .map(|step| FlashSwap::SwapStep {
+                poolAddress: step.pool_address,
+                tokenIn: step.token_in,
+                tokenOut: step.token_out,
+                protocol: step.as_u8(),
+                fee: step.fee.try_into().unwrap(),
+            })
+            .collect();
+
+        let calldata = FlashSwap::executeArbitrageCall {
+            steps: converted_path,
+            amount: U256::from(AMOUNT)
+        }.abi_encode(); 
+        evm.tx_mut().data = calldata.into();
+
+        let ref_tx = evm.transact().unwrap();
+        let result = ref_tx.result;
+        println!("{:?}", result);

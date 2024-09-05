@@ -69,7 +69,12 @@ pub async fn simulate_paths(
                 fee: step.fee.try_into().unwrap(),
             })
             .collect();
+        match tx_sender.send(converted_path) {
+            Ok(_) => info!("Successful path sent"),
+            Err(e) => warn!("Successful path send failed: {:?}", e),
+        }
 
+        /* 
         // simulate the arbitrage and get the result
         let tx = contract
             .executeArbitrage(converted_path.clone(), U256::from(AMOUNT))
@@ -93,5 +98,6 @@ pub async fn simulate_paths(
             }
             _ => {}
         }
+        */
     }
 }

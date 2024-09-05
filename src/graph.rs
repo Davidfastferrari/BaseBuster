@@ -33,6 +33,13 @@ pub struct ArbGraph {
     calculator: Calculator,
 }
 
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct  SwapPath {
+    steps: Vec<SwapStep>,
+    pools: Vec<Address>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SwapStep {
     pub pool_address: Address,
@@ -83,7 +90,6 @@ impl ArbGraph {
             .find(|node| graph[*node] == token)
             .unwrap();
         let cycles = ArbGraph::find_all_arbitrage_paths(&graph, start_node, 4);
-        println!("cycles {:#?}", cycles);
         info!("Found {}  paths", cycles.len());
         let pools_to_paths = FxHashMap::default();
         let path_index = DashMap::new();
@@ -349,9 +355,7 @@ impl ArbGraph {
                     let cycle = &self.cycles[path_index];
                     let initial_amount = U256::from(AMOUNT);
                     let mut current_amount = initial_amount;
-                    println!("path: {:#?}", cycle);
 
-                    /* 
                     for swap in cycle {
                         current_amount = self.calculator.get_amount_out(
                             current_amount,
@@ -362,7 +366,6 @@ impl ArbGraph {
                             return None;
                         }
                     }
-                    */
 
                     let repayment_amount = initial_amount + (initial_amount * FLASH_LOAN_FEE);
                     if current_amount >= repayment_amount {
@@ -388,11 +391,8 @@ impl ArbGraph {
                 .collect();
 
             //info!("Searched all paths in {:?}", start.elapsed());
-            let now = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_millis();
-            info!("done sim at timestamp {}:", now);
+             //   .as_millis();
+            //info!("done sim at timestamp {}:", now);
             //info!("Found {} profitable paths", profitable_paths.len());
             //simulate_quote(profitable_paths.clone(), U256::from(AMOUNT)).await;
             for path in profitable_paths {

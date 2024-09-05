@@ -26,7 +26,7 @@ pub async fn start_workers(
     // get out working pools and construct ethe pool manager
     info!("Getting working pools...");
     let num_tokens: usize = std::env::var("NUM_TOKENS").unwrap().parse().unwrap();
-    let working_pools = get_working_pools(pools.clone(), num_tokens, Chain::Ethereum).await;
+    let working_pools = get_working_pools(pools.clone(), num_tokens, Chain::Base).await;
     let filtered_pools: Vec<Pool> = working_pools.into_iter().filter(|pool| {
         if pool.is_v3() {
             let v3_pool = pool.get_v3().unwrap();
@@ -40,7 +40,6 @@ pub async fn start_workers(
     // construct the graph and generate the cycles
     info!("Constructing graph...");
     let weth = address!("4200000000000000000000000000000000000006");
-    let weth = address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
     let graph = ArbGraph::new(pool_manager.clone(), filtered_pools.clone(), weth).await;
 
     // Stream in new blocks

@@ -42,6 +42,7 @@ contract FlashQuoter {
     event Profit(uint256 value);
 
     function executeArbitrage(SwapStep[] calldata steps, uint256 amount) external returns (uint256){
+        require(IERC20(WETH).transferFrom(msg.sender, address(this), amount), "WETH transfer failed");
         uint256 amountIn = amount;
 
         for (uint i = 0; i < steps.length; i++) {
@@ -67,6 +68,7 @@ contract FlashQuoter {
         }
 
         uint256 finalBalance = IERC20(WETH).balanceOf(address(this));
+        require(IERC20(WETH).transfer(msg.sender, finalBalance), "WETH return failed");
         return finalBalance;
     }
 
@@ -83,7 +85,7 @@ contract FlashQuoter {
             block.timestamp
         );
     }
-
+   
     function _swapV3(address tokenIn, address tokenOut, uint256 amountIn, uint24 fee, address router) internal {
         IERC20(tokenIn).approve(router, amountIn);
         V3NoDeadline.ExactInputSingleParams memory params = V3NoDeadline.ExactInputSingleParams({

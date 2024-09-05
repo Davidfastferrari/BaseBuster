@@ -38,6 +38,7 @@ impl Calculator {
         // do the transaction
         let ref_tx = evm.transact().unwrap();
         let result = ref_tx.result;
+        println!("{:#?}", result);
 
 
         match result {

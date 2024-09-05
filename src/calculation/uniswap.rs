@@ -37,8 +37,8 @@ pub fn uniswap_v2_out(
     pool_type: PoolType,
 ) -> U256 {
     let (fee, scalar) = match pool_type {
-        PoolType::UniswapV2 | PoolType::SushiSwapV2 => (U256::from(997), U256::from(1000)),
-        PoolType::PancakeSwapV2 | PoolType::BaseSwapV2 => (U256::from(9975), U256::from(10000)),
+        PoolType::UniswapV2 | PoolType::SushiSwapV2 | PoolType::SwapBasedV2 => (U256::from(997), U256::from(1000)),
+        PoolType::PancakeSwapV2 | PoolType::BaseSwapV2 | PoolType::DackieSwapV2 => (U256::from(9975), U256::from(10000)),
         _ => panic!("Invalid pool type"),
     };
 

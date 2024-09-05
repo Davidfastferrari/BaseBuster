@@ -6,6 +6,7 @@ use alloy::sol;
 use alloy::sol_types::SolEvent;
 use futures::stream::StreamExt;
 use log::{debug, info};
+use alloy::primitives::FixedBytes;
 use pool_sync::{
     BalancerV2Pool, MaverickPool, TickInfo, UniswapV2Pool, UniswapV3Pool,
     CurveTriCryptoPool, CurveTwoCryptoPool
@@ -106,7 +107,7 @@ pub struct PoolManager {
     address_to_v3pool: FxHashMap<Address, RwLock<UniswapV3Pool>>,
     /// Mapping from address to Balancer Pool
     address_to_balancerpool: FxHashMap<Address, RwLock<BalancerV2Pool>>,
-    id_to_address: FxHashMap<String, Address>,
+    id_to_address: FxHashMap<FixedBytes<32>, Address>,
     /// Mapping from address to CurveTwoCryptoPool
     address_to_curvetwopool: FxHashMap<Address, CurveTwoCryptoPool>,
     /// Mapping from address to CurveTriCryptoPool
@@ -152,7 +153,7 @@ impl PoolManager {
                 address_to_v3pool.insert(pool.address(), RwLock::new(v3_pool));
             } else if pool.is_balancer() {
                 let balancer_pool = pool.get_balancer().unwrap().clone();
-                id_to_address.insert(balancer_pool.pool_id.to_string(), pool.address());
+                id_to_address.insert(balancer_pool.pool_id, pool.address());
                 address_to_balancerpool.insert(pool.address(), RwLock::new(balancer_pool));
             } else if pool.is_curve_two() {
                 let curve_pool = pool.get_curve_two().unwrap().clone();
@@ -255,11 +256,13 @@ impl PoolManager {
         let mut updated_pools = HashSet::new();
         for log in logs {
             if log.topic0().unwrap() == &BalancerV2Event::Swap::SIGNATURE_HASH {
-                let address = self.id_to_address.get(&log.topics()[1].to_string()).unwrap();
-                if let Some(pool_lock) = self.address_to_balancerpool.get(address) {
-                    let mut pool = pool_lock.write().unwrap();
-                    updated_pools.insert(pool.address);
-                    process_balance_data(&mut pool, log);
+                if  self.id_to_address.contains_key(&log.topics()[1]) {
+                    let address = self.id_to_address.get(&log.topics()[1]).unwrap();
+                    if let Some(pool_lock) = self.address_to_balancerpool.get(address) {
+                        let mut pool = pool_lock.write().unwrap();
+                        updated_pools.insert(pool.address);
+                        process_balance_data(&mut pool, log);
+                    }
                 }
             } else {
                 let address = log.address();
@@ -323,12 +326,15 @@ impl PoolManager {
 
 pub fn process_balance_data(pool: &mut BalancerV2Pool, log: Log) {
     let event = BalancerV2Event::Swap::decode_log(log.as_ref(), true).unwrap();
+    println!("BalancerV2 Event: {:#?}", event);
+    println!("BalancerV2 pool before : {:#?}", pool);
 
     let log_token_in_idx = pool.get_token_index(&event.tokenIn).unwrap();
     let log_token_out_idx = pool.get_token_index(&event.tokenOut).unwrap();
 
     pool.balances[log_token_in_idx] = pool.balances[log_token_in_idx].saturating_add(event.amountIn);
     pool.balances[log_token_out_idx] = pool.balances[log_token_out_idx].saturating_sub(event.amountOut);
+    println!("BalancerV2 pool after : {:#?}", pool);
 }
 
 

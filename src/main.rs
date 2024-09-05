@@ -16,6 +16,7 @@ mod tx_sender;
 mod util;
 mod tests;
 mod db;
+mod searcher;
 
 // define our flash swap contract
 sol!(
@@ -40,11 +41,13 @@ async fn main() -> Result<()> {
     info!("Loading and syncing pools...");
     let pool_sync = PoolSync::builder()
         .add_pools(&[
+            PoolType::UniswapV2,
+            PoolType::UniswapV3,
+            PoolType::SushiSwapV2,
             PoolType::SushiSwapV3,
-            PoolType::PancakeSwapV2,
-            PoolType::PancakeSwapV3,
+            PoolType::Aerodrome,
         ])
-        .chain(Chain::Ethereum)
+        .chain(Chain::Base)
         .build()?;
     let (pools, last_synced_block) = pool_sync.sync_pools().await?;
 

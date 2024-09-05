@@ -1,7 +1,7 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Script.sol";
-import "../src/FlashSwap.sol";
+import "../src/FlashQuoter.sol";
 
 contract DeployScript is Script {
     function setUp() public {}
@@ -10,7 +10,7 @@ contract DeployScript is Script {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
 
-        FlashSwap flashswap = new FlashSwap();
+        FlashQuoter flashswap = new FlashQuoter();
 
         vm.stopBroadcast();
     }
