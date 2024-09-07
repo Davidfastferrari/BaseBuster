@@ -1,7 +1,7 @@
 
 
 use revm::db::CacheDB;
-use crate::db::RethDB;
+//use crate::db::RethDB;
 use alloy::sol_types::SolCall;
 use pool_sync::PoolType;
 use alloy::primitives::{Address, address, U256};
@@ -44,6 +44,7 @@ mod test_sim {
     #[tokio::test(flavor = "multi_thread")]
     pub async fn simulation() {
             // setup the db
+            /* 
         dotenv::dotenv().ok();
         let url = std::env::var("FULL").unwrap().parse().unwrap();
         let provider = ProviderBuilder::new().on_http(url);
@@ -135,6 +136,8 @@ mod test_sim {
         let ref_tx = evm.transact().unwrap();
         let result = ref_tx.result;
         println!("Result: {:#?}", result);
+        */
+        todo!()
     }
 
     /* 

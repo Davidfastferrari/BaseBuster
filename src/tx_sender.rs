@@ -23,7 +23,8 @@ use alloy::network::Ethereum;
 use crate::{market, FlashSwap, AMOUNT};
 use crate::market::Market;
 
-type WalletProvider = FillProvider<JoinFill<JoinFill<Identity, NonceFiller>, WalletFiller<EthereumWallet>>, RootProvider<Http<Client>>, Http<Client>, Ethereum>;
+//type WalletProvider = FillProvider<JoinFill<JoinFill<Identity, NonceFiller>, WalletFiller<EthereumWallet>>, RootProvider<Http<Client>>, Http<Client>, Ethereum>;
+type WalletProvider = FillProvider<JoinFill<Identity, WalletFiller<EthereumWallet>>, RootProvider<Http<Client>>, Http<Client>, Ethereum>;
 
 pub struct TransactionSender {
     provider: Arc<WalletProvider>,
@@ -42,7 +43,7 @@ impl TransactionSender {
 
         // construct the provider
         let provider = Arc::new(ProviderBuilder::new()
-            .with_nonce_management()
+            //.with_nonce_management()
             .wallet(wallet)
             .on_http(std::env::var("ARCHIVE").unwrap().parse().unwrap()));
 

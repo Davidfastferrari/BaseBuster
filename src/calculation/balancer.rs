@@ -2,124 +2,126 @@ use alloy::primitives::{U256, I256};
 use pool_sync::BalancerV2Pool;
 use std::{ops::Neg, sync::RwLockReadGuard};
 use alloy::primitives::{Signed, Uint};
+use alloy::primitives::Address;
 use std::str::FromStr;
+use super::Calculator;
 
+impl Calculator {
 
-pub fn balancer_v2_out(
-    amount_in: U256,
-    pool: &RwLockReadGuard<BalancerV2Pool>,
-    token_in_index: usize,
-    token_out_index: usize,
-) -> U256 {
-    let balance_in = pool.balances[token_in_index];
-    let balance_out = pool.balances[token_out_index];
-    let weight_in = pool.weights[token_in_index];
-    let weight_out = pool.weights[token_out_index];
-    let swap_fee_percentage = pool.swap_fee;
+    pub fn balancer_v2_out(
+        &self, 
+        amount_in: U256,
+        token_in_index: usize,
+        token_out_index: usize,
+        pool_address: Address,
+    ) -> U256 {
+        let pool = self.pool_manager.get_balancer_pool(&pool_address);
+        let balance_in = pool.balances[token_in_index];
+        let balance_out = pool.balances[token_out_index];
+        let weight_in = pool.weights[token_in_index];
+        let weight_out = pool.weights[token_out_index];
+        let swap_fee_percentage = pool.swap_fee;
 
-    let scaling_factor = 18 - pool.token0_decimals as i8;
-    let scaled_amount_in = scale(amount_in, scaling_factor);
-    let scaled_amount_in_without_fees = sub(scaled_amount_in, mul_up(scaled_amount_in, swap_fee_percentage));
-    let amount_in = scale(scaled_amount_in_without_fees, scaling_factor);
+        let scaling_factor = 18 - pool.token0_decimals as i8;
+        let scaled_amount_in = Self::scale(amount_in, scaling_factor);
+        let scaled_amount_in_without_fees = Self::sub(scaled_amount_in, Self::mul_up(scaled_amount_in, swap_fee_percentage));
+        let amount_in = Self::scale(scaled_amount_in_without_fees, scaling_factor);
 
-    let denominator = add(balance_in, amount_in);
-    let base = div_up(balance_in, denominator);
-    let exponent = div_down(weight_in, weight_out);
-    let power = pow_up(base, exponent);
+        let denominator = Self::add(balance_in, amount_in);
+        let base = Self::div_up(balance_in, denominator);
+        let exponent = Self::div_down(weight_in, weight_out);
+        let power = Self::pow_up(base, exponent);
 
-    //let power = U256::from(999976340295933562_u128);
-    mul_down(balance_out, complement(power))
-}
-
-fn substract_swap_fee_amount(amount_in: U256, swap_fee_percentage: U256) -> U256 {
-    let fee_amount = mul_up(amount_in, swap_fee_percentage);
-    sub(amount_in, fee_amount)
-}
-
-fn scale(value: U256, decimals: i8) -> U256 {
-    value * (U256::from(10).pow(U256::from(decimals)))
-}
-
-fn add(a: U256, b: U256) -> U256 {
-    a + b
-}
-
-fn sub(a: U256, b: U256) -> U256 {
-    a - b
-}
-
-fn div_up(a: U256, b: U256) -> U256 {
-    let one = U256::from(1e18);
-    if a == U256::ZERO {
-        return U256::ZERO;
+        //let power = U256::from(999976340295933562_u128);
+        Self::mul_down(balance_out, Self::complement(power))
     }
-    let a_inflated = a * one;
-    ((a_inflated - U256::from(1)) / b) + U256::from(1)
-}
 
-fn div_down(a: U256, b: U256) -> U256 {
-    let one = U256::from(1e18);
-    if a == U256::ZERO {
-        return U256::ZERO;
+    fn substract_swap_fee_amount(amount_in: U256, swap_fee_percentage: U256) -> U256 {
+        let fee_amount = Self::mul_up(amount_in, swap_fee_percentage);
+        Self::sub(amount_in, fee_amount)
     }
-    let a_inflated = a * one;
-    a_inflated / b
-}
 
-fn mul_up(a: U256, b: U256) -> U256 {
-    let one = U256::from(1e18);
-    let product = a * b;
+    fn scale(value: U256, decimals: i8) -> U256 {
+        value * (U256::from(10).pow(U256::from(decimals)))
+    }
 
-    if product == U256::ZERO {
-        U256::ZERO
-    } else {
-        ((product - U256::from(1)) / one) + U256::from(1)
+    fn add(a: U256, b: U256) -> U256 {
+        a + b
+    }
+
+    fn sub(a: U256, b: U256) -> U256 {
+        a - b
+    }
+
+    fn div_up(a: U256, b: U256) -> U256 {
+        let one = U256::from(1e18);
+        if a == U256::ZERO {
+            return U256::ZERO;
+        }
+        let a_inflated = a * one;
+        ((a_inflated - U256::from(1)) / b) + U256::from(1)
+    }
+
+    fn div_down(a: U256, b: U256) -> U256 {
+        let one = U256::from(1e18);
+        if a == U256::ZERO {
+            return U256::ZERO;
+        }
+        let a_inflated = a * one;
+        a_inflated / b
+    }
+
+    fn mul_up(a: U256, b: U256) -> U256 {
+        let one = U256::from(1e18);
+        let product = a * b;
+
+        if product == U256::ZERO {
+            U256::ZERO
+        } else {
+            ((product - U256::from(1)) / one) + U256::from(1)
+        }
+    }
+
+    fn mul_down(a: U256, b: U256) -> U256 {
+        let one = U256::from(1e18);
+        let product = a * b;
+        //if a != U256::ZERO || product / a != b {
+        //return U256::ZERO;
+        //};
+        product / one
+    }
+
+    fn pow_up(x: U256, y: U256) -> U256 {
+        let max_pow_relative_error = U256::from(10000);
+        let one = U256::from(1e18);
+        let two = one * U256::from(2);
+        let four = one * U256::from(4);
+        if y == one {
+            x
+        } else if y == two {
+            Self::mul_up(x, x)
+        } else if y == four {
+            let square = Self::mul_up(x, x);
+            return Self::mul_up(square, square);
+        } else {
+            let raw = LogExpMath::pow(x, y);
+
+            let max_error = Self::add(Self::mul_up(raw, max_pow_relative_error), U256::from(1));
+            return Self::add(raw, max_error);
+        }
+    }
+
+    fn complement(x: U256) -> U256 {
+        let one = U256::from(1e18);
+        if x < one {
+            one - x
+        } else {
+            U256::ZERO
+        }
     }
 }
-
-fn mul_down(a: U256, b: U256) -> U256 {
-    let one = U256::from(1e18);
-    let product = a * b;
-    //if a != U256::ZERO || product / a != b {
-    //return U256::ZERO;
-    //};
-    product / one
-}
-
-fn pow_up(x: U256, y: U256) -> U256 {
-    let max_pow_relative_error = U256::from(10000);
-    let one = U256::from(1e18);
-    let two = one * U256::from(2);
-    let four = one * U256::from(4);
-    if y == one {
-        x
-    } else if y == two {
-        mul_up(x, x)
-    } else if y == four {
-        let square = mul_up(x, x);
-        return mul_up(square, square);
-    } else {
-        let raw = LogExpMath::pow(x, y);
-
-        let max_error = add(mul_up(raw, max_pow_relative_error), U256::from(1));
-        return add(raw, max_error);
-    }
-}
-
-
-fn complement(x: U256) -> U256 {
-    let one = U256::from(1e18);
-    if x < one {
-        one - x
-    } else {
-        U256::ZERO
-    }
-}
-
-
 
 pub struct LogExpMath;
-
 impl LogExpMath {
     // Constants
     fn one_18() -> I256 { I256::from_raw(U256::from(1e18)) }

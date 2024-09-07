@@ -55,7 +55,6 @@ pub async fn load_pools() -> (Vec<Pool>, u64) {
     let pool_sync = PoolSync::builder()
         .add_pools(&[
             PoolType::UniswapV2,
-            PoolType::BalancerV2,
         ])
         .chain(pool_sync::Chain::Ethereum)
         .build()
@@ -79,7 +78,7 @@ pub async fn pool_manager_with_type(pool_type: PoolType) -> (Arc<PoolManager>, b
     dotenv::dotenv().ok();
     let pool_sync = PoolSync::builder()
         .add_pool(pool_type)
-        .chain(pool_sync::Chain::Base)
+        .chain(pool_sync::Chain::Ethereum)
         .build().unwrap();
     let (pools , last_synced_block) = pool_sync.sync_pools().await.unwrap();
     println!("Pools: {:#?}", pools.len());

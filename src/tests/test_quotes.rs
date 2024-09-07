@@ -5,7 +5,7 @@ use alloy::primitives::Signed;
 use alloy::node_bindings::AnvilInstance;
 use alloy::sol_types::{SolValue, SolCall};
 use revm::primitives::ExecutionResult;
-use crate::db::RethDB;
+//use crate::db::RethDB;
 use crate::swap::SwapPath;
 use alloy::primitives::U256;
 use alloy::primitives::{address, Address};
@@ -84,7 +84,8 @@ mod offchain_calculations {
     }
 
     // OK
-    test_pool_out!(test_uniswapv2_out, UniswapV2, "88A43bbDF9D098eEC7bCEda4e2494615dfD9bB9C", "4200000000000000000000000000000000000006", "833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", 0);
+    //test_pool_out!(test_uniswapv2_out, UniswapV2, "88A43bbDF9D098eEC7bCEda4e2494615dfD9bB9C", "4200000000000000000000000000000000000006", "833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", 0);
+    test_pool_out!(test_uniswapv2_out, UniswapV2, "B4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc", "C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", "A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", 0);
     // OK
     test_pool_out!(test_uniswapv3_out, UniswapV3, "d0b53D9277642d899DF5C87A3966A349A798F224", "4200000000000000000000000000000000000006", "833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", 500);
     // OK
@@ -223,6 +224,7 @@ pub async fn onchain_v3_quoter(pool_type: PoolType, swap_step: &SwapStep, amount
 // V3 amount out from the router
 pub fn onchain_v3_router(pool_type: PoolType, swap: &SwapStep, amount_in: U256) -> U256 {
     // setup the db
+    /* 
     let data_path = "/home/docker/volumes/eth-docker_reth-el-data/_data";
     let mut db = CacheDB::new(RethDB::new(data_path, None).unwrap());
 
@@ -296,6 +298,8 @@ pub fn onchain_v3_router(pool_type: PoolType, swap: &SwapStep, amount_in: U256) 
     let ref_tx = evm.transact().unwrap();
     println!("{:?}", ref_tx);
     U256::ZERO
+    */
+    todo!()
 }
 
 
@@ -365,6 +369,7 @@ pub async fn onchain_balancer(swap_step: &SwapStep, amount_in: U256) -> U256 {
         funds: fund_management,
     }.abi_encode();
 
+    /* 
     let data_path = "/home/ubuntu/base-docker/data";
     let mut db = CacheDB::new(RethDB::new(data_path, None).unwrap());
 
@@ -402,14 +407,17 @@ pub async fn onchain_balancer(swap_step: &SwapStep, amount_in: U256) -> U256 {
         _=> U256::ZERO
     }
     //println!("Result: {:#?}", result);
+    */
 
 
-    //U256::ZERO
+    U256::ZERO
 
 }
 
 pub fn onchain_aerodrome(swap_step: &SwapStep, amount_in: U256) -> U256 {
 
+    todo!()
+    /* 
     sol!(
         contract Aerodrome {
             function getAmountOut(uint256 amountIn, address tokenIn) external view returns (uint256);
@@ -451,6 +459,7 @@ pub fn onchain_aerodrome(swap_step: &SwapStep, amount_in: U256) -> U256 {
 
 
     }
+    */
 
     /* 
     pub async fn onchain_aerodrome(swap_step: &SwapStep, amount_in: U256) -> U256 {

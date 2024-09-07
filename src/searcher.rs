@@ -36,7 +36,7 @@ impl Searchoor {
     }
 
     pub async fn search_paths(
-        &self,
+        &mut self,
         arb_sender: Sender<Event>,
         mut reserve_update_receiver: Receiver<Event>,
     ) {
@@ -50,6 +50,8 @@ impl Searchoor {
             info!("Searching for arbs...");
             let start = Instant::now();
 
+            self.calculator.update_cache(&updated_pools);
+
             // from the updated pools, get all paths that we want to recheck
             let affected_paths: HashSet<&SwapPath> = updated_pools
                 .iter()
@@ -58,7 +60,6 @@ impl Searchoor {
                 .map(|&index| &self.cycles[index])
                 .collect();
             info!("{} touched paths", affected_paths.len());
-
 
             // get the output amount and check for profitability
             let profitable_paths: Vec<Vec<SwapStep>> = affected_paths

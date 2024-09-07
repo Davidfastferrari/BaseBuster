@@ -80,3 +80,20 @@ pub async fn get_working_pools(pools: Vec<Pool>, num_results: usize, chain: Chai
         })
         .collect()
 }
+
+pub fn get_routers() -> Vec<Address> {
+    vec![
+        address!("4752ba5DBc23f44D87826276BF6Fd6b1C372aD24"), // UNISWAP_V2_ROUTER
+        address!("6BDED42c6DA8FBf0d2bA55B2fa120C5e0c8D7891"), // SUSHISWAP_V2_ROUTER
+        address!("8cFe327CEc66d1C090Dd72bd0FF11d690C33a2Eb"), // PANCAKESWAP_V2_ROUTER
+        address!("327Df1E6de05895d2ab08513aaDD9313Fe505d86"), // BASESWAP_V2_ROUTER
+        address!("2626664c2603336E57B271c5C0b26F421741e481"), // UNISWAP_V3_ROUTER
+        address!("678Aa4bF4E210cf2166753e054d5b7c31cc7fa86"), // PANCAKESWAP_V3_ROUTER
+        address!("FB7eF66a7e61224DD6FcD0D7d9C3be5C8B049b9f"), // SUSHISWAP_V3_ROUTER
+        address!("1B8eea9315bE495187D873DA7773a874545D9D48"), // BASESWAP_V3_ROUTER
+        address!("BE6D8f0d05cC4be24d5167a3eF062215bE6D18a5"), // SLIPSTREAM_ROUTER
+        address!("cF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43"), // AERODOME_ROUTER
+        address!("e20fCBdBfFC4Dd138cE8b2E6FBb6CB49777ad64D"), // AAVE_ADDRESSES_PROVIDER
+        address!("BA12222222228d8Ba445958a75a0704d566BF2C8"), // BALANCER_VAULT
+    ]
+}

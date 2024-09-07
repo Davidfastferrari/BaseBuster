@@ -322,6 +322,10 @@ impl PoolManager {
         let pool = self.address_to_pool.get(pool).unwrap();
         token_in == pool.token0_address()
     }
+
+    pub fn get_all_pools(&self) -> Vec<Address> {
+        self.addresses.iter().cloned().collect()
+    }
 }
 
 pub fn process_balance_data(pool: &mut BalancerV2Pool, log: Log) {

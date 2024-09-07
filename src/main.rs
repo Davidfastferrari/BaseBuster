@@ -17,7 +17,7 @@ mod stream;
 mod tx_sender;
 mod util;
 mod tests;
-mod db;
+//mod db;
 mod searcher;
 mod swap;
 

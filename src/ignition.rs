@@ -71,7 +71,7 @@ pub async fn start_workers(
 
     // finally.... start the searcher!!!!!
     info!("Starting arbitrage searcher...");
-    let searcher = Searchoor::new(cycles, pool_manager).await;
+    let mut searcher = Searchoor::new(cycles, pool_manager).await;
     tokio::spawn(async move {
         searcher.search_paths(
             arb_sender, 
