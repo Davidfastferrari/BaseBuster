@@ -1,7 +1,6 @@
 use dashmap::DashMap;
 use alloy::primitives::{Address, U256};
 use std::hash::{Hash, Hasher};
-use std::num::NonZeroU32;
 use rustc_hash::FxHasher;
 
 // Custom hasher for better performance

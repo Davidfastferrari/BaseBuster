@@ -44,6 +44,24 @@ interface IV3SwapRouterNoDeadline {
     function exactInputSingle(ExactInputSingleParams calldata params) external returns (uint256 amountOut);
 }
 
+interface ISlipstream {
+    struct ExactInputSingleParams {
+        address tokenIn;
+        address tokenOut;
+        int24 tickSpacing;
+        address recipient;
+        uint256 deadline;
+        uint256 amountIn;
+        uint256 amountOutMinimum;
+        uint160 sqrtPriceLimitX96;
+    }
+    function exactInputSingle(ExactInputSingleParams calldata params) external payable returns (uint256 amountOut);
+}
+
+interface ISlipstreamPool {
+    function tickSpacing() external view returns (int24);
+}
+
 interface IAerodromeRouter {
     struct Route {
         address from;
@@ -58,6 +76,11 @@ interface IAerodromeRouter {
         address to,
         uint256 deadline
     ) external returns (uint256[] memory amounts);
+}
+
+interface IAerodromePool {
+    function stable() external view returns (bool);
+    function factory() external view returns (address);
 }
 
 interface IBalancerVault {
@@ -148,16 +171,20 @@ contract FlashSwap {
 
     function _swap(SwapStep memory step, uint256 amountIn) private returns (uint256) {
         IERC20(step.tokenIn).approve(routers[step.protocol], amountIn);
-
-        if (step.protocol < 4) {
+        if (step.protocol <= 6) {
             return _swapV2(step, amountIn);
-        } else if (step.protocol < 8) {
+        } else if (step.protocol <= 13) {
             return _swapV3(step, amountIn);
-        } else if (step.protocol == 8) {
+        } else if (step.protocol == 14) {
+            return _swapSlipstream(step, amountIn);
+        } else if (step.protocol == 15) {
             return _swapAerodrome(step, amountIn);
-        } else {
+        } else if (step.protocol == 16) {
             return _swapBalancer(step, amountIn);
+        } else {
+            revert("Unsupported protocol");
         }
+
     }
 
     function _swapV2(SwapStep memory step, uint256 amountIn) private returns (uint256) {
@@ -198,12 +225,29 @@ contract FlashSwap {
         }
     }
 
+    function _swapSlipstream(SwapStep memory step, uint256 amountIn) private returns (uint256) {
+        int24 tick_spacing = ISlipstreamPool(step.poolAddress).tickSpacing();
+        return ISlipstream(routers[step.protocol]).exactInputSingle(
+           ISlipstream.ExactInputSingleParams({
+               tokenIn: step.tokenIn,
+               tokenOut: step.tokenOut,
+               tickSpacing: tick_spacing,
+               recipient: address(this),
+               deadline: block.timestamp,
+               amountIn: amountIn,
+               amountOutMinimum: 0,
+               sqrtPriceLimitX96: 0
+           })
+        );
+    }
+
     function _swapAerodrome(SwapStep memory step, uint256 amountIn) private returns (uint256) {
         IAerodromeRouter.Route[] memory routes = new IAerodromeRouter.Route[](1);
+        bool isStable = IAerodromePool(step.poolAddress).stable();
         routes[0] = IAerodromeRouter.Route({
             from: step.tokenIn,
             to: step.tokenOut,
-            stable: false,
+            stable: isStable,
             factory: address(0)
         });
         return IAerodromeRouter(routers[step.protocol]).swapExactTokensForTokens(

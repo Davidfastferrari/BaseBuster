@@ -44,13 +44,11 @@ async fn main() -> Result<()> {
     let pool_sync = PoolSync::builder()
         .add_pools(&[
             PoolType::UniswapV2,
-            PoolType::UniswapV3,
             PoolType::SushiSwapV2,
-            PoolType::SushiSwapV3,
             PoolType::PancakeSwapV2,
-            PoolType::PancakeSwapV3,
-            PoolType::Aerodrome,
-            PoolType::BalancerV2,
+            PoolType::BaseSwapV2,
+            PoolType::SwapBasedV2,
+            PoolType::AlienBaseV2
         ])
         .chain(Chain::Base)
         .build()?;

@@ -12,12 +12,6 @@ use revm::primitives::AccountInfo;
     use revm::primitives::TransactTo;
 use revm::Evm;
 use alloy::sol;
-//use gweiyser::protocols::uniswap::v2::UniswapV2Pool;
-//use gweiyser::protocols::uniswap::v3::UniswapV3Pool;
-//use gweiyser::{Chain, Gweiyser};
-use alloy::network::Ethereum;
-use alloy::network::EthereumWallet;
-use alloy::node_bindings::Anvil;
 use crate::db::RethDB;
 
 use std::sync::Arc;
@@ -52,7 +46,6 @@ mod test_sim {
 
     #[tokio::test(flavor = "multi_thread")]
     pub async fn full_quote() {
-        let start = std::time::Instant::now();
         let mut db = CacheDB::new(RethDB::new());
 
         let account = address!("1E0294b6e4D72857B5eC467f5c2E52BDA37CA5b8");
@@ -94,26 +87,34 @@ mod test_sim {
 
         let approve_calldata = Approval::approveCall {
             spender: quoter,
-            amount: U256::from(1e16)
+            amount: U256::from(1e18)
         }.abi_encode();
 
         evm.tx_mut().data = approve_calldata.into();
 
         let ref_tx = evm.transact_commit().unwrap();
 
+        let start = std::time::Instant::now();
         let path = vec![
             FlashQuoter::SwapStep {
-                poolAddress: address!("cDAC0d6c6C59727a65F871236188350531885C43"),
+                poolAddress: address!("88A43bbDF9D098eEC7bCEda4e2494615dfD9bB9C"),
                 tokenIn: address!("4200000000000000000000000000000000000006"),
                 tokenOut: address!("833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
-                protocol: 15,
+                protocol: 0,
+                fee: 0.try_into().unwrap(),
+            },
+            FlashQuoter::SwapStep {
+                poolAddress: address!("B16D2257643fdBB32d12b9d73faB784eB4f1Bee4"),
+                tokenIn: address!("833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
+                tokenOut: address!("4200000000000000000000000000000000000006"),
+                protocol: 5,
                 fee: 0.try_into().unwrap(),
             },
         ];
 
         let calldata = FlashQuoter::quoteArbitrageCall {
             steps: path,
-            amount: U256::from(1e15)
+            amount: U256::from(1e16)
         }.abi_encode();
 
         evm.tx_mut().data = calldata.into();

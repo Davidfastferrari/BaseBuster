@@ -1,44 +1,12 @@
-use alloy::network::Ethereum;
-use alloy::network::EthereumWallet;
-use alloy::node_bindings::Anvil;
-use alloy::node_bindings::AnvilInstance;
-use alloy::pubsub::Subscription;
-use alloy::pubsub::SubscriptionStream;
-use alloy::rpc::types::Block;
-use alloy::primitives::U256;
-use alloy::primitives::{address, Address};
-use alloy::providers::ext::DebugApi;
-use alloy::providers::{Provider, ProviderBuilder, RootProvider, WsConnect};
-use alloy::rpc::types::trace::geth::GethDebugBuiltInTracerType::CallTracer;
-use alloy::rpc::types::trace::geth::GethDebugTracingOptions;
-use alloy::rpc::types::trace::geth::{
-    CallConfig, CallFrame, GethDebugTracerConfig, GethDebugTracerType,
-    GethDebugTracingCallOptions, GethDefaultTracingOptions, GethTrace,
-};
-use alloy::signers::local::PrivateKeySigner;
+use alloy::primitives::Address;
 use alloy::sol;
-use alloy::transports::http::{Client, Http};
-use alloy::primitives::FixedBytes;
-use futures::stream::Take;
-use futures::Stream;
-use futures::StreamExt;
-//use gweiyser::addresses::amms;
-//use gweiyser::protocols::uniswap::v2::UniswapV2Pool;
-//use gweiyser::protocols::uniswap::v3::UniswapV3Pool;
-//use gweiyser::{Chain, Gweiyser};
 use pool_sync::*;
-use revm::interpreter::instructions::contract;
-use sha2::digest::consts::U25;
 use std::sync::Arc;
 use tokio::sync::broadcast;
 
-use crate::calculation::Calculator;
 use crate::events::Event;
 use crate::swap::SwapStep;
-use crate::pool_manager;
 use crate::pool_manager::PoolManager;
-use crate::util::get_working_pools;
-use crate::FlashSwap;
 
 sol!(
     #[derive(Debug)]
@@ -102,7 +70,7 @@ pub async fn pool_manager_with_pools(
         .collect();
 
         println!("Pools: {:#?}", pools);
-    let (pool_manager, mut reserve_receiver) =
+    let (pool_manager, reserve_receiver) =
         construct_pool_manager(pools.clone(), last_synced_block).await;
     (pool_manager, reserve_receiver)
 }
@@ -120,35 +88,5 @@ pub async fn swappath_to_flashquote(steps: Vec<SwapStep>) -> Vec<FlashQuoter::Sw
 }
 
 
-
-// just return the tracing options
-pub fn get_tracing_options() -> GethDebugTracingCallOptions {
-    let options = GethDebugTracingCallOptions {
-        tracing_options: GethDebugTracingOptions {
-            config: GethDefaultTracingOptions {
-                disable_memory: Some(true),
-                disable_stack: Some(true),
-                disable_storage: Some(true),
-                debug: Some(true),
-                disable_return_data: Some(true),
-                ..Default::default()
-            },
-            tracer: Some(GethDebugTracerType::BuiltInTracer(CallTracer)),
-            tracer_config: GethDebugTracerConfig(
-                serde_json::to_value(CallConfig {
-                    only_top_call: Some(false),
-                    with_log: Some(true),
-                })
-                .unwrap()
-                .into(),
-            ),
-            timeout: None,
-            ..Default::default()
-        },
-        state_overrides: None,
-        block_overrides: None,
-    };
-    options
-}
 
 

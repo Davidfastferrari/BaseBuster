@@ -1,14 +1,14 @@
 
 use crate::calculation::Calculator;
 use alloy::primitives::{U256, Address};
-use tokio::sync::broadcast::{Receiver, Sender};
+use tokio::sync::broadcast::Receiver;
+use std::sync::mpsc::Sender;
 use crate::events::Event;
 use log::{info, warn, debug};
 use rayon::prelude::*;
 use std::sync::Arc;
 use crate::pool_manager::PoolManager;
 use crate::swap::{SwapStep, SwapPath};
-use dashmap::DashMap;
 use std::collections::HashSet;
 use std::time::Instant;
 use std::collections::HashMap;

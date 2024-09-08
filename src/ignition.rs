@@ -1,8 +1,8 @@
-use alloy::primitives::address;
 use log::info;
 use pool_sync::{Chain, Pool};
 use std::sync::Arc;
 use tokio::sync::broadcast;
+use std::sync::mpsc;
 
 use crate::graph::ArbGraph;
 use crate::market::Market;
@@ -21,8 +21,8 @@ pub async fn start_workers(
     // all communication channels
     let (block_sender, block_receiver) = broadcast::channel(10);
     let (reserve_update_sender, reserve_update_receiver) = broadcast::channel(10);
-    let (arb_sender, arb_receiver) = broadcast::channel(1000);
-    let (tx_sender, tx_receiver) = broadcast::channel(1000);
+    let (arb_sender, arb_receiver) = mpsc::channel();
+    let (tx_sender, tx_receiver) = mpsc::channel();
 
     // get out working pools and construct ethe pool manager
     info!("Getting working pools...");
@@ -58,15 +58,17 @@ pub async fn start_workers(
             .await;
     });
 
-    // simulate arbitrage paths
+    // simulate arbitrage paths in a new thread
     info!("Starting simulator...");
-    tokio::spawn(simulate_paths(tx_sender, arb_receiver.resubscribe()));
+    std::thread::spawn(move || {
+        simulate_paths(tx_sender, arb_receiver);
+    });
 
     // transaction sender
     info!("Starting transaction sender...");
     let tx_sender = TransactionSender::new(market);
     tokio::spawn(async move {
-        let _ = tx_sender.send_transactions(tx_receiver.resubscribe()).await;
+        let _ = tx_sender.send_transactions(tx_receiver).await;
     });
 
     // finally.... start the searcher!!!!!

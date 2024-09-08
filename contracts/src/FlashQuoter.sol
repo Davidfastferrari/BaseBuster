@@ -295,7 +295,6 @@ contract FlashQuoter {
     function _swapAerodrome(SwapStep memory step, uint256 amountIn) private returns (uint256) {
         IAerodromeRouter.Route[] memory routes = new IAerodromeRouter.Route[](1);
         bool isStable = IAerodromePool(step.poolAddress).stable();
-        address factoryAddr = IAerodromePool(step.poolAddress).factory();
         routes[0] = IAerodromeRouter.Route({
             from: step.tokenIn,
             to: step.tokenOut,

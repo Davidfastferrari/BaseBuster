@@ -1,10 +1,5 @@
-use alloy::network::EthereumWallet;
-use alloy::node_bindings::{Anvil, AnvilInstance};
 use alloy::primitives::{address, Address};
-use alloy::providers::{Provider, ProviderBuilder};
-use alloy::signers::local::PrivateKeySigner;
 use anyhow::Result;
-use log::info;
 use pool_sync::fetch_top_volume_tokens;
 use pool_sync::{Chain, Pool, PoolInfo};
 use serde::{Deserialize, Serialize};

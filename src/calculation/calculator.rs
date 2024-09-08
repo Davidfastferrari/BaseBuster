@@ -1,12 +1,10 @@
 use crate::pool_manager::PoolManager;
 use crate::swap::*;
 use alloy::primitives::{Address, U256};
-use alloy::providers::{Provider, ProviderBuilder, RootProvider};
+use alloy::providers::{ProviderBuilder, RootProvider};
 use alloy::transports::http::{Client, Http};
-use dashmap::DashMap;
-use pool_sync::{Pool, PoolInfo, PoolType};
-use std::sync::{Arc, RwLock};
-use std::time::Instant;
+use pool_sync::PoolType;
+use std::sync::Arc;
 use crate::cache::Cache;
 use crate::db::RethDB;
 use revm::db::CacheDB;

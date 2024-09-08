@@ -201,6 +201,7 @@ impl PoolManager {
 
         // process the missed blocks
         let mut latest_block = http.get_block_number().await.unwrap();
+        println!("{:?} {:?}", latest_block, last_synced_block);
         while last_synced_block < latest_block {
             let filter = Filter::new()
                 .events([

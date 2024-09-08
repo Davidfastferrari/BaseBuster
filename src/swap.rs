@@ -45,7 +45,6 @@ impl SwapStep {
             PoolType::SwapBasedV3 => 12,
             PoolType::BaseSwapV3 => 13,
 
-
             // SLIPSTREAM
             PoolType::Slipstream => 14,
 

@@ -1,5 +1,4 @@
 use alloy::providers::{Provider, ProviderBuilder};
-use log::{debug, info, warn};
 use std::sync::RwLock;
 use tokio::sync::broadcast::Receiver;
 

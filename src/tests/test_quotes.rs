@@ -1,48 +1,25 @@
-use alloy::network::Ethereum;
-use alloy::network::EthereumWallet;
-use alloy::node_bindings::Anvil;
-use alloy::primitives::Signed;
-use alloy::node_bindings::AnvilInstance;
+use alloy::primitives::{Signed, U160};
 use alloy::sol_types::{SolValue, SolCall};
 use revm::primitives::ExecutionResult;
 use crate::db::RethDB;
-//use crate::db::RethDB;
 use crate::swap::SwapPath;
 use alloy::primitives::U256;
 use alloy::primitives::{address, Address};
-use alloy::providers::ext::DebugApi;
-use alloy::providers::{Provider, ProviderBuilder, RootProvider, WsConnect};
-use alloy::rpc::types::trace::geth::GethDebugBuiltInTracerType::CallTracer;
+use alloy::providers::ProviderBuilder;
 use revm::db::CacheDB;
-use alloy::eips::BlockId;
-use alloy::eips::BlockNumberOrTag;
-use alloy::primitives::U160;
 use revm::primitives::keccak256;
-use alloy::rpc::types::trace::geth::GethDebugTracingOptions;
 use revm::primitives::Bytes;
 use revm::primitives::AccountInfo;
-use alloy::rpc::types::trace::geth::{
-    CallConfig, CallFrame, GethDebugTracerConfig, GethDebugTracerType,
-    GethDebugTracingCallOptions, GethDefaultTracingOptions, GethTrace,
-};
-use alloy::signers::local::PrivateKeySigner;
 use alloy::sol;
-use alloy::transports::http::{Client, Http};
-use alloy::primitives::FixedBytes;
 use pool_sync::*;
-use revm::interpreter::instructions::contract;
 use revm::primitives::TransactTo;
 use revm::Evm;
-use sha2::digest::consts::U25;
 use std::sync::Arc;
 use std::time::Instant;
-use tokio::sync::broadcast;
 
 use super::test_gen::*;
 use crate::calculation::Calculator;
-use crate::events::Event;
 use crate::swap::*;
-use crate::pool_manager;
 use crate::pool_manager::PoolManager;
 use crate::util::get_working_pools;
 use crate::FlashSwap;

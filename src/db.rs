@@ -6,13 +6,11 @@ use reth_db::open_db_read_only;
 use reth_db::mdbx::{DatabaseArguments, DatabaseEnvKind};
 use reth_db::models::ClientVersion;
 use reth_provider::providers::StaticFileProvider;
-use reth_chainspec::{ChainSpecBuilder, Chain};
 use reth_node_ethereum::EthereumNode;
 use reth_optimism_chainspec::BASE_MAINNET;
 use reth_provider::StateProviderBox;
 use revm::{Database, DatabaseRef, interpreter};
 use revm::primitives::{AccountInfo, Address, B256, Bytecode, KECCAK_EMPTY, U256};
-use anyhow::Error;
 use std::sync::Arc;
 use std::sync::Mutex;
 
@@ -28,18 +26,6 @@ impl RethDB {
     pub fn new() -> Self {
         let db_path = Path::new("/home/ubuntu/base-docker/data/db");
         let static_path = Path::new("/var/tmp/md0_static_files");
-        /* 
-        let db_env = open_db_read_only(
-            db_path,
-            DatabaseArguments::new(ClientVersion::default())
-        ).unwrap();
-
-        let static_file_provider = StaticFileProvider::read_only(db_path.join("hello"), true).unwrap();
-        */
-        let db_env = open_db_read_only(
-            db_path, 
-            DatabaseArguments::new(ClientVersion::default())
-        ).unwrap();
 
         let db_env = DatabaseEnv::open(
             db_path,
@@ -50,11 +36,6 @@ impl RethDB {
 
         let static_file_provider = StaticFileProvider::read_only(static_path, true).unwrap();
         static_file_provider.watch_directory();
-
-        //let spec = Arc::new()
-
-
-
 
         let chain_spec = Arc::new(BASE_MAINNET.inner.clone());
         //let spec = Arc::new(ChainSpecBuilder::mainnet().chain(Chain::base_mainnet()).build());
@@ -68,34 +49,6 @@ impl RethDB {
         Self {
             provider
         }
-
-
-
-
-
-    /* 
-
-
-        println!("blah");
-        //let chainspec = ChainSpecBuilder::
-        let spec = ChainSpecBuilder::mainnet().build();
-        let factory =
-        ProviderFactory::<NodeTypesWithDBAdapter<EthereumNode, _>>::new_with_database_path(
-            db_path,
-            spec.into(),
-            Default::default(),
-            StaticFileProvider::read_only(static_path, false).unwrap(),
-        ).unwrap();
-        println!("blaasdfh");
-        //let db_provider = factory.provider().unwrap();
-        let lock = Lock::default();
-        let _guard = lock.lock().unwrap();
-        println!("blahr2");
-        let provider = factory.latest().unwrap();
-        println!("blahrasdf2");
-
-        Self {provider}
-        */
     }
 
     fn request<F, R, E>(&self, f: F) -> Result<R, E>

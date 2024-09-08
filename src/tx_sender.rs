@@ -8,23 +8,20 @@ use alloy::providers::{Identity, Provider, ProviderBuilder};
 use alloy::signers::local::PrivateKeySigner;
 use tokio::sync::Mutex;
 use alloy::signers::k256::SecretKey;
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use sha2::{Digest, Sha256};
-use log::{debug, error, info, warn};
+use log::{info, warn};
 use std::collections::HashSet;
 use std::sync::Arc;
 use alloy::primitives::address;
-use std::time::{Duration, Instant};
-use tokio::sync::broadcast::Receiver;
+use std::sync::mpsc::Receiver;
 use alloy::providers::RootProvider;
 use alloy::transports::http::{Client, Http};
 use alloy::network::Ethereum;
 
-use crate::{market, FlashSwap, AMOUNT};
+use crate::{FlashSwap, AMOUNT};
 use crate::market::Market;
 
-//type WalletProvider = FillProvider<JoinFill<JoinFill<Identity, NonceFiller>, WalletFiller<EthereumWallet>>, RootProvider<Http<Client>>, Http<Client>, Ethereum>;
-//type WalletProvider = FillProvider<JoinFill<Identity, WalletFiller<EthereumWallet>>, RootProvider<Http<Client>>, Http<Client>, Ethereum>;
 type WalletProvider = FillProvider<JoinFill<JoinFill<Identity, NonceFiller>, WalletFiller<EthereumWallet>>, RootProvider<Http<Client>>, Http<Client>, Ethereum>;
 
 pub struct TransactionSender {
@@ -65,7 +62,7 @@ impl TransactionSender {
         let wallet_address = address!("1E0294b6e4D72857B5eC467f5c2E52BDA37CA5b8");
 
         // wait for a new transaction that has passed simulation
-        while let Ok(arb_path) = tx_receiver.recv().await {
+        while let Ok(arb_path) = tx_receiver.recv() {
             println!("got the new path");
             // hash the transaction and make sure we didnt just end it
            // let tx_hash = self.hash_transaction(&arb_path);
