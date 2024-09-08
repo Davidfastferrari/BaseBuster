@@ -24,23 +24,42 @@ pub struct SwapStep {
 impl SwapStep {
     pub fn as_u8(&self) -> u8 {
         match self.protocol {
+            // V2 Variants
             PoolType::UniswapV2 => 0,
             PoolType::SushiSwapV2 => 1,
             PoolType::PancakeSwapV2 => 2,
             PoolType::BaseSwapV2 => 3,
-            PoolType::UniswapV3 => 4,
-            PoolType::PancakeSwapV3 => 5,
-            PoolType::SushiSwapV3 => 6,
-            PoolType::BaseSwapV3 => 7,
-            PoolType::Slipstream => 8,
-            PoolType::Aerodrome => 9,
-            PoolType::AlienBaseV2 => 10,
-            PoolType::AlienBaseV3 => 11,
-            PoolType::MaverickV1 => 12,
-            PoolType::MaverickV2 => 13,
-            PoolType::BalancerV2 => 14,
-            PoolType::CurveTwoCrypto => 15,
-            PoolType::CurveTriCrypto => 16,
+            PoolType::SwapBasedV2 => 4,
+            PoolType::AlienBaseV2 => 5,
+            PoolType::DackieSwapV2 => 6,
+
+            // V3 VARIANTS
+            // NO DEADLINE
+            PoolType::UniswapV3 => 7,
+            PoolType::AlienBaseV3 => 8,
+            PoolType::DackieSwapV3 => 9,
+            PoolType::PancakeSwapV3 => 10,
+
+            // DEADLINE
+            PoolType::SushiSwapV3 => 11,
+            PoolType::SwapBasedV3 => 12,
+            PoolType::BaseSwapV3 => 13,
+
+
+            // SLIPSTREAM
+            PoolType::Slipstream => 14,
+
+            // AERODROME
+            PoolType::Aerodrome => 15,
+
+            // BALANCER
+            PoolType::BalancerV2 => 16,
+
+            // TOIMPL
+            PoolType::MaverickV1 => 17,
+            PoolType::MaverickV2 => 18,
+            PoolType::CurveTwoCrypto => 19,
+            PoolType::CurveTriCrypto => 20,
             _ => 16
         }
     }

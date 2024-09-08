@@ -96,6 +96,16 @@ impl Calculator {
                     U256::from(9975),
                 )
             }
+            PoolType::AlienBaseV2 => {
+                let pool = self.pool_manager.get_v2pool(&pool_address);
+                self.uniswap_v2_out(
+                    input_amount,
+                    pool.token0_reserves,
+                    pool.token1_reserves,
+                    zero_to_one,
+                    U256::from(9984),
+                )
+            }
             PoolType::UniswapV3
             | PoolType::SushiSwapV3
             | PoolType::BaseSwapV3

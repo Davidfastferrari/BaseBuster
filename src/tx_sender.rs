@@ -61,19 +61,19 @@ impl TransactionSender {
         &self,
         mut tx_receiver: Receiver<Vec<FlashSwap::SwapStep>>,
     ) -> Result<()> {
-        let contract = FlashSwap::new(address!("5C770adBAfcaE556f58B91b3aD2c276B3F0F7D6B"), self.provider.clone());
+        let contract = FlashSwap::new(address!("1812771bC6a6890BC87EBa9E0C95004FA27750d5"), self.provider.clone());
         let wallet_address = address!("1E0294b6e4D72857B5eC467f5c2E52BDA37CA5b8");
 
         // wait for a new transaction that has passed simulation
         while let Ok(arb_path) = tx_receiver.recv().await {
             println!("got the new path");
             // hash the transaction and make sure we didnt just end it
-            let tx_hash = self.hash_transaction(&arb_path);
-            let mut recent_txs = self.recent_transactions.lock().await;
-            if recent_txs.contains(&tx_hash) {
-                info!("Already sent transaction, skipping");
-                continue;
-            }
+           // let tx_hash = self.hash_transaction(&arb_path);
+            //let mut recent_txs = self.recent_transactions.lock().await;
+            //if recent_txs.contains(&tx_hash) {
+            //    info!("Already sent transaction, skipping");
+            //    continue;
+            //}
 
             // fetch information needed to send the transaction
             let max_fee_per_gas = self.market.get_max_fee();
@@ -82,8 +82,8 @@ impl TransactionSender {
             // construct and send the transaction
             info!("Sending transaction... {:#?}", arb_path);
             let tx = contract.executeArbitrage(arb_path.clone(), U256::from(AMOUNT))
-                .max_fee_per_gas(max_fee_per_gas * 2 )
-                .max_priority_fee_per_gas(max_priority_fee_per_gas * 2)
+                .max_fee_per_gas(max_fee_per_gas * 5 )
+                .max_priority_fee_per_gas(max_priority_fee_per_gas * 5)
                 .chain_id(8453)
                 .gas(1_000_000)
                 .into_transaction_request();
@@ -93,7 +93,7 @@ impl TransactionSender {
                 Ok(tx_result) => {
                     let receipt = tx_result.get_receipt().await.unwrap();
                     info!("Transaction send: {:?}, Gas Used {}, Effective Gas Price {}", receipt.transaction_hash, receipt.gas_used, receipt.effective_gas_price);
-                    recent_txs.insert(tx_hash);
+                    //recent_txs.insert(tx_hash);
                 }
                 Err(e) => warn!("Transaction failed: {:?}", e),
             }

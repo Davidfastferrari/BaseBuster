@@ -18,11 +18,11 @@ use alloy::sol;
 use alloy::network::Ethereum;
 use alloy::network::EthereumWallet;
 use alloy::node_bindings::Anvil;
+use crate::db::RethDB;
 
 use std::sync::Arc;
 use alloy::{signers::local::PrivateKeySigner, sol_types::SolValue};
 use revm::primitives::{keccak256, Bytes};
-use crate::tests::test_utils::FlashQuoter;
 
 
 sol!(
@@ -33,12 +33,114 @@ sol!(
     }
 );
 
+sol!(
+    #[derive(Debug)]
+    #[sol(rpc)]
+    FlashQuoter,
+    "src/abi/FlashQuoter.json"
+);
+
 
 
 #[cfg(test)]
 mod test_sim {
 
+    use revm::primitives::ExecutionResult;
+
     use super::*;
+
+
+    #[tokio::test(flavor = "multi_thread")]
+    pub async fn full_quote() {
+        let start = std::time::Instant::now();
+        let mut db = CacheDB::new(RethDB::new());
+
+        let account = address!("1E0294b6e4D72857B5eC467f5c2E52BDA37CA5b8");
+        let weth = address!("4200000000000000000000000000000000000006");
+        let quoter = address!("0000000000000000000000000000000000001000"); // Replace with actual quoter address
+
+        // Give ourselves WETH
+        let weth_balance_slot = U256::from(3);
+        let one_ether = U256::from(1_000_000_000_000_000_000u128);
+        let hashed_acc_balance_slot = keccak256((account, weth_balance_slot).abi_encode());
+        db.insert_account_storage(weth, hashed_acc_balance_slot.into(), one_ether)
+            .unwrap();
+    
+        let acc_info = AccountInfo {
+            nonce: 0_u64,
+            balance: one_ether,
+            code_hash: keccak256(Bytes::new()),
+            code: None,
+        };
+        db.insert_account_info(account, acc_info);
+    
+        // Insert quoter bytecode
+        let quoter_bytecode = FlashQuoter::DEPLOYED_BYTECODE.clone();
+        let quoter_acc_info = AccountInfo {
+            nonce: 0_u64,
+            balance: U256::ZERO,
+            code_hash: keccak256(&quoter_bytecode),
+            code: Some(Bytecode::new_raw(quoter_bytecode)),
+        };
+        db.insert_account_info(quoter, quoter_acc_info);
+
+        let mut evm = Evm::builder()
+            .with_db(db)
+            .modify_tx_env(|tx| {
+                tx.caller = account;
+                tx.transact_to = TransactTo::Call(weth);
+                tx.value = U256::ZERO;
+            }).build();
+
+        let approve_calldata = Approval::approveCall {
+            spender: quoter,
+            amount: U256::from(1e16)
+        }.abi_encode();
+
+        evm.tx_mut().data = approve_calldata.into();
+
+        let ref_tx = evm.transact_commit().unwrap();
+
+        let path = vec![
+            FlashQuoter::SwapStep {
+                poolAddress: address!("cDAC0d6c6C59727a65F871236188350531885C43"),
+                tokenIn: address!("4200000000000000000000000000000000000006"),
+                tokenOut: address!("833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
+                protocol: 15,
+                fee: 0.try_into().unwrap(),
+            },
+        ];
+
+        let calldata = FlashQuoter::quoteArbitrageCall {
+            steps: path,
+            amount: U256::from(1e15)
+        }.abi_encode();
+
+        evm.tx_mut().data = calldata.into();
+        evm.tx_mut().transact_to = TransactTo::Call(quoter);
+
+        let ref_tx = evm.transact().unwrap();
+        let result = ref_tx.result;
+        match result {
+            ExecutionResult::Success {
+                output: value,
+                ..
+            } => {
+                let a = match <U256>::abi_decode(&value.data(), false) {
+                    Ok(a) => a,
+                    Err(_) => U256::ZERO
+                };
+                println!("Profit: {:#?}", a);
+                let duration = start.elapsed();
+                println!("Time taken: {:?}", duration);
+            }
+            _=> println!("{:#?}", result),
+    
+    
+        }
+    }
+
+
 
 
     pub async fn contract_sim() {
@@ -195,7 +297,9 @@ mod test_sim {
         let result = ref_tx.result;
         println!("Result: {:#?}", result);
         */
-        todo!()
+        //todo!()
     }
 
 }
+
+

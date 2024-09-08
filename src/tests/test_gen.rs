@@ -109,6 +109,28 @@ sol!(
 
 sol!(
     #[sol(rpc)]
+    contract V3QuoterSlipstream {
+        struct QuoteExactInputSingleParams {
+            address tokenIn;
+            address tokenOut;
+            uint256 amountIn;
+            int24 tickSpacing;
+            uint160 sqrtPriceLimitX96;
+        }
+        function quoteExactInputSingle(QuoteExactInputSingleParams memory params)
+        external
+        returns (
+            uint256 amountOut,
+            uint160 sqrtPriceX96After,
+            uint32 initializedTicksCrossed,
+            uint256 gasEstimate
+        );
+
+    }
+);
+
+sol!(
+    #[sol(rpc)]
     contract V2Router {
         function getAmountsOut(uint amountIn, address[] calldata path) external view returns (uint[] memory amounts);
     }
@@ -133,3 +155,10 @@ sol!(
         ) external returns (uint256 amountIn, uint256 amountOut, uint256 gasEstimate);
     }
 );
+
+sol! {
+    #[sol(rpc)]
+    contract SlipstreamPool {
+        function tickSpacing() external view returns (int24);
+    }
+}
