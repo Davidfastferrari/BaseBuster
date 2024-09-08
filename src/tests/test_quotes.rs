@@ -5,6 +5,7 @@ use alloy::primitives::Signed;
 use alloy::node_bindings::AnvilInstance;
 use alloy::sol_types::{SolValue, SolCall};
 use revm::primitives::ExecutionResult;
+use crate::db::RethDB;
 //use crate::db::RethDB;
 use crate::swap::SwapPath;
 use alloy::primitives::U256;
@@ -26,10 +27,6 @@ use alloy::signers::local::PrivateKeySigner;
 use alloy::sol;
 use alloy::transports::http::{Client, Http};
 use alloy::primitives::FixedBytes;
-use gweiyser::addresses::amms;
-use gweiyser::protocols::uniswap::v2::UniswapV2Pool;
-use gweiyser::protocols::uniswap::v3::UniswapV3Pool;
-use gweiyser::{Chain, Gweiyser};
 use pool_sync::*;
 use revm::interpreter::instructions::contract;
 use revm::primitives::TransactTo;
@@ -84,8 +81,7 @@ mod offchain_calculations {
     }
 
     // OK
-    //test_pool_out!(test_uniswapv2_out, UniswapV2, "88A43bbDF9D098eEC7bCEda4e2494615dfD9bB9C", "4200000000000000000000000000000000000006", "833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", 0);
-    test_pool_out!(test_uniswapv2_out, UniswapV2, "B4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc", "C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", "A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", 0);
+    test_pool_out!(test_uniswapv2_out, UniswapV2, "88A43bbDF9D098eEC7bCEda4e2494615dfD9bB9C", "4200000000000000000000000000000000000006", "833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", 0);
     // OK
     test_pool_out!(test_uniswapv3_out, UniswapV3, "d0b53D9277642d899DF5C87A3966A349A798F224", "4200000000000000000000000000000000000006", "833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", 500);
     // OK
@@ -96,10 +92,8 @@ mod offchain_calculations {
     test_pool_out!(test_pancakeswapv2_out, PancakeSwapV2, "79474223AEdD0339780baCcE75aBDa0BE84dcBF9", "4200000000000000000000000000000000000006", "833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", 0);
     // OK
     test_pool_out!(test_pancakeswapv3_out, PancakeSwapV3, "B775272E537cc670C65DC852908aD47015244EaF", "4200000000000000000000000000000000000006", "833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", 500);
-    test_pool_out!(test_aerodrome_out, Aerodrome, "acb7907c232907934b2578315dfcfa1ba60e87af", "4200000000000000000000000000000000000006", "9beec80e62aa257ced8b0edd8692f79ee8783777", 0);
 
-
-    // TOTEST
+    test_pool_out!(test_aerodrome_out, Aerodrome, "cDAC0d6c6C59727a65F871236188350531885C43", "4200000000000000000000000000000000000006", "9beec80e62aa257ced8b0edd8692f79ee8783777", 0);
     test_pool_out!(test_curve_two_out, CurveTwoCrypto, "749ef4ab10aef61151e14c9336b07727ffa5a323", "833589fcd6edb6e08f4c7c32d4f71b54bda02913", "8ee73c484a26e0a5df2ee2a4960b789967dd0415", 0);
     test_pool_out!(test_curve_tri_out, CurveTriCrypto, "6e53131f68a034873b6bfa15502af094ef0c5854", "417ac0e078398c154edfadd9ef675d30be60af93", "236aa50979d5f3de3bd1eeb40e81137f22ab794b", 0);
     test_pool_out!(test_maverickv2_out, MaverickV2, "3cfCc73dD7a81e5373CD9D50960D5bA5f113Cb7E", "50c5725949A6F0c72E6C4a641F24049A917DB0Cb", "833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", 0);
@@ -416,16 +410,15 @@ pub async fn onchain_balancer(swap_step: &SwapStep, amount_in: U256) -> U256 {
 
 pub fn onchain_aerodrome(swap_step: &SwapStep, amount_in: U256) -> U256 {
 
-    todo!()
-    /* 
     sol!(
         contract Aerodrome {
             function getAmountOut(uint256 amountIn, address tokenIn) external view returns (uint256);
         }
     );
 
-    let data_path = "/home/ubuntu/base-docker/data";
-    let mut db = CacheDB::new(RethDB::new(data_path, None).unwrap());
+    //let mut db = CacheDB::new(RethDB::new());
+    let db = RethDB::new();
+    println!("ran here");
 
     let calldata = Aerodrome::getAmountOutCall {
         amountIn: amount_in,
@@ -440,6 +433,7 @@ pub fn onchain_aerodrome(swap_step: &SwapStep, amount_in: U256) -> U256 {
             tx.data = calldata.into();
             tx.value = U256::ZERO;
         }).build();
+    println!("ran here too");
 
     
     let ref_tx = evm.transact().unwrap();
@@ -459,7 +453,6 @@ pub fn onchain_aerodrome(swap_step: &SwapStep, amount_in: U256) -> U256 {
 
 
     }
-    */
 
     /* 
     pub async fn onchain_aerodrome(swap_step: &SwapStep, amount_in: U256) -> U256 {

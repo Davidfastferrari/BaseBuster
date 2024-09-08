@@ -25,6 +25,7 @@ pub async fn simulate_paths(
     mut arb_receiver: Receiver<Event>,
 ) {
     // setup local anvil instance for simulation, good for caching
+    /* 
     let anvil = Anvil::new()
         .fork(std::env::var("FULL").unwrap())
         .port(1500_u16)
@@ -54,6 +55,7 @@ pub async fn simulate_paths(
         state_overrides: None,
         block_overrides: None,
     };
+    */
 
     // wait for a new arbitrage path
     while let Ok(Event::NewPath(arb_path)) = arb_receiver.recv().await {

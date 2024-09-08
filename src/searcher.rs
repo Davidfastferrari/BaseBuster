@@ -34,7 +34,6 @@ impl Searchoor {
 
         Self { calculator, cycles, path_index: index}
     }
-
     pub async fn search_paths(
         &mut self,
         arb_sender: Sender<Event>,
@@ -44,13 +43,14 @@ impl Searchoor {
         let min_profit_percentage: U256 = U256::from(2) / U256::from(100); // 2% minimum profit
         let initial_amount = U256::from(1e16);
         let repayment_amount = initial_amount + (initial_amount * flash_loan_fee);
+        let min_profit_amount = repayment_amount + (initial_amount * min_profit_percentage);
 
         // wait for a new single with the pools that have reserved updated
         while let Ok(Event::ReserveUpdate(updated_pools)) = reserve_update_receiver.recv().await {
             info!("Searching for arbs...");
             let start = Instant::now();
 
-            self.calculator.update_cache(&updated_pools);
+            self.calculator.invalidate_cache(&updated_pools);
 
             // from the updated pools, get all paths that we want to recheck
             let affected_paths: HashSet<&SwapPath> = updated_pools
@@ -66,14 +66,14 @@ impl Searchoor {
                 .par_iter()
                 .filter_map(|path| {
                     let output_amount = self.calculator.calculate_output(&path);
-                    if output_amount > repayment_amount {
+                    if output_amount >= min_profit_amount {
                         Some(path.steps.clone())
                     } else {
                         None
                     }
                 }).collect();
-            let end = Instant::now();
-            println!("{:?} elapsed", start.elapsed());
+
+            info!("{:?} elapsed", start.elapsed());
             info!("{} profitable paths", profitable_paths.len());
 
             // send to the simulator

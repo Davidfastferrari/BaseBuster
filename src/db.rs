@@ -1,145 +1,114 @@
+use reth::api::NodeTypesWithDBAdapter;
+use reth_primitives::StorageKey;
+use reth_provider::ProviderFactory;
 use std::path::Path;
-use std::sync::{Arc, Mutex};
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::Duration;
-use dashmap::{DashMap, Entry};
-use eyre::{bail, Context};
-use reth_db::{DatabaseEnv, open_db_read_only};
-use reth_provider::{BlockNumReader, DatabaseProviderRO, LatestStateProvider, ProviderFactory, StateProviderBox};
-use once_cell::sync::Lazy;
-use reth_chainspec::ChainSpecBuilder;
-use reth_db::mdbx::DatabaseArguments;
-use reth_db_api::models::ClientVersion;
+use reth_db::open_db_read_only;
+use reth_db::mdbx::{DatabaseArguments, DatabaseEnvKind};
+use reth_db::models::ClientVersion;
 use reth_provider::providers::StaticFileProvider;
+use reth_chainspec::{ChainSpecBuilder, Chain};
+use reth_node_ethereum::EthereumNode;
+use reth_optimism_chainspec::BASE_MAINNET;
+use reth_provider::StateProviderBox;
 use revm::{Database, DatabaseRef, interpreter};
 use revm::primitives::{AccountInfo, Address, B256, Bytecode, KECCAK_EMPTY, U256};
+use anyhow::Error;
+use std::sync::Arc;
+use std::sync::Mutex;
 
-type DBFactory = ProviderFactory<Arc<DatabaseEnv>>;
+        use reth_db::DatabaseEnv;
+
 type Lock = Arc<Mutex<()>>;
 
-static DB_LOCK: Lazy<DashMap<String, (DBFactory, Lock)>> = Lazy::new(|| Default::default());
-
 pub struct RethDB {
-    provider: StateProviderBox,
-
-    measure_rpc_time: bool,
-    cumulative_rpc_time: AtomicU64,
+    provider: StateProviderBox
 }
 
 impl RethDB {
-    pub fn new(db_path: &str, block: Option<u64>) -> eyre::Result<Self> {
-        let (database, lock) = match DB_LOCK.entry(db_path.to_string()) {
-            Entry::Occupied(entry) => entry.get().clone(),
-            Entry::Vacant(entry) => {
-                let db_path = Path::new(db_path);
+    pub fn new() -> Self {
+        let db_path = Path::new("/home/ubuntu/base-docker/data/db");
+        let static_path = Path::new("/var/tmp/md0_static_files");
+        /* 
+        let db_env = open_db_read_only(
+            db_path,
+            DatabaseArguments::new(ClientVersion::default())
+        ).unwrap();
 
-                let db_env = open_db_read_only(
-                    db_path.join("db").as_path(),
-                    DatabaseArguments::new(ClientVersion::default()),
-                )
-                    .context("fail to open db env")?;
-                let db_env = Arc::new(db_env);
+        let static_file_provider = StaticFileProvider::read_only(db_path.join("hello"), true).unwrap();
+        */
+        let db_env = open_db_read_only(
+            db_path, 
+            DatabaseArguments::new(ClientVersion::default())
+        ).unwrap();
 
-                let static_file_provider = StaticFileProvider::read_only(db_path.join("static_files"))
-                    .context("fail to open static file provider")?;
+        let db_env = DatabaseEnv::open(
+            db_path,
+            DatabaseEnvKind::RO,
+            DatabaseArguments::new(ClientVersion::default())
+        ).unwrap();
+        let db_ev = Arc::new(db_env);
 
-                let spec = ChainSpecBuilder::mainnet().build();
+        let static_file_provider = StaticFileProvider::read_only(static_path, true).unwrap();
+        static_file_provider.watch_directory();
 
-                let spec = Arc::new(spec);
+        //let spec = Arc::new()
 
-                let database = ProviderFactory::new(db_env.clone(), spec.clone(), static_file_provider);
 
-                let lock = Lock::default();
-                entry.insert((database.clone(), lock.clone()));
 
-                (database, lock)
-            }
-        };
 
-        // database.provider will initiate a new transaction to the DB, and it's not
-        // allowed to be shared between threads. So we need a lock to make sure we open
-        // the transaction sequentially.
+        let chain_spec = Arc::new(BASE_MAINNET.inner.clone());
+        //let spec = Arc::new(ChainSpecBuilder::mainnet().chain(Chain::base_mainnet()).build());
+        let database: ProviderFactory<NodeTypesWithDBAdapter<EthereumNode, _>> = 
+            ProviderFactory::new(db_ev.clone(), chain_spec.clone(), static_file_provider);
+        let lock = Lock::default();
+
         let _guard = lock.lock().unwrap();
+        let provider  = database.latest().unwrap();
 
-        let db_provider = database.provider().context("fail to get provider")?;
-
-        let state_provider = if let Some(block) = block {
-            Self::get_state_provider_with_retry(db_provider, block, 500, Duration::from_millis(10))?
-        } else {
-            database.latest().context("fail to get latest state provider")?
-        };
-
-        Ok(Self {
-            provider: state_provider,
-
-            measure_rpc_time: false,
-            cumulative_rpc_time: AtomicU64::new(0),
-        })
-    }
-
-    fn get_state_provider_with_retry(
-        db_provider: DatabaseProviderRO<Arc<DatabaseEnv>>,
-        block: u64,
-        mut max_retries: usize,
-        interval: Duration,
-    ) -> eyre::Result<StateProviderBox> {
-        max_retries += 1;
-
-        while max_retries > 0 {
-            let best_block = db_provider
-                .best_block_number()
-                .context("fail to get best block number")?;
-
-            if block > best_block {
-                std::thread::sleep(interval);
-                max_retries -= 1;
-                continue;
-            }
-
-            let s_provider = db_provider
-                .state_provider_by_block_number(block)
-                .context("fail to state provider by block")?;
-
-            return Ok(s_provider);
+        Self {
+            provider
         }
 
-        bail!("timeout waiting for latest block")
+
+
+
+
+    /* 
+
+
+        println!("blah");
+        //let chainspec = ChainSpecBuilder::
+        let spec = ChainSpecBuilder::mainnet().build();
+        let factory =
+        ProviderFactory::<NodeTypesWithDBAdapter<EthereumNode, _>>::new_with_database_path(
+            db_path,
+            spec.into(),
+            Default::default(),
+            StaticFileProvider::read_only(static_path, false).unwrap(),
+        ).unwrap();
+        println!("blaasdfh");
+        //let db_provider = factory.provider().unwrap();
+        let lock = Lock::default();
+        let _guard = lock.lock().unwrap();
+        println!("blahr2");
+        let provider = factory.latest().unwrap();
+        println!("blahrasdf2");
+
+        Self {provider}
+        */
     }
 
     fn request<F, R, E>(&self, f: F) -> Result<R, E>
-        where
-            F: FnOnce(&StateProviderBox) -> Result<R, E>,
+    where
+        F: FnOnce(&StateProviderBox) -> Result<R, E>,
     {
-        if self.measure_rpc_time {
-            let start = std::time::Instant::now();
             let result = f(&self.provider);
-
-            let elapsed = start.elapsed().as_nanos() as u64;
-            self.cumulative_rpc_time.fetch_add(elapsed, Ordering::Relaxed);
-
             result
-        } else {
-            let result = f(&self.provider);
-
-            result
-        }
-    }
-
-    pub fn set_measure_rpc_time(&mut self, enable: bool) {
-        self.measure_rpc_time = enable;
-    }
-
-    pub fn get_rpc_time(&self) -> Duration {
-        Duration::from_nanos(self.cumulative_rpc_time.load(Ordering::Relaxed))
-    }
-
-    pub fn reset_rpc_time(&mut self) {
-        self.cumulative_rpc_time.store(0, Ordering::Relaxed);
     }
 }
 
 impl Database for RethDB {
-    type Error = eyre::Error;
+    type Error = anyhow::Error;
 
     fn basic(&mut self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
         Self::basic_ref(self, address)
@@ -159,7 +128,7 @@ impl Database for RethDB {
 }
 
 impl DatabaseRef for RethDB {
-    type Error = eyre::Error;
+    type Error = anyhow::Error;
 
     fn basic_ref(&self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
         let account = self
@@ -184,7 +153,7 @@ impl DatabaseRef for RethDB {
     }
 
     fn storage_ref(&self, address: Address, index: U256) -> Result<U256, Self::Error> {
-        let value = self.request(|provider| provider.storage(address, B256::from(index)))?;
+        let value = self.request(|provider| provider.storage(address, StorageKey::from(index)))?;
 
         Ok(value.unwrap_or_default())
     }
@@ -199,3 +168,4 @@ impl DatabaseRef for RethDB {
         }
     }
 }
+

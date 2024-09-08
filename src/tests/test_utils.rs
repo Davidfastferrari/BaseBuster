@@ -22,10 +22,10 @@ use alloy::primitives::FixedBytes;
 use futures::stream::Take;
 use futures::Stream;
 use futures::StreamExt;
-use gweiyser::addresses::amms;
-use gweiyser::protocols::uniswap::v2::UniswapV2Pool;
-use gweiyser::protocols::uniswap::v3::UniswapV3Pool;
-use gweiyser::{Chain, Gweiyser};
+//use gweiyser::addresses::amms;
+//use gweiyser::protocols::uniswap::v2::UniswapV2Pool;
+//use gweiyser::protocols::uniswap::v3::UniswapV3Pool;
+//use gweiyser::{Chain, Gweiyser};
 use pool_sync::*;
 use revm::interpreter::instructions::contract;
 use sha2::digest::consts::U25;
@@ -56,7 +56,7 @@ pub async fn load_pools() -> (Vec<Pool>, u64) {
         .add_pools(&[
             PoolType::UniswapV2,
         ])
-        .chain(pool_sync::Chain::Ethereum)
+        .chain(pool_sync::Chain::Base)
         .build()
         .unwrap();
     pool_sync.sync_pools().await.unwrap()
@@ -78,7 +78,7 @@ pub async fn pool_manager_with_type(pool_type: PoolType) -> (Arc<PoolManager>, b
     dotenv::dotenv().ok();
     let pool_sync = PoolSync::builder()
         .add_pool(pool_type)
-        .chain(pool_sync::Chain::Ethereum)
+        .chain(pool_sync::Chain::Base)
         .build().unwrap();
     let (pools , last_synced_block) = pool_sync.sync_pools().await.unwrap();
     println!("Pools: {:#?}", pools.len());

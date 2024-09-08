@@ -11,9 +11,7 @@ use serde::{Deserialize, Serialize};
 use std::fs::{create_dir_all, File};
 use std::io::{BufReader, BufWriter};
 use std::path::Path;
-use std::sync::Arc;
 
-use crate::FlashSwap;
 #[derive(Serialize, Deserialize)]
 struct TopVolumeAddresses(Vec<Address>);
 

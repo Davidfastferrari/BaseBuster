@@ -24,7 +24,8 @@ use crate::{market, FlashSwap, AMOUNT};
 use crate::market::Market;
 
 //type WalletProvider = FillProvider<JoinFill<JoinFill<Identity, NonceFiller>, WalletFiller<EthereumWallet>>, RootProvider<Http<Client>>, Http<Client>, Ethereum>;
-type WalletProvider = FillProvider<JoinFill<Identity, WalletFiller<EthereumWallet>>, RootProvider<Http<Client>>, Http<Client>, Ethereum>;
+//type WalletProvider = FillProvider<JoinFill<Identity, WalletFiller<EthereumWallet>>, RootProvider<Http<Client>>, Http<Client>, Ethereum>;
+type WalletProvider = FillProvider<JoinFill<JoinFill<Identity, NonceFiller>, WalletFiller<EthereumWallet>>, RootProvider<Http<Client>>, Http<Client>, Ethereum>;
 
 pub struct TransactionSender {
     provider: Arc<WalletProvider>,
@@ -41,11 +42,14 @@ impl TransactionSender {
         let signer = PrivateKeySigner::from(key);
         let wallet = EthereumWallet::from(signer);
 
+        let url = "https://lb.drpc.org/ogrpc?network=base&dkey=Ap7UDVA500LQm8czsblacWWKns5AatgR771PUh7cII5S".parse().unwrap();
         // construct the provider
         let provider = Arc::new(ProviderBuilder::new()
             //.with_nonce_management()
+            .with_simple_nonce_management()
             .wallet(wallet)
-            .on_http(std::env::var("ARCHIVE").unwrap().parse().unwrap()));
+            .on_http(url));
+            //.on_http(std::env::var("FULL").unwrap().parse().unwrap()));
 
         Self {
             provider,

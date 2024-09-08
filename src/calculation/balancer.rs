@@ -1,7 +1,5 @@
 use alloy::primitives::{U256, I256};
-use pool_sync::BalancerV2Pool;
-use std::{ops::Neg, sync::RwLockReadGuard};
-use alloy::primitives::{Signed, Uint};
+use std::ops::Neg;
 use alloy::primitives::Address;
 use std::str::FromStr;
 use super::Calculator;
@@ -11,11 +9,13 @@ impl Calculator {
     pub fn balancer_v2_out(
         &self, 
         amount_in: U256,
-        token_in_index: usize,
-        token_out_index: usize,
+        token_in: Address,
+        token_out: Address,
         pool_address: Address,
     ) -> U256 {
         let pool = self.pool_manager.get_balancer_pool(&pool_address);
+        let token_in_index = pool.get_token_index(&token_in).unwrap();
+        let token_out_index = pool.get_token_index(&token_out).unwrap();
         let balance_in = pool.balances[token_in_index];
         let balance_out = pool.balances[token_out_index];
         let weight_in = pool.weights[token_in_index];
@@ -34,11 +34,6 @@ impl Calculator {
 
         //let power = U256::from(999976340295933562_u128);
         Self::mul_down(balance_out, Self::complement(power))
-    }
-
-    fn substract_swap_fee_amount(amount_in: U256, swap_fee_percentage: U256) -> U256 {
-        let fee_amount = Self::mul_up(amount_in, swap_fee_percentage);
-        Self::sub(amount_in, fee_amount)
     }
 
     fn scale(value: U256, decimals: i8) -> U256 {
@@ -226,7 +221,7 @@ impl LogExpMath {
         // it and compute the accumulated product.
 
         let mut x = x;
-        let mut first_an;
+        let first_an;
         if x >= Self::x0() {
             x -= Self::x0();
             first_an = Self::a0();

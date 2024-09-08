@@ -1,10 +1,8 @@
-use alloy::{providers::WsConnect, sol};
 use anyhow::Result;
 use ignition::start_workers;
 use log::{info, LevelFilter};
 use pool_sync::*;
-use futures::StreamExt;
-use alloy::providers::{IpcConnect, Provider, ProviderBuilder};
+use alloy::sol;
 
 mod events;
 mod graph;
@@ -17,9 +15,10 @@ mod stream;
 mod tx_sender;
 mod util;
 mod tests;
-//mod db;
+mod db;
 mod searcher;
 mod swap;
+mod cache;
 
 // define our flash swap contract
 sol!(
@@ -48,7 +47,10 @@ async fn main() -> Result<()> {
             PoolType::UniswapV3,
             PoolType::SushiSwapV2,
             PoolType::SushiSwapV3,
+            PoolType::PancakeSwapV2,
+            PoolType::PancakeSwapV3,
             PoolType::Aerodrome,
+            PoolType::BalancerV2,
         ])
         .chain(Chain::Base)
         .build()?;

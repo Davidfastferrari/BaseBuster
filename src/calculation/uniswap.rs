@@ -1,10 +1,6 @@
 use alloy::primitives::{I256, U128, U256};
 use anyhow::Result;
-use core::panic;
-use pool_sync::PoolType;
-use pool_sync::UniswapV3Pool;
 use alloy::primitives::Address;
-use std::sync::RwLockReadGuard;
 use uniswap_v3_math::tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK};
 use super::Calculator;
 
