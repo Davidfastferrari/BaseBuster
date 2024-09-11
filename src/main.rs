@@ -29,7 +29,7 @@ sol!(
 );
 
 // initial amount we are trying to arb over
-pub const AMOUNT: u128 = 3_000_000_000_000_000;
+pub const AMOUNT: u128 = 10000000000000000;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -44,11 +44,17 @@ async fn main() -> Result<()> {
     let pool_sync = PoolSync::builder()
         .add_pools(&[
             PoolType::UniswapV2,
-            PoolType::SushiSwapV2,
-            PoolType::PancakeSwapV2,
-            PoolType::BaseSwapV2,
-            PoolType::SwapBasedV2,
-            PoolType::AlienBaseV2
+            //PoolType::SushiSwapV2,
+            //PoolType::PancakeSwapV2,
+            //PoolType::BaseSwapV2,
+            //PoolType::SwapBasedV2,
+            //PoolType::AlienBaseV2,
+            //PoolType::DackieSwapV2,
+            PoolType::UniswapV3,
+            //PoolType::SushiSwapV3,
+            //PoolType::PancakeSwapV3,
+            //PoolType::Aerodrome,
+
         ])
         .chain(Chain::Base)
         .build()?;

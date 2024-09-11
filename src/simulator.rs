@@ -44,6 +44,7 @@ sol!(
     FlashQuoter,
     "src/abi/FlashQuoter.json"
 );
+
 sol!(
     #[derive(Debug)]
     contract Approval {
@@ -100,7 +101,7 @@ pub fn simulate_paths(
 
     let approve_calldata = Approval::approveCall {
         spender: quoter,
-        amount: U256::from(AMOUNT)
+        amount: U256::from(1e18)
     }.abi_encode();
 
     evm.tx_mut().data = approve_calldata.into();
@@ -108,7 +109,7 @@ pub fn simulate_paths(
     let _ = evm.transact_commit().unwrap();
 
     // wait for a new arbitrage path
-    while let Ok(Event::NewPath(arb_path)) = arb_receiver.recv() {
+    while let Ok(Event::NewPath((arb_path, out))) = arb_receiver.recv() {
         // convert the path from searcher format into flash swap format
         let converted_path: Vec<FlashQuoter::SwapStep> = arb_path
             .clone()
@@ -121,11 +122,13 @@ pub fn simulate_paths(
                 fee: step.fee.try_into().unwrap(),
             })
             .collect();
+        //println!("{:#?}", converted_path);
+
 
         // make our calldata
         let calldata = FlashQuoter::quoteArbitrageCall {
             steps: converted_path,
-            amount: U256::from(1e16)
+            amount: U256::from(2e16)
         }.abi_encode();
 
 
@@ -140,16 +143,25 @@ pub fn simulate_paths(
                 ..
             } => {
                 if let Ok(amount) = U256::abi_decode(&value.data(), false) {
-                    println!("output {:?}", amount);
-                    /* 
+                    println!("output {:?}, expected {}", amount, out);
+                    let converted_path: Vec<FlashSwap::SwapStep> = arb_path
+                        .clone()
+                        .iter()
+                        .map(|step| FlashSwap::SwapStep {
+                            poolAddress: step.pool_address,
+                            tokenIn: step.token_in,
+                            tokenOut: step.token_out,
+                            protocol: step.as_u8(),
+                            fee: step.fee.try_into().unwrap(),
+                        })
+                        .collect();
                     match tx_sender.send(converted_path) {
                         Ok(_) => info!("Successful path sent"),
                         Err(e) => warn!("Successful path send failed: {:?}", e),
                     }
-                    */
                 }
             }
-            _ => println!("{:#?}", result),
+            _ => {}//println!("{:#?}", result),
         }
     }
 }

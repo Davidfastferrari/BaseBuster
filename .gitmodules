@@ -34,3 +34,6 @@
 [submodule "contracts/lib/balancer-v2-monorepo"]
 	path = contracts/lib/balancer-v2-monorepo
 	url = https://github.com/balancer-labs/balancer-v2-monorepo
+[submodule "lib/aave-v3-core"]
+	path = lib/aave-v3-core
+	url = https://github.com/aave/aave-v3-core

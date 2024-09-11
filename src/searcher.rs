@@ -62,12 +62,13 @@ impl Searchoor {
             info!("{} touched paths", affected_paths.len());
 
             // get the output amount and check for profitability
-            let profitable_paths: Vec<Vec<SwapStep>> = affected_paths
+            let profitable_paths: Vec<(Vec<SwapStep>, U256)> = affected_paths
                 .par_iter()
                 .filter_map(|path| {
                     let output_amount = self.calculator.calculate_output(&path);
                     if output_amount >= min_profit_amount {
-                        Some(path.steps.clone())
+                        //println!("{:#?}", path.steps);
+                        Some((path.steps.clone(), output_amount))
                     } else {
                         None
                     }

@@ -39,7 +39,7 @@ impl TransactionSender {
         let signer = PrivateKeySigner::from(key);
         let wallet = EthereumWallet::from(signer);
 
-        let url = "https://lb.drpc.org/ogrpc?network=base&dkey=Ap7UDVA500LQm8czsblacWWKns5AatgR771PUh7cII5S".parse().unwrap();
+        let url = "https://base-mainnet.g.alchemy.com/v2/HBCi7sGK_iS_e_oe2JqMDjHZF60O08pC".parse().unwrap();
         // construct the provider
         let provider = Arc::new(ProviderBuilder::new()
             //.with_nonce_management()
@@ -58,7 +58,7 @@ impl TransactionSender {
         &self,
         mut tx_receiver: Receiver<Vec<FlashSwap::SwapStep>>,
     ) -> Result<()> {
-        let contract = FlashSwap::new(address!("1812771bC6a6890BC87EBa9E0C95004FA27750d5"), self.provider.clone());
+        let contract = FlashSwap::new(address!("94dd57290558Adb38061b6e42BF83671114b95Ac"), self.provider.clone());
         let wallet_address = address!("1E0294b6e4D72857B5eC467f5c2E52BDA37CA5b8");
 
         // wait for a new transaction that has passed simulation
@@ -79,10 +79,10 @@ impl TransactionSender {
             // construct and send the transaction
             info!("Sending transaction... {:#?}", arb_path);
             let tx = contract.executeArbitrage(arb_path.clone(), U256::from(AMOUNT))
-                .max_fee_per_gas(max_fee_per_gas * 5 )
-                .max_priority_fee_per_gas(max_priority_fee_per_gas * 5)
+                .max_fee_per_gas(max_fee_per_gas * 20 )
+                .max_priority_fee_per_gas(max_priority_fee_per_gas * 20)
                 .chain_id(8453)
-                .gas(1_000_000)
+                .gas(3_000_000)
                 .into_transaction_request();
 
             // process the transaction receipt

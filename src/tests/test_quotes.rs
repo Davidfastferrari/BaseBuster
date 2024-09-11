@@ -53,7 +53,7 @@ mod offchain_calculations {
                     let offchain_amount_out = offchain_quote(&swap_path, pool_manager.clone()).await;
                     let onchain_amount_out = onchain_quote(&swap_path, PoolType::$pool_type).await;
                     println!("offchain: {:?}, onchain: {:?}", offchain_amount_out, onchain_amount_out);
-                    //assert_eq!(offchain_amount_out, onchain_amount_out);
+                    assert_eq!(offchain_amount_out, onchain_amount_out);
                 }
             }
         };
@@ -74,10 +74,12 @@ mod offchain_calculations {
     // V3 VARIANTS
     //-----------------------
     test_pool_out!(test_uniswapv3_out, UniswapV3, "d0b53D9277642d899DF5C87A3966A349A798F224", "4200000000000000000000000000000000000006", "833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", 500); // OK
-    test_pool_out!(test_alienbasev3_out, AlienBaseV3, "B27f110571c96B8271d91ad42D33A391A75E6030", "4200000000000000000000000000000000000006", "833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", 750);  // OK
-    test_pool_out!(test_dackieswapv3_out, DackieSwapV3, "fCD3960075c00af339A4E26afC76b949E5Ff06Ec", "4200000000000000000000000000000000000006", "833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", 500);
-    test_pool_out!(test_pancakeswapv3_out, PancakeSwapV3, "B775272E537cc670C65DC852908aD47015244EaF", "4200000000000000000000000000000000000006", "833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", 500); // OK
     test_pool_out!(test_sushiswapv3_out, SushiSwapV3, "57713F7716e0b0F65ec116912F834E49805480d2", "4200000000000000000000000000000000000006", "833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", 500); // OK
+    test_pool_out!(test_pancakeswapv3_out, PancakeSwapV3, "B775272E537cc670C65DC852908aD47015244EaF", "4200000000000000000000000000000000000006", "833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", 500); // OK
+
+
+    test_pool_out!(test_alienbasev3_out, AlienBaseV3, "B27f110571c96B8271d91ad42D33A391A75E6030", "4200000000000000000000000000000000000006", "833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", 750);  
+    test_pool_out!(test_dackieswapv3_out, DackieSwapV3, "fCD3960075c00af339A4E26afC76b949E5Ff06Ec", "4200000000000000000000000000000000000006", "833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", 500);
     test_pool_out!(test_swapbasedv3_out, SwapBasedV3, "8D4B74fe1dfa2789CAa367F670eB4AC202107635", "4200000000000000000000000000000000000006", "833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", 500);
     test_pool_out!(test_baseswapv3_out, BaseSwapV3, "74cb6260Be6F31965C239Df6d6Ef2Ac2B5D4f020", "4200000000000000000000000000000000000006", "833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", 80); 
 

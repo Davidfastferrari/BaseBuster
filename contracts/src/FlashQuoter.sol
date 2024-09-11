@@ -327,7 +327,7 @@ contract FlashQuoter {
             0,
             block.timestamp
         );
-}
+    }
 
     // Function to rescue tokens sent to the contract by mistake
     function rescueTokens(address token) external {

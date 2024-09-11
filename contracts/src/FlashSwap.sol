@@ -1,10 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
+import "@aave/core-v3/contracts/flashloan/base/FlashLoanSimpleReceiverBase.sol";
 
 interface IERC20 {
     function balanceOf(address account) external view returns (uint256);
     function transfer(address recipient, uint256 amount) external returns (bool);
+    function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
     function approve(address spender, uint256 amount) external returns (bool);
+}
+
+interface IWETH is IERC20 {
+    function deposit() external payable;
+    function withdraw(uint256 amount) external;
 }
 
 interface IUniswapV2Router {
@@ -107,17 +114,9 @@ interface IBalancerVault {
     ) external returns (uint256);
 }
 
-interface IPool {
-    function flashLoanSimple(
-        address receiverAddress,
-        address asset,
-        uint256 amount,
-        bytes calldata params,
-        uint16 referralCode
-    ) external;
-}
 
-contract FlashSwap {
+address constant AAVE_ADDRESS_PROVIDER = 0xe20fCBdBfFC4Dd138cE8b2E6FBb6CB49777ad64D;
+contract FlashSwap is FlashLoanSimpleReceiverBase {
     struct SwapStep {
         address poolAddress;
         address tokenIn;
@@ -125,12 +124,13 @@ contract FlashSwap {
         uint8 protocol;
         uint24 fee;
     }
-    IPool private immutable POOL;
     address[] private routers;
+    address public owner;
 
-    constructor(address _pool, address[] memory _routers) {
+    constructor(address _pool, address[] memory _routers) FlashLoanSimpleReceiverBase(IPoolAddressesProvider(AAVE_ADDRESS_PROVIDER)) {
         POOL = IPool(_pool);
         routers = _routers;
+        owner = msg.sender;
     }
 
     function executeArbitrage(SwapStep[] calldata steps, uint256 amount) external {
@@ -145,6 +145,7 @@ contract FlashSwap {
         bytes calldata params
     ) external returns (bool) {
         require(msg.sender == address(POOL), "Caller must be lending pool");
+        revert("flashloan");
 
         (SwapStep[] memory steps, address caller) = abi.decode(params, (SwapStep[], address));
 
@@ -197,7 +198,7 @@ contract FlashSwap {
     }
 
     function _swapV3(SwapStep memory step, uint256 amountIn) private returns (uint256) {
-        if (step.protocol < 6) {
+        if (step.protocol <= 10) {
             return IV3SwapRouterNoDeadline(routers[step.protocol]).exactInputSingle(
                 IV3SwapRouterNoDeadline.ExactInputSingleParams({
                     tokenIn: step.tokenIn,
@@ -226,6 +227,7 @@ contract FlashSwap {
     }
 
     function _swapSlipstream(SwapStep memory step, uint256 amountIn) private returns (uint256) {
+
         int24 tick_spacing = ISlipstreamPool(step.poolAddress).tickSpacing();
         return ISlipstream(routers[step.protocol]).exactInputSingle(
            ISlipstream.ExactInputSingleParams({

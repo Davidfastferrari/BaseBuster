@@ -9,7 +9,7 @@ use crate::swap::SwapStep;
 pub enum Event {
     NewBlock(Block),
     ReserveUpdate(Vec<Address>),
-    NewPath(Vec<SwapStep>),
+    NewPath((Vec<SwapStep>, U256)),
     OptimizedPath(OptPath),
 }
 
