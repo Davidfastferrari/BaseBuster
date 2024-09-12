@@ -100,7 +100,11 @@ impl TransactionSender {
                             let current_block = self.provider.get_block_number().await.unwrap();
                             println!("Expected out: {:?}, found on block: {}, landed on block {}", expected_out, block_number, current_block);
                         },
-                        Err(e) => warn!("Failed to get transaction receipt: {:?}", e),
+                        Err(e) => {
+                            let current_block = self.provider.get_block_number().await.unwrap();
+                            println!("Expected out: {:?}, found on block: {}, landed on block {}", expected_out, block_number, current_block);
+                            warn!("Failed to get transaction receipt: {:?}", e);
+                        }
                     }
                 }
                 Err(e) => warn!("Transaction failed: {:?}", e),

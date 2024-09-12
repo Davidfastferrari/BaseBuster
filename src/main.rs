@@ -29,7 +29,7 @@ sol!(
 );
 
 // initial amount we are trying to arb over
-pub const AMOUNT: u128 = 10000000000000000;
+pub const AMOUNT: u128 = 2000000000000000;
 
 #[tokio::main]
 async fn main() -> Result<()> {

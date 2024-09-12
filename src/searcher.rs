@@ -68,7 +68,6 @@ impl Searchoor {
                 .filter_map(|path| {
                     let output_amount = self.calculator.calculate_output(&path);
                     if output_amount >= min_profit_amount {
-                        //println!("{:#?}", path.steps);
                         Some((path.steps.clone(), output_amount))
                     } else {
                         None

@@ -73,8 +73,8 @@ pub fn simulate_paths(
                 ..
             } => {
                 if let Ok(amount) = U256::abi_decode(&value.data(), false) {
-                    println!("Expected {}, got {}", expected_out, amount);
                     if amount >= expected_out {
+                        println!("Expected {}, got {}", expected_out, amount);
                         match tx_sender.send(Event::ArbPath((arb_path, expected_out, u64))) {
                             Ok(_) => debug!("Successful path sent"),
                             Err(e) => warn!("Successful path send failed: {:?}", e),
