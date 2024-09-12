@@ -38,13 +38,10 @@ contract DeployFlashSwap is Script {
         routers[15] = 0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43; // AERODOME_ROUTER
 
         // BALANCER
-        address BALANCER_VAULT = 0xBA12222222228d8Ba445958a75a0704d566BF2C8;
-        routers[16] = BALANCER_VAULT;
+        routers[16] = 0xBA12222222228d8Ba445958a75a0704d566BF2C8;
 
-        // AAVE FLASHLOAN POOL
-        address AAVE_ADDRESSES_PROVIDER = 0xe20fCBdBfFC4Dd138cE8b2E6FBb6CB49777ad64D;
 
-        FlashSwap flashSwap = new FlashSwap(AAVE_ADDRESSES_PROVIDER, routers);
+        FlashSwap flashSwap = new FlashSwap(routers);
 
         console.log("FlashSwap deployed at:", address(flashSwap));
 

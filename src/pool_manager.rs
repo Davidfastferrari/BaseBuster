@@ -244,7 +244,7 @@ impl PoolManager {
             let logs = http.get_logs(&filter).await.unwrap();
 
             let updated_pools = manager.process_logs(logs);
-            match sender.send(Event::ReserveUpdate(updated_pools)) {
+            match sender.send(Event::ReserveUpdate((updated_pools, block_number))) {
                 Ok(_) => debug!("Reserves updated"),
                 Err(e) => info!("Reserves update failed: {:?}", e),
             }

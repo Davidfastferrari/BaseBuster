@@ -7,9 +7,9 @@ use crate::swap::SwapStep;
 
 #[derive(Debug, Clone)]
 pub enum Event {
+    ArbPath((Vec<SwapStep>, U256, u64)),
     NewBlock(Block),
-    ReserveUpdate(Vec<Address>),
-    NewPath((Vec<SwapStep>, U256)),
+    ReserveUpdate((Vec<Address>, u64)),
     OptimizedPath(OptPath),
 }
 

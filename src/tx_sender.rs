@@ -1,6 +1,5 @@
-
 use alloy::hex;
-use alloy::providers::fillers::{FillProvider, JoinFill, NonceFiller, WalletFiller};
+use alloy::providers::fillers::{ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller, WalletFiller};
 use alloy::network::EthereumWallet;
 use alloy::primitives::U256;
 use zerocopy::AsBytes;
@@ -19,11 +18,12 @@ use alloy::providers::RootProvider;
 use alloy::transports::http::{Client, Http};
 use alloy::network::Ethereum;
 
+use crate::events::Event;
+use crate::swap::SwapStep;
 use crate::{FlashSwap, AMOUNT};
 use crate::market::Market;
 
-type WalletProvider = FillProvider<JoinFill<JoinFill<Identity, NonceFiller>, WalletFiller<EthereumWallet>>, RootProvider<Http<Client>>, Http<Client>, Ethereum>;
-
+type WalletProvider = FillProvider<JoinFill<JoinFill<JoinFill<JoinFill<Identity, GasFiller>, NonceFiller>, ChainIdFiller>, WalletFiller<EthereumWallet>>, RootProvider<Http<Client>>, Http<Client>, Ethereum>;
 pub struct TransactionSender {
     provider: Arc<WalletProvider>,
     market: Arc<Market>,
@@ -39,11 +39,11 @@ impl TransactionSender {
         let signer = PrivateKeySigner::from(key);
         let wallet = EthereumWallet::from(signer);
 
-        let url = "https://base-mainnet.g.alchemy.com/v2/HBCi7sGK_iS_e_oe2JqMDjHZF60O08pC".parse().unwrap();
+       let url  = "https://mempool.merkle.io/rpc/base/pk_mbs_323cf6b720ba9734112249c7eff2b88d".parse().unwrap();
         // construct the provider
-        let provider = Arc::new(ProviderBuilder::new()
+        let provider: Arc<FillProvider<JoinFill<JoinFill<JoinFill<JoinFill<Identity, alloy::providers::fillers::GasFiller>, NonceFiller>, alloy::providers::fillers::ChainIdFiller>, WalletFiller<EthereumWallet>>, RootProvider<Http<Client>>, Http<Client>, Ethereum>> = Arc::new(ProviderBuilder::new()
             //.with_nonce_management()
-            .with_simple_nonce_management()
+            .with_recommended_fillers()
             .wallet(wallet)
             .on_http(url));
             //.on_http(std::env::var("FULL").unwrap().parse().unwrap()));
@@ -56,13 +56,12 @@ impl TransactionSender {
     }
     pub async fn send_transactions(
         &self,
-        mut tx_receiver: Receiver<Vec<FlashSwap::SwapStep>>,
+        mut tx_receiver: Receiver<Event>,
     ) -> Result<()> {
-        let contract = FlashSwap::new(address!("94dd57290558Adb38061b6e42BF83671114b95Ac"), self.provider.clone());
-        let wallet_address = address!("1E0294b6e4D72857B5eC467f5c2E52BDA37CA5b8");
+        let contract = FlashSwap::new(address!("ef1DcA00Be7a8d1854d8842F0622042bCC9a330e"), self.provider.clone());
 
         // wait for a new transaction that has passed simulation
-        while let Ok(arb_path) = tx_receiver.recv() {
+        while let Ok(Event::ArbPath((arb_path, expected_out, block_number))) = tx_receiver.recv() {
             println!("got the new path");
             // hash the transaction and make sure we didnt just end it
            // let tx_hash = self.hash_transaction(&arb_path);
@@ -78,7 +77,15 @@ impl TransactionSender {
 
             // construct and send the transaction
             info!("Sending transaction... {:#?}", arb_path);
-            let tx = contract.executeArbitrage(arb_path.clone(), U256::from(AMOUNT))
+            let path: Vec<FlashSwap::SwapStep> = arb_path.clone().iter().map(|step| FlashSwap::SwapStep {
+                poolAddress: step.pool_address,
+                tokenIn: step.token_in,
+                tokenOut: step.token_out,
+                protocol: step.as_u8(),
+                fee: step.fee.try_into().unwrap()
+            }).collect();
+            println!("Path {:?}", path);
+            let tx = contract.executeArbitrage(path.clone(), U256::from(AMOUNT))
                 .max_fee_per_gas(max_fee_per_gas * 20 )
                 .max_priority_fee_per_gas(max_priority_fee_per_gas * 20)
                 .chain_id(8453)
@@ -88,9 +95,13 @@ impl TransactionSender {
             // process the transaction receipt
             match self.provider.send_transaction(tx).await {
                 Ok(tx_result) => {
-                    let receipt = tx_result.get_receipt().await.unwrap();
-                    info!("Transaction send: {:?}, Gas Used {}, Effective Gas Price {}", receipt.transaction_hash, receipt.gas_used, receipt.effective_gas_price);
-                    //recent_txs.insert(tx_hash);
+                    match tx_result.get_receipt().await {
+                        Ok(receipt) => {
+                            let current_block = self.provider.get_block_number().await.unwrap();
+                            println!("Expected out: {:?}, found on block: {}, landed on block {}", expected_out, block_number, current_block);
+                        },
+                        Err(e) => warn!("Failed to get transaction receipt: {:?}", e),
+                    }
                 }
                 Err(e) => warn!("Transaction failed: {:?}", e),
             }

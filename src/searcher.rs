@@ -1,5 +1,6 @@
 
 use crate::calculation::Calculator;
+use crate::AMOUNT;
 use alloy::primitives::{U256, Address};
 use tokio::sync::broadcast::Receiver;
 use std::sync::mpsc::Sender;
@@ -41,12 +42,12 @@ impl Searchoor {
     ) {
         let flash_loan_fee: U256 = U256::from(9) / U256::from(10000); // 0.09% flash loan fee
         let min_profit_percentage: U256 = U256::from(2) / U256::from(100); // 2% minimum profit
-        let initial_amount = U256::from(1e16);
+        let initial_amount = U256::from(AMOUNT);
         let repayment_amount = initial_amount + (initial_amount * flash_loan_fee);
         let min_profit_amount = repayment_amount + (initial_amount * min_profit_percentage);
 
         // wait for a new single with the pools that have reserved updated
-        while let Ok(Event::ReserveUpdate(updated_pools)) = reserve_update_receiver.recv().await {
+        while let Ok(Event::ReserveUpdate((updated_pools, block_number))) = reserve_update_receiver.recv().await {
             info!("Searching for arbs...");
             let start = Instant::now();
 
@@ -79,7 +80,7 @@ impl Searchoor {
 
             // send to the simulator
             for path in profitable_paths {
-                match arb_sender.send(Event::NewPath(path)) {
+                match arb_sender.send(Event::ArbPath((path.0, path.1, block_number))) {
                     Ok(_) => debug!("Sent path"),
                     Err(_) => warn!("Failed to send path")
                 }

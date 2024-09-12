@@ -114,9 +114,11 @@ interface IBalancerVault {
     ) external returns (uint256);
 }
 
-
 address constant AAVE_ADDRESS_PROVIDER = 0xe20fCBdBfFC4Dd138cE8b2E6FBb6CB49777ad64D;
+error InsufficientFundsToRepayFlashLoan(uint256 finalBalance);
+
 contract FlashSwap is FlashLoanSimpleReceiverBase {
+    event Amount(string message);
     struct SwapStep {
         address poolAddress;
         address tokenIn;
@@ -127,14 +129,14 @@ contract FlashSwap is FlashLoanSimpleReceiverBase {
     address[] private routers;
     address public owner;
 
-    constructor(address _pool, address[] memory _routers) FlashLoanSimpleReceiverBase(IPoolAddressesProvider(AAVE_ADDRESS_PROVIDER)) {
-        POOL = IPool(_pool);
+    constructor(address[] memory _routers) FlashLoanSimpleReceiverBase(IPoolAddressesProvider(AAVE_ADDRESS_PROVIDER)) {
         routers = _routers;
         owner = msg.sender;
     }
 
     function executeArbitrage(SwapStep[] calldata steps, uint256 amount) external {
-        POOL.flashLoanSimple(address(this), steps[0].tokenIn, amount, abi.encode(steps, msg.sender), 0);
+        bytes memory params = abi.encode(steps, msg.sender);
+        POOL.flashLoanSimple(address(this), steps[0].tokenIn, amount, params, 0);
     }
 
     function executeOperation(
@@ -145,7 +147,6 @@ contract FlashSwap is FlashLoanSimpleReceiverBase {
         bytes calldata params
     ) external returns (bool) {
         require(msg.sender == address(POOL), "Caller must be lending pool");
-        revert("flashloan");
 
         (SwapStep[] memory steps, address caller) = abi.decode(params, (SwapStep[], address));
 
@@ -159,13 +160,12 @@ contract FlashSwap is FlashLoanSimpleReceiverBase {
 
         uint256 amountToRepay = amount + premium;
         uint256 finalBalance = IERC20(asset).balanceOf(address(this));
-        require(finalBalance >= amountToRepay, "Insufficient funds to repay flash loan");
+        if (finalBalance < amountToRepay) {
+            revert InsufficientFundsToRepayFlashLoan(finalBalance);
+        }
 
         IERC20(asset).approve(address(POOL), amountToRepay);
-        
-        if (finalBalance > amountToRepay) {
-            IERC20(asset).transfer(caller, finalBalance - amountToRepay);
-        }
+        IERC20(asset).transfer(caller, finalBalance - amountToRepay);
 
         return true;
     }
