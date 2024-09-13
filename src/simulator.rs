@@ -1,14 +1,16 @@
 use alloy::primitives::U256;
 use alloy::primitives::address;
-use log::{debug, info, warn};
 use std::sync::mpsc::{Receiver, Sender};
+//use tokio::sync::mpsc::{Receiver, Sender};
 use revm::db::CacheDB;
 use alloy::sol_types::SolCall;
 use revm::primitives::Bytecode;
 use revm::primitives::AccountInfo;
 use revm::primitives::TransactTo;
 use revm::Evm;
+use revm::db::AlloyDB;
 use alloy::sol;
+use alloy::eips::{BlockId, BlockHashOrNumber};
 
 use crate::db::RethDB;
 use crate::swap::SwapStep;
@@ -35,61 +37,13 @@ sol!(
 // simulate them against the contract to determine if they are actually viable
 pub fn simulate_paths(
     tx_sender: Sender<Event>,
-    arb_receiver: Receiver<Event>,
+    mut arb_receiver: Receiver<Event>,
 ) {
-    let mut evm = setup_evm();
-    let quoter = address!("0000000000000000000000000000000000001000");
-
-    // wait for a new arbitrage path
-    while let Ok(Event::ArbPath((arb_path, expected_out, u64))) = arb_receiver.recv() {
-        // convert from searcher format into quoter format
-        let converted_path: Vec<FlashQuoter::SwapStep> = arb_path
-            .clone()
-            .iter()
-            .map(|step| FlashQuoter::SwapStep {
-                poolAddress: step.pool_address,
-                tokenIn: step.token_in,
-                tokenOut: step.token_out,
-                protocol: step.as_u8(),
-                fee: step.fee.try_into().unwrap(),
-            })
-            .collect();
-
-        // make our calldata
-        let calldata = FlashQuoter::quoteArbitrageCall {
-            steps: converted_path,
-            amount: U256::from(AMOUNT)
-        }.abi_encode();
-
-        evm.tx_mut().data = calldata.into();
-        evm.tx_mut().transact_to = TransactTo::Call(quoter);
-
-        let ref_tx = evm.transact().unwrap();
-        let result = ref_tx.result;
-
-        match result {
-            ExecutionResult::Success {
-                output: value,
-                ..
-            } => {
-                if let Ok(amount) = U256::abi_decode(&value.data(), false) {
-                    if amount >= expected_out {
-                        println!("Expected {}, got {}", expected_out, amount);
-                        match tx_sender.send(Event::ArbPath((arb_path, expected_out, u64))) {
-                            Ok(_) => debug!("Successful path sent"),
-                            Err(e) => warn!("Successful path send failed: {:?}", e),
-                        }
-                    }
-                }
-            }
-            _ => {}//println!("{:#?}", result),
-        }
-    }
-    
-}
-
-fn setup_evm() -> Evm<'static, (), CacheDB<RethDB>> {
+    //let mut evm = setup_evm();
+    //let quoter = address!("0000000000000000000000000000000000001000");
+    //let provider = ProviderBuilder::new().on_http(std::env::var("FULL").unwrap().parse().unwrap());
     let mut db = CacheDB::new(RethDB::new());
+    //let mut db = CacheDB::new(AlloyDB::new(provider, BlockId::latest()).unwrap());
 
     let account = address!("1E0294b6e4D72857B5eC467f5c2E52BDA37CA5b8");
     let weth = address!("4200000000000000000000000000000000000006");
@@ -137,5 +91,51 @@ fn setup_evm() -> Evm<'static, (), CacheDB<RethDB>> {
 
     evm.transact_commit().unwrap();
 
-    evm
+
+    // wait for a new arbitrage path
+    while let Ok(Event::ArbPath((arb_path, expected_out, u64))) = arb_receiver.recv() {
+        // convert from searcher format into quoter format
+        let converted_path: Vec<FlashQuoter::SwapStep> = arb_path
+            .clone()
+            .iter()
+            .map(|step| FlashQuoter::SwapStep {
+                poolAddress: step.pool_address,
+                tokenIn: step.token_in,
+                tokenOut: step.token_out,
+                protocol: step.as_u8(),
+                fee: step.fee.try_into().unwrap(),
+            })
+            .collect();
+
+        // make our calldata
+        let calldata = FlashQuoter::quoteArbitrageCall {
+            steps: converted_path,
+            amount: U256::from(AMOUNT)
+        }.abi_encode();
+
+        evm.tx_mut().data = calldata.into();
+        evm.tx_mut().transact_to = TransactTo::Call(quoter);
+
+        let ref_tx = evm.transact().unwrap();
+        let result = ref_tx.result;
+
+        match result {
+            ExecutionResult::Success {
+                output: value,
+                ..
+            } => {
+                if let Ok(amount) = U256::abi_decode(&value.data(), false) {
+                    println!("Expected {}, got {}", expected_out, amount);
+                    if amount >= expected_out {
+                        //match tx_sender.send(Event::ArbPath((arb_path, expected_out, u64))) {
+                            //Ok(_) => debug!("Successful path sent"),
+                            //Err(e) => warn!("Successful path send failed: {:?}", e),
+                        //}
+                    }
+                }
+            }
+            _ => {}//println!("{:#?}", result),
+        }
+    }
+    
 }

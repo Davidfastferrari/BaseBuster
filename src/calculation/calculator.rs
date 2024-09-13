@@ -4,6 +4,7 @@ use alloy::primitives::{Address, U256};
 use alloy::providers::{ProviderBuilder, RootProvider};
 use alloy::transports::http::{Client, Http};
 use pool_sync::PoolType;
+use crate::AMOUNT;
 use std::sync::Arc;
 use crate::cache::Cache;
 use crate::db::RethDB;
@@ -37,7 +38,7 @@ impl Calculator {
 
     #[inline]
     pub fn calculate_output(&self, path: &SwapPath) -> U256 {
-        let mut amount = U256::from(1e16);
+        let mut amount = U256::from(AMOUNT);
         for step in &path.steps {
             amount = self.get_amount_out(amount, &step);
             if amount == U256::ZERO {

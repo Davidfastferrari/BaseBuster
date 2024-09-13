@@ -1,8 +1,14 @@
 
 use crate::calculation::Calculator;
 use crate::AMOUNT;
+use alloy::network::EthereumWallet;
+use alloy::node_bindings::Anvil;
 use alloy::primitives::{U256, Address};
+use alloy::signers::local::PrivateKeySigner;
 use tokio::sync::broadcast::Receiver;
+//use tokio::sync::mpsc::{Receiver, Sender};
+use alloy::providers::{ProviderBuilder, Provider};
+
 use std::sync::mpsc::Sender;
 use crate::events::Event;
 use log::{info, warn, debug};
@@ -79,7 +85,7 @@ impl Searchoor {
 
             // send to the simulator
             for path in profitable_paths {
-                match arb_sender.send(Event::ArbPath((path.0, path.1, block_number))) {
+                match arb_sender.send(Event::ArbPath((path.0, path.1, block_number))){
                     Ok(_) => debug!("Sent path"),
                     Err(_) => warn!("Failed to send path")
                 }

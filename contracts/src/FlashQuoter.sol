@@ -295,11 +295,12 @@ contract FlashQuoter {
     function _swapAerodrome(SwapStep memory step, uint256 amountIn) private returns (uint256) {
         IAerodromeRouter.Route[] memory routes = new IAerodromeRouter.Route[](1);
         bool isStable = IAerodromePool(step.poolAddress).stable();
+        address factory = IAerodromePool(step.poolAddress).factory();
         routes[0] = IAerodromeRouter.Route({
             from: step.tokenIn,
             to: step.tokenOut,
             stable: isStable,
-            factory: address(0)
+            factory: factory
         });
         uint256[] memory amounts = IAerodromeRouter(_getRouter(step.protocol)).swapExactTokensForTokens(
             amountIn, 0, routes, address(this), block.timestamp
@@ -307,6 +308,7 @@ contract FlashQuoter {
         require(amounts.length > 1, "Invalid swap result");
         return amounts[1];
     }
+
     function _swapBalancer(SwapStep memory step, uint256 amountIn) private returns (uint256) {
         bytes32 poolId = IBalancerPool(step.poolAddress).getPoolId(); 
         return IBalancerVault(_getRouter(step.protocol)).swap(

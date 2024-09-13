@@ -1,5 +1,3 @@
-
-
 use revm::db::CacheDB;
 //use crate::db::RethDB;
 use alloy::sol_types::SolCall;
@@ -35,6 +33,35 @@ sol!(
 );
 
 
+sol!(
+    #[derive(Debug)]
+    #[sol(rpc)]
+    contract IAerodromeRouter {
+        struct Route {
+            address from;
+            address to;
+            bool stable;
+            address factory;
+        }
+        function swapExactTokensForTokens(
+            uint256 amountIn,
+            uint256 amountOutMin,
+            Route[] calldata routes,
+            address to,
+            uint256 deadline
+        ) external returns (uint256[] memory amounts);
+    }
+);
+
+sol!(
+    #[derive(Debug)]
+    #[sol(rpc)]
+    contract IAerodromePool {
+        function stable() external view returns (bool);
+        function factory() external view returns (address);
+    }
+);
+
 
 #[cfg(test)]
 mod test_sim {
@@ -42,6 +69,61 @@ mod test_sim {
     use revm::primitives::ExecutionResult;
 
     use super::*;
+
+    #[tokio::test(flavor = "multi_thread")]
+    pub async fn test_router() {
+        let mut db = CacheDB::new(RethDB::new());
+
+        // Define necessary addresses
+        let account = address!("c9034c3E7F58003E6ae0C8438e7c8f4598d5ACAA");
+        let weth = address!("4200000000000000000000000000000000000006");
+        let usdc = address!("833589fCD6eDb6E08f4c7C32D4f71b54bdA02913");
+        let router_address = address!("cF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43"); 
+
+        // Set up EVM
+        let mut evm = Evm::builder()
+            .with_db(db)
+            .modify_tx_env(|tx| {
+                tx.caller = account;
+                tx.transact_to = TransactTo::Call(router_address);
+                tx.value = U256::ZERO;
+            }).build();
+
+        // Prepare swap parameters
+        let amount_in = U256::from(1e18); // 1 WETH
+
+        // Create Route struct
+        let route = IAerodromeRouter::Route {
+            from: weth,
+            to: usdc,
+            stable: true, // Assume it's not stable, you might want to query this
+            factory: address!("420DD381b31aEf6683db6B902084cB0FFECe40Da"),
+        };
+
+        // Encode swap function call
+        let calldata = IAerodromeRouter::swapExactTokensForTokensCall {
+            amountIn: amount_in,
+            amountOutMin: U256::ZERO,
+            routes: vec![route],
+            to: account,
+            deadline: U256::MAX,
+        }.abi_encode();
+        evm.tx_mut().data = calldata.into();
+
+        // Execute the swap
+        let result = evm.transact();
+        println!("{:?}", result);
+
+        /* 
+        match result.result {
+            ExecutionResult::Success { output, .. } => {
+                let amounts: Vec<U256> = Vec::<U256>::abi_decode(&output.data(), false).unwrap();
+                println!("Swap successful. Amounts: {:?}", amounts);
+            },
+            _ => println!("Swap failed: {:?}", result)
+        }
+        */
+    }
 
 
     #[tokio::test(flavor = "multi_thread")]
@@ -97,24 +179,10 @@ mod test_sim {
         let start = std::time::Instant::now();
         let path = vec![
             FlashQuoter::SwapStep {
-                poolAddress: address!("68163919a8a996e9fed4466ee98c7da785d5fe34"),
+                poolAddress: address!("3548029694fbB241D45FB24Ba0cd9c9d4E745f16"),
                 tokenIn: address!("4200000000000000000000000000000000000006"),
-                tokenOut: address!("6921b130d297cc43754afba22e5eac0fbf8db75b"),
-                protocol: 1, // BaseSwapV2
-                fee: 0.try_into().unwrap(),
-            },
-            FlashQuoter::SwapStep {
-                poolAddress: address!("f609cdba05f08e850676f7434db0d9468b3701bd"),
-                tokenIn: address!("6921b130d297cc43754afba22e5eac0fbf8db75b"),
-                tokenOut: address!("2075f6e2147d4ac26036c9b4084f8e28b324397d"),
-                protocol: 7, // UniswapV3
-                fee: 10000.try_into().unwrap(),
-            },
-            FlashQuoter::SwapStep {
-                poolAddress: address!("f282e7c46be1a3758357a5961cf02e1f46a78b75"),
-                tokenIn: address!("2075f6e2147d4ac26036c9b4084f8e28b324397d"),
-                tokenOut: address!("4200000000000000000000000000000000000006"),
-                protocol: 0, // UniswapV2
+                tokenOut: address!("833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
+                protocol: 15, 
                 fee: 0.try_into().unwrap(),
             },
         ];
@@ -153,38 +221,33 @@ mod test_sim {
 
     #[tokio::test(flavor = "multi_thread")]
     pub async fn contract_sim() {
+        sol! {
+            #[derive(Debug)]
+            #[sol(rpc)]
+            contract WETH {
+                function approve(address spender, uint256 amount) external returns (bool);
+                function increaseAllowance(address spender, uint256 addedValue) external returns (bool);
+            }
+        };
+
         let url = std::env::var("FULL").unwrap();
         let amount = U256::from(1e16);
-        let provider = ProviderBuilder::new().on_http(url.parse().unwrap());
+        let provider = Arc::new(ProviderBuilder::new().on_http(url.parse().unwrap()));
 
-        // setup the contract
-        let flash_quoter_address = address!("71dFd76e36371CaCeca1350C084BCfcb37da52d0");
-        let flash_quoter = FlashSwap::new(flash_quoter_address, provider.clone());
-
-        // our path
-        let path = vec![
-            FlashSwap::SwapStep {
-                poolAddress: address!("88A43bbDF9D098eEC7bCEda4e2494615dfD9bB9C"),
-                tokenIn: address!("4200000000000000000000000000000000000006"),
-                tokenOut: address!("833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
-                protocol: 0,
-                fee: 0.try_into().unwrap(),
-            },
-            FlashSwap::SwapStep {
-                poolAddress: address!("d0b53D9277642d899DF5C87A3966A349A798F224"),
-                tokenIn: address!("833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
-                tokenOut: address!("4200000000000000000000000000000000000006"),
-                protocol: 7,
-                fee: 500.try_into().unwrap(),
-            },
-        ];
+        let account = address!("1E0294b6e4D72857B5eC467f5c2E52BDA37CA5b8");
+        let weth = address!("4200000000000000000000000000000000000006");
+        let quoter = address!("0000000000000000000000000000000000001000"); // Replace with actual quoter address
 
 
-        let res  = flash_quoter
-            .executeArbitrage(path, amount)
-            .call()
-            .await;
-        println!("{:?}", res);
+        let quoter_contract = FlashQuoter::deploy(provider.clone()).await.unwrap();;
+        let weth = WETH::new(weth, provider.clone());
+
+        weth.approve(quoter_contract.address().clone(), U256::from(1e18)).send().await;
+
+
+
+
+
     }
 
 }
