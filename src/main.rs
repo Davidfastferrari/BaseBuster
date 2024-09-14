@@ -1,6 +1,7 @@
 use anyhow::Result;
 use ignition::start_workers;
 use log::{info, LevelFilter};
+use market::Market;
 use pool_sync::*;
 use alloy::sol;
 
@@ -20,6 +21,8 @@ mod searcher;
 mod swap;
 mod cache;
 mod state_db;
+mod market_state;
+mod bytecode;
 
 // define our flash swap contract
 sol!(
@@ -31,6 +34,7 @@ sol!(
 
 // initial amount we are trying to arb over
 pub const AMOUNT: u128 = 7000000000000000;
+use crate::market_state::MarketState;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -40,6 +44,11 @@ async fn main() -> Result<()> {
         .filter_level(LevelFilter::Info) // or Info, Warn, etc.
         .init();
 
+    let state =MarketState::init_state().await?;
+
+    Ok(())
+
+        /* 
     // Load in all the pools
     info!("Loading and syncing pools...");
     let pool_sync = PoolSync::builder()
@@ -68,5 +77,6 @@ async fn main() -> Result<()> {
     loop {
         tokio::time::sleep(std::time::Duration::from_secs(1000)).await;
     }
+    */
     
 }
