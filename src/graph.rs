@@ -14,7 +14,7 @@ impl ArbGraph {
         working_pools: Vec<Pool>,
     ) -> Vec<SwapPath> {
         // build the graph
-        let token = std::evn::var("ARB_TOKEN").unwrap().parse().unwrap();
+        let token: Address = std::env::var("ARB_TOKEN").unwrap().parse().unwrap();
         let graph = ArbGraph::build_graph(working_pools);
 
         // get start node and construct cycles

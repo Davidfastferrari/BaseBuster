@@ -7,6 +7,7 @@ use revm::{Database, DatabaseCommit, DatabaseRef};
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 
+#[derive(Debug)]
 pub struct BlockStateDB<ExtDB> {
     pub accounts: HashMap<Address, BlockStateDBAccount>,
     pub contracts: HashMap<B256, Bytecode>, 
@@ -19,6 +20,14 @@ pub struct BlockStateDB<ExtDB> {
 impl<ExtDB: Default> Default for BlockStateDB<ExtDB> {
     fn default() -> Self {
         Self::new(ExtDB::default())
+    }
+}
+
+
+impl<ExtDB> BlockStateDB<ExtDB> {
+    pub fn zero_for_one(pool: Address, token_in: Address) -> bool {
+        // todo
+        true
     }
 }
 
@@ -83,6 +92,15 @@ impl<ExtDB: DatabaseRef> BlockStateDB<ExtDB> {
         Ok(())
     }
 
+
+    pub fn update_account_storage(&mut self, address: Address, slot: U256, value: U256) -> Result<(), ExtDB::Error> {
+        let account = self.load_account(address)?;
+        if account.state != AccountState::NotExisting {
+            account.storage.insert(slot, value);
+        }
+        Ok(())
+    }
+
     /// replace account storage without overriding account info
     pub fn replace_account_storage(&mut self, address: Address, storage: HashMap<U256, U256>) -> Result<(), ExtDB::Error> {
         let account = self.load_account(address)?;
@@ -90,7 +108,6 @@ impl<ExtDB: DatabaseRef> BlockStateDB<ExtDB> {
         account.storage = storage.into_iter().collect();
         Ok(())
     }
-
 }
 
 impl<ExtDB> DatabaseCommit for BlockStateDB<ExtDB> {
@@ -249,7 +266,7 @@ impl<ExtDB: DatabaseRef> DatabaseRef for BlockStateDB<ExtDB> {
 
 
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct BlockStateDBAccount {
     pub info: AccountInfo,
     pub state: AccountState,

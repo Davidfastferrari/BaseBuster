@@ -6,7 +6,6 @@ use tokio::sync::broadcast;
 use std::collections::HashSet;
 use alloy::primitives::Address;
 use alloy::rpc::types::Block;
-use std::sync::mpsc;
 //use tokio::sync::mpsc;
 
 use crate::graph::ArbGraph;
@@ -39,7 +38,8 @@ pub async fn start_workers(
     let market_state = MarketState::init_state_and_start_stream(
         pools.clone(),
         block_rx, 
-        address_tx
+        address_tx,
+        last_synced_block
     ).await.unwrap(); // add something to reeiver blocks, this the state will be updated here
 
 
@@ -49,7 +49,7 @@ pub async fn start_workers(
     tokio::spawn(stream_new_blocks(block_tx));
 
     // generate the graph
-    let cycles = ArbGraph::generate_cycles(pools.clone()).await;
+    //let cycles = ArbGraph::generate_cycles(pools.clone()).await;
 
     // start the simulator
     // start the sender

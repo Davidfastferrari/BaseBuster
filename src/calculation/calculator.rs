@@ -9,36 +9,38 @@ use std::sync::Arc;
 use crate::cache::Cache;
 use crate::db::RethDB;
 use revm::db::CacheDB;
-use crate::market_state::MarketState;
 
 pub struct Calculator {
-    pub market_state: Arc<MarketState>,
+    pub provider: Arc<RootProvider<Http<Client>>>,
+    pub pool_manager: Arc<PoolManager>,
+    //pub db: RwLock<CacheDB<RethDB>>,
     pub cache: Arc<Cache>
 }
 
 impl Calculator {
-    // Construct a new calculator with a reference to the market state
-    pub async fn new(market_state: Arc<MarketState>) -> Self {
+    pub async fn new(pool_manager: Arc<PoolManager>) -> Self {
+        let provider = Arc::new(
+            ProviderBuilder::new().on_http(std::env::var("FULL").unwrap().parse().unwrap()),
+        );
+
+        //let mut db = CacheDB::new(RethDB::new());
+
+        //let num_pools = pool_manager.get_num_pools();
         let num_pools  =500;
+
         Self {
-            market_state,
+            provider,
+            pool_manager,
+            //db: RwLock::new(db),
             cache: Arc::new(Cache::new(num_pools))
         }
     }
 
-
-    // top level call to calculate the output of a swap_path
-    // we acquire read access to the db in this top level call since we know the db will not change while calculator is executing
     #[inline]
     pub fn calculate_output(&self, path: &SwapPath) -> U256 {
         let mut amount = U256::from(AMOUNT);
-        let db_guard = self.market_state.db.read().unwrap();
-
-        // calculate the output for each swap step
         for step in &path.steps {
             amount = self.get_amount_out(amount, &step);
-
-            // if we have a zero profit, some error in calcualtion, shortcircuit
             if amount == U256::ZERO {
                 return U256::ZERO;
             }
@@ -49,19 +51,15 @@ impl Calculator {
     #[inline]
     fn get_amount_out(&self, amount_in: U256, swap_step: &SwapStep) -> U256 {
         let pool_address = swap_step.pool_address;
-
-        // check to see if it is cached
         if let Some(cached_amount) = self.cache.get(amount_in, pool_address) {
             return cached_amount;
         }
 
-        // not cached, compute the amount out and insert it into the cache
         let output_amount = self.compute_amount_out(
             amount_in, pool_address, swap_step.token_in, swap_step.token_out, swap_step.protocol
         );
+
         self.cache.set(amount_in, pool_address, output_amount);
-
-
         return output_amount;
     }
 

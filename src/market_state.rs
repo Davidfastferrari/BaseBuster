@@ -1,6 +1,13 @@
 use crate::bytecode::{UNISWAP_V2_BYTECODE, UNISWAP_V2_CODE_HASH};
 use crate::state_db::BlockStateDB;
 use std::collections::HashSet;
+use alloy::rpc::types::Filter;
+use alloy::sol_types::SolEvent;
+use crate::gen::*;
+use log::info;
+use alloy::rpc::types::Log;
+use alloy::providers::{ProviderBuilder, Provider, WsConnect};
+use log::error;
 use revm::db::EmptyDB;
 use alloy::rpc::types::Block;
 use std::sync::RwLock;
@@ -24,45 +31,91 @@ impl MarketState {
 
     // constuct the market state with a populated db
     pub async fn init_state_and_start_stream(
-        pools: Vec<Pool>, // the pools we are serching over
-        block_rx: Receiver<Block>, // receiver for new blocks
-        address_tx: Sender<HashSet<Address>> // sender for touched addresses in a block
+        pools: Vec<Pool>,                                           // the pools we are serching over
+        block_rx: Receiver<Block>,                             // receiver for new blocks
+        address_tx: Sender<HashSet<Address>>,      // sender for touched addresses in a block
+        last_synced_block: u64,                                  // the last block that was synced too
     ) -> Result<Arc<Self>> {
+        // populate our state
         let mut db = BlockStateDB::new(EmptyDB::new());
-
-
         MarketState::populate_db_with_pools(pools, &mut db);
         
         let market_state = Arc::new(Self {
             db: RwLock::new(db)
         });
 
-        // tokio::task::spanw(Updatestate)
+        // start the state updater
+        tokio::spawn(Self::state_updater(market_state.clone(), block_rx, address_tx, last_synced_block));
 
         Ok(market_state)
     }
 
-    // Load in all of the pools and updated state from the chain
-    async fn load_pools() -> Result<Vec<Pool>> {
-        let pools: Vec<Pool> = Vec::new();
 
-        let pool_sync = PoolSync::builder() 
-            .add_pools(&[PoolType::UniswapV2]).chain(Chain::Base).build()?;
-        let (pools, last_synced_block) = pool_sync.sync_pools().await?;
-        Ok(pools)
+    // task to retrieve new blockchain state and update our db
+    async fn state_updater(self: Arc<Self>, mut block_rx: Receiver<Block>, address_tx: Sender<HashSet<Address>>, mut last_synced_block: u64) {
+        // create our providers
+        let http_url = std::env::var("FULL").unwrap().parse().unwrap();
+        let ws_url = std::env::var("WS").unwrap();
+
+        let http = ProviderBuilder::new().on_http(http_url);
+        let ws = ProviderBuilder::new().on_ws(WsConnect::new(ws_url)).await.unwrap();
+
+        // construct our filter
+        // stream in new blocks
+        while let Some(block) = block_rx.recv().await {
+            let block_number = block.header.number;
+            info!("Got block {}", block_number);
+            if block_number <= last_synced_block {
+                continue;
+            }
+
+            // fetch and process the logs
+            let filter = self.create_event_filter(last_synced_block + 1, block_number);
+            let logs = http.get_logs(&filter).await.unwrap();
+            let updated_pools = self.process_logs(logs);
+            //if let Err(e) = address_tx.send(updated_pools).await {
+             //   error!("Failed to send updated pools");
+            //}
+
+            last_synced_block = block_number;
+        }
     }
 
+
+    // process the logs and update the db, return a set of all the pool addresses that were touched
+    fn process_logs(&self, logs: Vec<Log>) -> HashSet<Address> {
+        let mut updated_pools = HashSet::new();
+        //let mut db = self.db.write().unwrap();
+
+        for log in logs {
+            let address = log.address();
+            let topic = log.topic0().unwrap();;
+            if topic == &DataEvent::Sync::SIGNATURE_HASH {
+                self.process_v2_log(log);
+            } 
+        }
+        updated_pools
+    }
+
+    // process v2 logs
+    fn process_v2_log(&self, log: Log) {
+        let mut db = self.db.write().unwrap();
+        let sync_event = DataEvent::Sync::decode_log(log.as_ref(), true).unwrap();
+        let reserves = U256::from(sync_event.reserve1 << 112) | U256::from(sync_event.reserve0 << 8);
+        db.update_account_storage(sync_event.address, U256::from(8), reserves).unwrap();
+        info!("updated v2");
+    }
     // Insert pool information into the database
     fn populate_db_with_pools(pools: Vec<Pool>, db: &mut BlockStateDB<EmptyDB>) {
         let start = Instant::now();
         for pool in pools {
             if let Pool::UniswapV2(v2_pool) = pool {
                 MarketState::insert_v2(db, v2_pool);
-
             }
         }
         println!("{:?}", start.elapsed());
     }
+
 
     // insert a v2 pool into the database
     fn insert_v2(db: &mut BlockStateDB<EmptyDB>, pool: UniswapV2Pool) {
@@ -92,6 +145,23 @@ impl MarketState {
     // inset a v3 pool into the database
     fn insert_v3(db: &mut BlockStateDB<EmptyDB>) {
         todo!()
+    }
+
+    // create an event filter for the logs that we want and the block range
+    fn create_event_filter(&self, from_block: u64, to_block: u64) -> Filter {
+
+        Filter::new()
+            .events(&[
+                //BalancerV2Event::Swap::SIGNATURE,
+                //PancakeSwap::Swap::SIGNATURE,
+                //AerodromeEvent::Sync::SIGNATURE,
+                DataEvent::Sync::SIGNATURE,
+                //DataEvent::Mint::SIGNATURE,
+                //DataEvent::Burn::SIGNATURE,
+                //DataEvent::Swap::SIGNATURE,
+            ])
+            .from_block(from_block)
+            .to_block(to_block)
     }
 
 }

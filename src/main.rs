@@ -21,6 +21,7 @@ mod searcher;
 mod swap;
 mod cache;
 mod state_db;
+mod gen;
 mod market_state;
 mod bytecode;
 
@@ -44,28 +45,24 @@ async fn main() -> Result<()> {
         .filter_level(LevelFilter::Info) // or Info, Warn, etc.
         .init();
 
-    let state =MarketState::init_state().await?;
 
-    Ok(())
-
-        /* 
     // Load in all the pools
     info!("Loading and syncing pools...");
     let pool_sync = PoolSync::builder()
         .add_pools(&[
             PoolType::UniswapV2,
-            PoolType::SushiSwapV2,
-            PoolType::SwapBasedV2,
-            PoolType::BaseSwapV2,
-            PoolType::AlienBaseV2,
-            PoolType::PancakeSwapV2,
-            PoolType::DackieSwapV2,
+            //PoolType::SushiSwapV2,
+            //PoolType::SwapBasedV2,
+            //PoolType::BaseSwapV2,
+            //PoolType::AlienBaseV2,
+            //PoolType::PancakeSwapV2,
+            //PoolType::DackieSwapV2,
 
             //PoolType::Aerodrome,
 
-            PoolType::UniswapV3,
-            PoolType::SushiSwapV3,
-            PoolType::PancakeSwapV3,
+            //PoolType::UniswapV3,
+            //PoolType::SushiSwapV3,
+            //PoolType::PancakeSwapV3,
             //PoolType::BaseSwapV3,
         ])
         .chain(Chain::Base)
@@ -77,6 +74,5 @@ async fn main() -> Result<()> {
     loop {
         tokio::time::sleep(std::time::Duration::from_secs(1000)).await;
     }
-    */
     
 }
