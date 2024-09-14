@@ -12,9 +12,9 @@ impl ArbGraph {
     // Constructor, takes the set of working tokens we are interested in searching over
     pub async fn generate_cycles(
         working_pools: Vec<Pool>,
-        token: Address,
     ) -> Vec<SwapPath> {
         // build the graph
+        let token = std::evn::var("ARB_TOKEN").unwrap().parse().unwrap();
         let graph = ArbGraph::build_graph(working_pools);
 
         // get start node and construct cycles

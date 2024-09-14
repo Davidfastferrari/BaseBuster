@@ -1,3 +1,10 @@
 
 
 
+
+block stream: send block
+market state: recieve block, send touched addresses
+seacher: receiver touched addresses, send paths
+simulator: recieve paths, send profitable ones
+tx_sender: receiver profitbal paths
+

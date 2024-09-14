@@ -1,7 +1,11 @@
 use crate::bytecode::{UNISWAP_V2_BYTECODE, UNISWAP_V2_CODE_HASH};
 use crate::state_db::BlockStateDB;
+use std::collections::HashSet;
 use revm::db::EmptyDB;
+use alloy::rpc::types::Block;
 use std::sync::RwLock;
+use tokio::sync::mpsc::{Sender, Receiver};
+use std::sync::Arc;
 use alloy::primitives::U256;
 use alloy::primitives::Address;
 use pool_sync::{Pool, PoolType, PoolSync, Chain, PoolInfo};
@@ -19,14 +23,23 @@ pub struct MarketState {
 impl MarketState {
 
     // constuct the market state with a populated db
-    pub async fn init_state() -> Result<Self> {
+    pub async fn init_state_and_start_stream(
+        pools: Vec<Pool>, // the pools we are serching over
+        block_rx: Receiver<Block>, // receiver for new blocks
+        address_tx: Sender<HashSet<Address>> // sender for touched addresses in a block
+    ) -> Result<Arc<Self>> {
         let mut db = BlockStateDB::new(EmptyDB::new());
 
-        let pools = MarketState::load_pools().await?;
 
         MarketState::populate_db_with_pools(pools, &mut db);
+        
+        let market_state = Arc::new(Self {
+            db: RwLock::new(db)
+        });
 
-        Ok(Self { db: RwLock::new(db) })
+        // tokio::task::spanw(Updatestate)
+
+        Ok(market_state)
     }
 
     // Load in all of the pools and updated state from the chain
