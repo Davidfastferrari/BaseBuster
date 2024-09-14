@@ -5,7 +5,16 @@ use revm::primitives::{Account, AccountInfo, Bytecode, Log, KECCAK_EMPTY};
 use revm::db::AccountState;
 use revm::{Database, DatabaseCommit, DatabaseRef};
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::collections::hash_map::Entry;
+use pool_sync::PoolType;
+
+#[derive(Debug)]
+pub struct PoolInformation {
+    pub token0: Address,
+    pub token1: Address,
+    pub pool_type: PoolType,
+}
 
 #[derive(Debug)]
 pub struct BlockStateDB<ExtDB> {
@@ -13,6 +22,8 @@ pub struct BlockStateDB<ExtDB> {
     pub contracts: HashMap<B256, Bytecode>, 
     pub logs: Vec<Log>,
     pub block_hashes: HashMap<BlockNumber, B256>,
+    pub pools: HashSet<Address>,
+    pub pool_info: HashMap<Address, PoolInformation>,
     pub db: ExtDB
 
 }
@@ -25,13 +36,6 @@ impl<ExtDB: Default> Default for BlockStateDB<ExtDB> {
 
 
 impl<ExtDB> BlockStateDB<ExtDB> {
-    pub fn zero_for_one(pool: Address, token_in: Address) -> bool {
-        // todo
-        true
-    }
-}
-
-impl<ExtDB> BlockStateDB<ExtDB> {
     // Construct a new BlockStateDB
     pub fn new(db: ExtDB) -> Self {
         let mut contracts = HashMap::new();
@@ -42,8 +46,16 @@ impl<ExtDB> BlockStateDB<ExtDB> {
             contracts,
             logs: Vec::new(),
             block_hashes: HashMap::new(),
+            pools: HashSet::new(),
+            pool_info: HashMap::new(),
             db
         }
+    }
+
+    // track pool information for easy access
+    pub fn add_pool(&mut self, pool: Address, token0: Address, token1: Address, pool_type: PoolType) {
+        self.pools.insert(pool);
+        self.pool_info.insert(pool, PoolInformation { token0, token1, pool_type });
     }
 
     // Insert a contract into the DB

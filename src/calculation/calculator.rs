@@ -9,38 +9,32 @@ use std::sync::Arc;
 use crate::cache::Cache;
 use crate::db::RethDB;
 use revm::db::CacheDB;
+use crate::market_state::MarketState;
 
 pub struct Calculator {
-    pub provider: Arc<RootProvider<Http<Client>>>,
-    pub pool_manager: Arc<PoolManager>,
-    //pub db: RwLock<CacheDB<RethDB>>,
+    pub market_state: Arc<MarketState>,
     pub cache: Arc<Cache>
 }
 
 impl Calculator {
-    pub async fn new(pool_manager: Arc<PoolManager>) -> Self {
-        let provider = Arc::new(
-            ProviderBuilder::new().on_http(std::env::var("FULL").unwrap().parse().unwrap()),
-        );
-
-        //let mut db = CacheDB::new(RethDB::new());
-
-        //let num_pools = pool_manager.get_num_pools();
-        let num_pools  =500;
-
+    // construct a new calculator
+    // contains the market state to access pool info and a cache for calculations
+    pub async fn new(market_state: Arc<MarketState>) -> Self {
         Self {
-            provider,
-            pool_manager,
-            //db: RwLock::new(db),
-            cache: Arc::new(Cache::new(num_pools))
+            market_state,
+            cache: Arc::new(Cache::new(500))
         }
     }
 
+    // calculate the output amount 
+    // we can get read access to the db since we know it will not change for duration of calculation
     #[inline]
     pub fn calculate_output(&self, path: &SwapPath) -> U256 {
         let mut amount = U256::from(AMOUNT);
+
+        // for each step, calculate the amount out
         for step in &path.steps {
-            amount = self.get_amount_out(amount, &step);
+            amount = self.get_amount_out(amount, &step, db_read);
             if amount == U256::ZERO {
                 return U256::ZERO;
             }
@@ -48,17 +42,21 @@ impl Calculator {
         amount
     }
 
+
+    // get the amount out for an individual swap
     #[inline]
-    fn get_amount_out(&self, amount_in: U256, swap_step: &SwapStep) -> U256 {
+    fn get_amount_out(&self, amount_in: U256, swap_step: &SwapStep, db_read: RwLockReadGuard) -> U256 {
         let pool_address = swap_step.pool_address;
+
+        // check to see if we have a up to date cache
         if let Some(cached_amount) = self.cache.get(amount_in, pool_address) {
             return cached_amount;
         }
 
+        // compute the output amount and then store it in a cache
         let output_amount = self.compute_amount_out(
             amount_in, pool_address, swap_step.token_in, swap_step.token_out, swap_step.protocol
         );
-
         self.cache.set(amount_in, pool_address, output_amount);
         return output_amount;
     }
@@ -72,7 +70,9 @@ impl Calculator {
         token_out: Address,
         pool_type: PoolType,
     ) -> U256 {
-        let zero_to_one = self.pool_manager.zero_to_one(token_in, &pool_address);
+        // get read access to the db
+        let db_read = self.market_state.db.read().unwrap();
+        let zero_to_one = self.db_read.zero_to_one(&pool_address);
 
         match pool_type {
             PoolType::UniswapV2 | PoolType::SushiSwapV2 | PoolType::SwapBasedV2 => {
