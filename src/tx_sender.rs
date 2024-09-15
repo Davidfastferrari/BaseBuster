@@ -18,8 +18,8 @@ use std::sync::mpsc::Receiver;
 use alloy::providers::RootProvider;
 use alloy::transports::http::{Client, Http};
 use alloy::network::Ethereum;
-
 use crate::events::Event;
+
 use crate::swap::SwapStep;
 use crate::{FlashSwap, AMOUNT};
 use crate::market::Market;

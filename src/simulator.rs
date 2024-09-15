@@ -12,13 +12,13 @@ use revm::db::AlloyDB;
 use alloy::sol;
 use alloy::eips::{BlockId, BlockHashOrNumber};
 
-use crate::db::RethDB;
 use crate::swap::SwapStep;
+use crate::events::Event;
 
 use alloy::sol_types::SolValue;
 use revm::primitives::{keccak256, Bytes, ExecutionResult};
 
-use crate::{events::*, AMOUNT};
+use crate::{AMOUNT};
 sol!(
     #[derive(Debug)]
     #[sol(rpc)]
@@ -39,6 +39,7 @@ pub fn simulate_paths(
     tx_sender: Sender<Event>,
     mut arb_receiver: Receiver<Event>,
 ) {
+    /* *
     //let mut evm = setup_evm();
     //let quoter = address!("0000000000000000000000000000000000001000");
     //let provider = ProviderBuilder::new().on_http(std::env::var("FULL").unwrap().parse().unwrap());
@@ -137,5 +138,6 @@ pub fn simulate_paths(
             _ => {}//println!("{:#?}", result),
         }
     }
+    */
     
 }

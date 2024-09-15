@@ -1,8 +1,9 @@
 use super::BlockStateDB;
 use revm::db::{Database, DatabaseRef};
-use alloy::primitives::{U256, Address};
+use alloy::{hex::FromHex, primitives::{Address, U256}};
 use pool_sync::{UniswapV2Pool, PoolType};
-use revm::primitives::AccountInfo;
+use revm::primitives::{AccountInfo, Bytes};
+use zerocopy::AsBytes;
 use crate::bytecode::*;
 
 /// uniswapv2 db read/write related methods
@@ -29,14 +30,15 @@ impl <ExtDB: Database + DatabaseRef> BlockStateDB<ExtDB> {
         self.add_pool(address, token0, token1, PoolType::UniswapV2);
 
         // insert storage values
-        let reserves = (reserve0 << 112) | (reserve1 << 8);
-        self.insert_account_storage(address, U256::from(8), reserves)?;
-        self.insert_account_storage(address, U256::ZERO, U256::from_be_bytes(token0.into()))?;
-        self.insert_account_storage(address, U256::from(1), U256::from_be_bytes(token1.into()))?;
+        self.insert_reserves(address, reserve0, reserve1)?;
+        self.insert_token0(address, token0)?;
+        self.insert_token1(address, token0)?;
+
         Ok(())
     }
 
     // check if we are tracking this pool
+    #[inline]
     pub fn tracking_pool(&self, pool: &Address) -> bool {
         self.pools.contains(pool)
     }
@@ -78,26 +80,24 @@ impl <ExtDB: Database + DatabaseRef> BlockStateDB<ExtDB> {
     }
 
     // insert pool reserves into the database
-    pub fn insert_reserves(&mut self, pool: Address, reserve0: U256, reserve1: U256) -> Result<(), <Self as DatabaseRef>::Error> {
+    fn insert_reserves(&mut self, pool: Address, reserve0: U256, reserve1: U256) -> Result<(), <Self as DatabaseRef>::Error> {
         self.pools.insert(pool);
         let packed_reserves = (reserve0 << 112) | reserve1;
         self.insert_account_storage(pool, U256::from(8), packed_reserves)
     }
 
-    // update pool reserves
-    pub fn update_reserves(&mut self, pool: Address, reserve0: U256, reserve1: U256) -> Result<(), <Self as DatabaseRef>::Error>{
-        let packed_reserves = (reserve0 << 112) | reserve1;
-        self.update_account_storage(pool, U256::from(8), packed_reserves)
-    }
-
     // insert token0 into the database
-    pub fn insert_token0(&mut self, pool: Address, token: Address) -> Result<(), <Self as DatabaseRef>::Error>{
-        self.insert_account_storage(pool, U256::ZERO, U256::from_be_bytes(token.into()))
+    fn insert_token0(&mut self, pool: Address, token: Address) -> Result<(), <Self as DatabaseRef>::Error> {
+        let mut bytes = [0u8; 32];
+        bytes[12..].copy_from_slice(token.as_bytes());
+        self.insert_account_storage(pool, U256::ZERO, U256::from_be_bytes(bytes))
     }
 
     // insert token1 into the database
-    pub fn insert_token1(&mut self, pool: Address, token: Address) -> Result<(), <Self as DatabaseRef>::Error>{
-        self.insert_account_storage(pool, U256::from(1),U256::from_be_bytes(token.into()))
+    fn insert_token1(&mut self, pool: Address, token: Address) -> Result<(), <Self as DatabaseRef>::Error> {
+        let mut bytes = [0u8; 32];
+        bytes[12..].copy_from_slice(token.as_bytes());
+        self.insert_account_storage(pool, U256::from(1), U256::from_be_bytes(bytes))
     }
 
 }

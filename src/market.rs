@@ -1,8 +1,8 @@
 use alloy::providers::{Provider, ProviderBuilder};
 use std::sync::RwLock;
 use tokio::sync::broadcast::Receiver;
-
 use crate::events::Event;
+
 
 pub struct Market {
     max_priority_fee_per_gas: RwLock<u128>,

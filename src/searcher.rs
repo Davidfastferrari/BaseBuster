@@ -1,30 +1,27 @@
 
-use crate::calculation::Calculator;
-use crate::AMOUNT;
-use alloy::network::EthereumWallet;
-use alloy::node_bindings::Anvil;
 use alloy::primitives::{U256, Address};
-use alloy::signers::local::PrivateKeySigner;
 use tokio::sync::broadcast::Receiver;
-//use tokio::sync::mpsc::{Receiver, Sender};
-use alloy::providers::{ProviderBuilder, Provider};
-use crate::market_state::MarketState;
-
 use std::sync::mpsc::Sender;
-use crate::events::Event;
 use log::{info, warn, debug};
 use rayon::prelude::*;
 use std::sync::Arc;
-use crate::pool_manager::PoolManager;
-use crate::swap::{SwapStep, SwapPath};
-use std::collections::HashSet;
 use std::time::Instant;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
+use crate::calculation::Calculator;
+use crate::market_state::MarketState;
+use crate::swap::{SwapStep, SwapPath};
+use crate::events::Event;
+use crate::AMOUNT;
+
+
+// top level sercher struct
+// contains the calculator and all path information
 pub struct Searchoor {
     calculator: Calculator,
     path_index: HashMap<Address, Vec<usize>>,
     cycles: Vec<SwapPath>,
+    min_profit: U256,
 }
 
 impl Searchoor {
@@ -40,30 +37,32 @@ impl Searchoor {
             }
         }
 
-        Self { calculator, cycles, path_index: index}
+        // calculate the min profit percentage
+        let flash_loan_fee: U256 = U256::from(9) / U256::from(10000); // 0.09% flash loan fee
+        let min_profit_percentage: U256 = U256::from(2) / U256::from(100); // 2% minimum profit
+        let initial_amount = U256::from(AMOUNT);
+        let repayment_amount = initial_amount + (initial_amount * flash_loan_fee);
+        let min_profit = repayment_amount + (initial_amount * min_profit_percentage);
+
+        Self { calculator, cycles, path_index: index, min_profit}
     }
 
 
     pub async fn search_paths(
         &mut self,
-        arb_sender: Sender<Event>,
-        mut reserve_update_receiver: Receiver<Event>,
+        paths_tx: Sender<Event>,
+        mut address_rx: Receiver<Event>,
     ) {
-        let flash_loan_fee: U256 = U256::from(9) / U256::from(10000); // 0.09% flash loan fee
-        let min_profit_percentage: U256 = U256::from(2) / U256::from(100); // 2% minimum profit
-        let initial_amount = U256::from(AMOUNT);
-        let repayment_amount = initial_amount + (initial_amount * flash_loan_fee);
-        let min_profit_amount = repayment_amount + (initial_amount * min_profit_percentage);
-
         // wait for a new single with the pools that have reserved updated
-        while let Ok(Event::ReserveUpdate((updated_pools, block_number))) = reserve_update_receiver.recv().await {
+        while let Ok(Event::PoolsTouched(pools)) = address_rx.recv().await {
             info!("Searching for arbs...");
             let start = Instant::now();
 
-            self.calculator.invalidate_cache(&updated_pools);
+            // invalidate all updated pools in the cache
+            //self.calculator.invalidate_cache(&updated_pools);
 
             // from the updated pools, get all paths that we want to recheck
-            let affected_paths: HashSet<&SwapPath> = updated_pools
+            let affected_paths: HashSet<&SwapPath> = pools
                 .iter()
                 .filter_map(|pool| self.path_index.get(pool))
                 .flatten()
@@ -76,7 +75,7 @@ impl Searchoor {
                 .par_iter()
                 .filter_map(|path| {
                     let output_amount = self.calculator.calculate_output(&path);
-                    if output_amount >= min_profit_amount {
+                    if output_amount >= self.min_profit {
                         Some((path.steps.clone(), output_amount))
                     } else {
                         None
@@ -88,7 +87,7 @@ impl Searchoor {
 
             // send to the simulator
             for path in profitable_paths {
-                match arb_sender.send(Event::ArbPath((path.0, path.1, block_number))){
+                match paths_tx.send(Event::ArbPath((path.0, path.1))){
                     Ok(_) => debug!("Sent path"),
                     Err(_) => warn!("Failed to send path")
                 }

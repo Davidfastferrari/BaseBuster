@@ -48,9 +48,10 @@ pub async fn get_top_volume_tokens(chain: Chain, num_results: usize) -> Result<V
 }
 
 // based on the top volume tokens, load in all of the working pools
-pub async fn get_working_pools(pools: Vec<Pool>, num_results: usize, chain: Chain) -> Vec<Pool> {
+pub async fn filter_pools(pools: Vec<Pool>, num_results: usize, chain: Chain) -> Vec<Pool> {
     // get all the top volume tokens
     let mut top_volume_tokens = get_top_volume_tokens(chain, num_results).await.unwrap();
+    /* 
     let blacklist = vec![
         address!("60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42"),
         address!("04D5ddf5f3a8939889F11E97f8c4BB48317F1938"),
@@ -63,6 +64,7 @@ pub async fn get_working_pools(pools: Vec<Pool>, num_results: usize, chain: Chai
         address!("833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
     ];
     top_volume_tokens.retain(|token| !blacklist.contains(token));
+    */
 
     pools
         .into_iter()

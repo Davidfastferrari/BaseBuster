@@ -2,12 +2,14 @@ use alloy::primitives::Address;
 use alloy::primitives::U128;
 use alloy::primitives::U256;
 use alloy::rpc::types::Block;
+use std::collections::HashSet;
 
 use crate::swap::SwapStep;
 
 #[derive(Debug, Clone)]
 pub enum Event {
-    ArbPath((Vec<SwapStep>, U256, u64)),
+    ArbPath((Vec<SwapStep>, U256)),
+    PoolsTouched(HashSet<Address>),
     NewBlock(Block),
     ReserveUpdate((Vec<Address>, u64)),
     OptimizedPath(OptPath),

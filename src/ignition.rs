@@ -9,13 +9,13 @@ use alloy::rpc::types::Block;
 //use tokio::sync::mpsc;
 
 use crate::graph::ArbGraph;
+use crate::events::Event;
 use crate::market::Market;
-use crate::pool_manager::PoolManager;
 use crate::simulator::simulate_paths;
 use crate::stream::*;
 use crate::swap::SwapStep;
 use crate::tx_sender::TransactionSender;
-use crate::util::get_working_pools;
+use crate::util::filter_pools;
 use crate::searcher::Searchoor;
 use crate::market_state::MarketState;
 
@@ -25,16 +25,18 @@ pub async fn start_workers(
     last_synced_block: u64,
 ) {
     // all of the sender and receivers
-    let (block_tx, block_rx) = mpsc::channel::<Block>(100);
-    let (address_tx, address_rx) = mpsc::channel::<HashSet<Address>>(100);
-    let (paths_tx, paths_rx) = mpsc::channel::<Vec<Vec<SwapStep>>>(1000);
-    let (profitable_tx, profitable_rx) = mpsc::channel::<Vec<Vec<SwapStep>>>(100);
+    let (block_tx, block_rx) = mpsc::channel::<Event>(100);
+    let (address_tx, address_rx) = mpsc::channel::<Event>(100);
+    let (paths_tx, paths_rx) = mpsc::channel::<Event>(1000);
+    let (profitable_tx, profitable_rx) = mpsc::channel::<Event>(100);
 
     // filter the pools here to smartly select the working set
-    // let pools = filter_pools(pools);
+    info!("Pool count before filter {}", pools.len());
+    let pools = filter_pools(pools, 500, Chain::Ethereum).await;
+    info!("Pool count after filter {}", pools.len());
 
     // Initialize our market state, this is a wrapper over the REVM database with all our pool state
-    // then start he updater
+    // then start the updater
     let market_state = MarketState::init_state_and_start_stream(
         pools.clone(),
         block_rx, 
@@ -49,7 +51,9 @@ pub async fn start_workers(
     tokio::spawn(stream_new_blocks(block_tx));
 
     // generate the graph
-    //let cycles = ArbGraph::generate_cycles(pools.clone()).await;
+    info!("Generating cycles...");
+    let cycles = ArbGraph::generate_cycles(pools.clone()).await;
+    info!("Generated {} cycles", cycles.len());
 
     // start the simulator
     // start the sender

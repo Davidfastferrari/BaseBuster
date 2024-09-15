@@ -1,4 +1,3 @@
-use crate::pool_manager::PoolManager;
 use crate::swap::*;
 use alloy::primitives::{Address, U256};
 use alloy::providers::{ProviderBuilder, RootProvider};
@@ -8,7 +7,6 @@ use pool_sync::PoolType;
 use crate::AMOUNT;
 use std::sync::Arc;
 use crate::cache::Cache;
-use crate::db::RethDB;
 use revm::db::CacheDB;
 use crate::market_state::MarketState;
 

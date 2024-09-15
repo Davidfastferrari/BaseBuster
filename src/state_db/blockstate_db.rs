@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::collections::hash_map::Entry;
 use pool_sync::PoolType;
+use alloy::rpc::types::trace::geth::AccountState as GethAccountState;
 
 #[derive(Debug)]
 pub struct PoolInformation {
@@ -98,6 +99,7 @@ impl<ExtDB: DatabaseRef> BlockStateDB<ExtDB> {
     }
 
     /// insert account storage without overriding account info
+    #[inline]
     pub fn insert_account_storage(&mut self, address: Address, slot: U256, value: U256) -> Result<(), ExtDB::Error> {
         let account = self.load_account(address)?;
         account.storage.insert(slot, value);
@@ -105,21 +107,17 @@ impl<ExtDB: DatabaseRef> BlockStateDB<ExtDB> {
     }
 
 
-    pub fn update_account_storage(&mut self, address: Address, slot: U256, value: U256) -> Result<(), ExtDB::Error> {
-        let account = self.load_account(address)?;
-        if account.state != AccountState::NotExisting {
-            account.storage.insert(slot, value);
+    // update all account storage slots for an account
+    #[inline]
+    pub fn update_all_slots(&mut self, address: Address, account_state: GethAccountState) ->Result<(), ExtDB::Error> {
+        let storage = account_state.storage;
+        for (slot, value) in storage {
+            self.insert_account_storage(address, slot.into(), value.into())?
         }
         Ok(())
     }
 
-    /// replace account storage without overriding account info
-    pub fn replace_account_storage(&mut self, address: Address, storage: HashMap<U256, U256>) -> Result<(), ExtDB::Error> {
-        let account = self.load_account(address)?;
-        account.state = AccountState::StorageCleared;
-        account.storage = storage.into_iter().collect();
-        Ok(())
-    }
+
 }
 
 
