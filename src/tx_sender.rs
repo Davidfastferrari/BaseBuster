@@ -62,7 +62,7 @@ impl TransactionSender {
         let contract = FlashSwap::new(address!("ef1DcA00Be7a8d1854d8842F0622042bCC9a330e"), self.provider.clone());
 
         // wait for a new transaction that has passed simulation
-        while let Ok(Event::ArbPath((arb_path, expected_out, block_number))) = tx_receiver.recv() {
+        while let Ok(Event::ArbPath((arb_path, expected_out))) = tx_receiver.recv() {
             println!("got the new path");
             // hash the transaction and make sure we didnt just end it
            // let tx_hash = self.hash_transaction(&arb_path);
@@ -99,11 +99,11 @@ impl TransactionSender {
                     match tx_result.get_receipt().await {
                         Ok(receipt) => {
                             let current_block = self.provider.get_block_number().await.unwrap();
-                            println!("Expected out: {:?}, found on block: {}, landed on block {}", expected_out, block_number, current_block);
+                            //println!("Expected out: {:?}, found on block: {}, landed on block {}", expected_out, current_block);
                         },
                         Err(e) => {
                             let current_block = self.provider.get_block_number().await.unwrap();
-                            println!("Expected out: {:?}, found on block: {}, landed on block {}", expected_out, block_number, current_block);
+                            //println!("Expected out: {:?}, found on block: {}, landed on block {}", expected_out, current_block);
                             warn!("Failed to get transaction receipt: {:?}", e);
                         }
                     }

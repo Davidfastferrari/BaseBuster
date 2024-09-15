@@ -16,7 +16,7 @@ mod simulator;
 mod stream;
 mod tx_sender;
 mod util;
-//mod tests;
+mod tests;
 mod events;
 mod searcher;
 mod swap;
@@ -38,7 +38,7 @@ sol!(
 );
 
 // initial amount we are trying to arb over
-pub const AMOUNT: u128 = 7000000000000000;
+pub const AMOUNT: u128 = 10000000000000000;
 
 #[tokio::main]
 async fn main() -> Result<()> {

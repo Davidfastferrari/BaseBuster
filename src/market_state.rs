@@ -1,9 +1,10 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use alloy::providers::ProviderBuilder;
 use revm::db::EmptyDB;
 use std::sync::RwLock;
 use tokio::sync::mpsc::{Sender, Receiver};
 use std::sync::Arc;
+use log::error;
 use alloy::primitives::Address;
 use pool_sync::Pool;
 use anyhow::Result;
@@ -66,9 +67,9 @@ impl MarketState {
             let updated_pools = self.process_block_trace(updates);
 
             // send the updated pools
-            //if let Err(e) = address_tx.send(updated_pools).await {
-             //  error!("Failed to send updated pools");
-            //}
+            if let Err(e) = address_tx.send(Event::PoolsTouched(updated_pools)).await {
+               error!("Failed to send updated pools");
+            }
 
             last_synced_block = block_number;
         }
@@ -77,8 +78,8 @@ impl MarketState {
 
     // process the block trace and update all pools that were affected
     #[inline]
-    fn process_block_trace(&self, updates: Vec<BTreeMap<Address, AccountState>> ) -> Vec<Address> {
-        let mut updated_pools: Vec<Address> = Vec::new();
+    fn process_block_trace(&self, updates: Vec<BTreeMap<Address, AccountState>> ) -> HashSet<Address> {
+        let mut updated_pools: HashSet<Address> = HashSet::new();
 
         // aquire write access so we can update the db
         let mut db = self.db.write().unwrap();
@@ -87,7 +88,7 @@ impl MarketState {
         for (address, account_state) in updates.iter().flat_map(|btree_map| btree_map.iter()) {
             if db.tracking_pool(address) {
                 db.update_all_slots(address.clone(), account_state.clone()).unwrap();
-                updated_pools.push(*address);
+                updated_pools.insert(*address);
             }
         }
         updated_pools

@@ -1,15 +1,10 @@
 use alloy::primitives::{Signed, U160};
 use alloy::sol_types::{SolValue, SolCall};
 use revm::primitives::ExecutionResult;
-use crate::db::RethDB;
-use crate::swap::SwapPath;
 use alloy::primitives::U256;
 use alloy::primitives::{address, Address};
 use alloy::providers::ProviderBuilder;
-use revm::db::CacheDB;
-use revm::primitives::keccak256;
-use revm::primitives::Bytes;
-use revm::primitives::AccountInfo;
+use revm::db::EmptyDB;
 use alloy::sol;
 use pool_sync::*;
 use revm::primitives::TransactTo;
@@ -19,11 +14,12 @@ use std::time::Instant;
 
 use super::test_gen::*;
 use crate::calculation::Calculator;
+use crate::market_state::MarketState;
 use crate::swap::*;
-use crate::pool_manager::PoolManager;
-use crate::util::get_working_pools;
 use crate::FlashSwap;
 use super::test_utils::*;
+use crate::swap::SwapPath;
+use crate::state_db::BlockStateDB;
 
 // All offchain calculation tests
 #[cfg(test)]
@@ -37,7 +33,7 @@ mod offchain_calculations {
             pub async fn $test_name() {
                 dotenv::dotenv().ok();
 
-                let (pool_manager, mut receiver) = pool_manager_with_type(PoolType::$pool_type).await;
+                let (market, mut address_rx) = market_with_type(PoolType::$pool_type).await;
 
                 let swap_path = SwapPath {
                     steps: vec![SwapStep { pool_address: address!($pool_address),
@@ -49,8 +45,8 @@ mod offchain_calculations {
                     hash: 0
                 };
 
-                while let Ok(_) = receiver.recv().await {
-                    let offchain_amount_out = offchain_quote(&swap_path, pool_manager.clone()).await;
+                while let Some(_) = address_rx.recv().await {
+                    let offchain_amount_out = offchain_quote(&swap_path, market.clone()).await;
                     let onchain_amount_out = onchain_quote(&swap_path, PoolType::$pool_type).await;
                     println!("offchain: {:?}, onchain: {:?}", offchain_amount_out, onchain_amount_out);
                     assert_eq!(offchain_amount_out, onchain_amount_out);
@@ -62,7 +58,8 @@ mod offchain_calculations {
 
     // V2 VARIANTS
     // ---------------------------
-    test_pool_out!(test_uniswapv2_out, UniswapV2, "88A43bbDF9D098eEC7bCEda4e2494615dfD9bB9C", "4200000000000000000000000000000000000006", "833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", 0); // OK
+    test_pool_out!(test_uniswapv2_out, UniswapV2, "B4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc", "C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", "A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", 0); // OK
+    //test_pool_out!(test_uniswapv2_out, UniswapV2, "88A43bbDF9D098eEC7bCEda4e2494615dfD9bB9C", "4200000000000000000000000000000000000006", "833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", 0); // OK
     test_pool_out!(test_sushiswapv2_out, SushiSwapV2, "2F8818D1B0f3e3E295440c1C0cDDf40aAA21fA87", "4200000000000000000000000000000000000006", "833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", 0); // OK
     test_pool_out!(test_pancakeswapv2_out, PancakeSwapV2, "79474223AEdD0339780baCcE75aBDa0BE84dcBF9", "4200000000000000000000000000000000000006", "833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", 0); // OK
     test_pool_out!(test_baseswapv2_out, BaseSwapV2, "ab067c01C7F5734da168C699Ae9d23a4512c9FdB", "4200000000000000000000000000000000000006", "833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", 0); // OK
@@ -140,10 +137,10 @@ pub async fn onchain_quote(
 // uses the offchain calculator to get the amount out for a single swap
 pub async fn offchain_quote(
     swap_path: &SwapPath,
-    pool_manager: Arc<PoolManager>,
+    market_state: Arc<MarketState>,
 ) -> U256 {
     dotenv::dotenv().ok();
-    let calculator = Calculator::new(pool_manager).await;
+    let calculator = Calculator::new(market_state).await;
     calculator.calculate_output(swap_path)
 }
 
@@ -153,13 +150,13 @@ pub async fn offchain_quote(
 
 // ONCHAIN QUOTERSK
 // --------------------------
-
 // Get the onchain quote for a v2 pool
 pub async fn onchain_v2(swap_step: &SwapStep, pool_type: PoolType, amount_in: U256) -> U256 {
     let provider = ProviderBuilder::new().on_http(std::env::var("FULL").unwrap().parse().unwrap());
 
     let address = match pool_type {
-        PoolType::UniswapV2 => address!("4752ba5dbc23f44d87826276bf6fd6b1c372ad24"),
+        //PoolType::UniswapV2 => address!("4752ba5dbc23f44d87826276bf6fd6b1c372ad24"),
+        PoolType::UniswapV2 => address!("7a250d5630B4cF539739dF2C5dAcb4c659F2488D"),
         PoolType::SushiSwapV2 => address!("6BDED42c6DA8FBf0d2bA55B2fa120C5e0c8D7891"),
         PoolType::PancakeSwapV2 => address!("8cFe327CEc66d1C090Dd72bd0FF11d690C33a2Eb"),
         PoolType::BaseSwapV2 => address!("327Df1E6de05895d2ab08513aaDD9313Fe505d86"),
@@ -243,10 +240,12 @@ async fn onchain_v3_quoter(pool_type: PoolType, swap_step: &SwapStep, amount_in:
 // V3 amount out from the router
 fn onchain_v3_router(pool_type: PoolType, swap: &SwapStep, amount_in: U256) -> U256 {
     // setup the db
-    let mut db = CacheDB::new(RethDB::new());
+    let mut db = BlockStateDB::new(EmptyDB::new());
 
+    /* 
     // addresses
-    let weth = address!("4200000000000000000000000000000000000006");
+    //let weth = address!("4200000000000000000000000000000000000006");
+    let weth = address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
     let account = address!("1E0294b6e4D72857B5eC467f5c2E52BDA37CA5b8");
     let router = match pool_type {
         PoolType::DackieSwapV3 => address!("195FBc5B8Fbd5Ac739C1BA57D4Ef6D5a704F34f7"),
@@ -337,6 +336,8 @@ fn onchain_v3_router(pool_type: PoolType, swap: &SwapStep, amount_in: U256) -> U
         }
         _=> U256::ZERO
     }
+    */
+    todo!()
 }
 
 // get amount out for curve pools
@@ -401,7 +402,7 @@ pub async fn onchain_balancer(swap_step: &SwapStep, amount_in: U256) -> U256 {
         funds: fund_management,
     }.abi_encode();
 
-    let mut db = CacheDB::new(RethDB::new());
+    let mut db = BlockStateDB::new(EmptyDB::new());
 
     let start = Instant::now();
     let mut evm = Evm::builder()

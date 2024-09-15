@@ -71,7 +71,8 @@ impl Calculator {
     ) -> U256 {
         // get read access to the db
         let db_read = self.market_state.db.read().unwrap();
-        let zero_to_one = db_read.zero_to_one(&pool_address, token_in);
+        let zero_to_one = db_read.zero_to_one(&pool_address, token_in).unwrap();
+        //println!("{:?} {:?}, {}", pool_address, token_in, zero_to_one);
         
 
         match pool_type {

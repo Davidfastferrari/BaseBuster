@@ -1,7 +1,6 @@
 
 use alloy::primitives::{U256, Address};
-use tokio::sync::broadcast::Receiver;
-use std::sync::mpsc::Sender;
+use tokio::sync::mpsc::{Sender, Receiver};
 use log::{info, warn, debug};
 use rayon::prelude::*;
 use std::sync::Arc;
@@ -54,7 +53,7 @@ impl Searchoor {
         mut address_rx: Receiver<Event>,
     ) {
         // wait for a new single with the pools that have reserved updated
-        while let Ok(Event::PoolsTouched(pools)) = address_rx.recv().await {
+        while let Some(Event::PoolsTouched(pools)) = address_rx.recv().await {
             info!("Searching for arbs...");
             let start = Instant::now();
 
@@ -75,6 +74,7 @@ impl Searchoor {
                 .par_iter()
                 .filter_map(|path| {
                     let output_amount = self.calculator.calculate_output(&path);
+                    println!("{:?}", output_amount);
                     if output_amount >= self.min_profit {
                         Some((path.steps.clone(), output_amount))
                     } else {
@@ -87,7 +87,7 @@ impl Searchoor {
 
             // send to the simulator
             for path in profitable_paths {
-                match paths_tx.send(Event::ArbPath((path.0, path.1))){
+                match paths_tx.send(Event::ArbPath((path.0, path.1))).await{
                     Ok(_) => debug!("Sent path"),
                     Err(_) => warn!("Failed to send path")
                 }

@@ -55,6 +55,16 @@ pub async fn start_workers(
     let cycles = ArbGraph::generate_cycles(pools.clone()).await;
     info!("Generated {} cycles", cycles.len());
 
+
+    // finally.... start the searcher!!!!!
+    info!("Starting arbitrage searcher...");
+    let mut searcher = Searchoor::new(cycles, market_state.clone()).await;
+    tokio::spawn(async move {
+        searcher.search_paths(
+            paths_tx, 
+            address_rx
+        ).await
+    });
     // start the simulator
     // start the sender
     // start the searcher
@@ -90,25 +100,6 @@ pub async fn start_workers(
     }).collect();
     let pool_manager = PoolManager::new(filtered_pools.clone(), reserve_update_sender.clone(), last_synced_block).await;
 
-    // construct the graph and generate the cycles
-    info!("Constructing graph...");
-    let arb_token = std::env::var("ARB_TOKEN").unwrap().parse().unwrap();
-    let cycles = ArbGraph::generate_cycles(filtered_pools.clone(), arb_token).await;
-    println!("found {}", cycles.len());
-
-    // Stream in new blocks
-    info!("Starting block stream...");
-    tokio::spawn(stream_new_blocks(block_sender));
-
-    // Market state
-    info!("Staring market state tracker...");
-    let market = Arc::new(Market::new());
-    let market_clone = market.clone();
-    tokio::spawn(async move {
-        market_clone
-            .update_gas_price(block_receiver.resubscribe())
-            .await;
-    });
 
     // simulate arbitrage paths in a new thread
     info!("Starting simulator...");
@@ -123,15 +114,6 @@ pub async fn start_workers(
         let _ = tx_sender.send_transactions(tx_receiver).await;
     });
 
-    // finally.... start the searcher!!!!!
-    info!("Starting arbitrage searcher...");
-    let mut searcher = Searchoor::new(cycles, pool_manager).await;
-    tokio::spawn(async move {
-        searcher.search_paths(
-            arb_sender, 
-            reserve_update_receiver.resubscribe()
-        ).await
-    });
 */
 }
 
