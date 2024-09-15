@@ -31,17 +31,12 @@ impl Calculator {
     pub fn uniswap_v2_out(
         &self,
         amount_in: U256,
-        reserve0: U128,
-        reserve1: U128,
+        reserve0: U256,
+        reserve1: U256,
         zero_to_one: bool,
         fee: U256,
     ) -> U256 {
         let scalar = U256::from(10000);
-
-        let reserve0 = U256::from(reserve0);
-        let reserve1 = U256::from(reserve1);
-
-        
 
         let (reserve0, reserve1) = if zero_to_one {
             (reserve0, reserve1)
@@ -54,8 +49,10 @@ impl Calculator {
         let denominator = reserve0 * scalar + amount_in_with_fee;
         numerator / denominator
     }
+}
 
     // calculate the amount out for a uniswapv3 swap
+    /* *
     pub fn uniswap_v3_out(
         &self, 
         amount_in: U256,
@@ -191,4 +188,5 @@ impl Calculator {
         Ok(amount_out)
     }
 }
+    */
 

@@ -1,0 +1,45 @@
+use std::collections::BTreeMap;
+use alloy::rpc::types::BlockNumberOrTag;
+use alloy::rpc::types::trace::common::TraceResult;
+use alloy::rpc::types::trace::geth::GethDebugBuiltInTracerType::PreStateTracer;
+use alloy::rpc::types::trace::geth::GethDebugTracerType::BuiltInTracer;
+use alloy::rpc::types::trace::geth::*;
+use alloy::providers::ext::DebugApi;
+use alloy::network::Network;
+use alloy::transports::Transport;
+use alloy::providers::Provider;
+use alloy::primitives::Address;
+use std::sync::Arc;
+
+
+// Trace the block to get all addresses with storage changes
+pub async fn debug_trace_block<T: Transport + Clone, N: Network, P: Provider<T, N>> (
+    client: Arc<P>,
+    block_tag: BlockNumberOrTag,
+    diff_mode: bool,
+) -> Vec<BTreeMap<Address, AccountState>>{
+
+    let tracer_opts = GethDebugTracingOptions { config: GethDefaultTracingOptions::default(), ..GethDebugTracingOptions::default() }
+        .with_tracer(BuiltInTracer(PreStateTracer))
+        .with_prestate_config(PreStateConfig { diff_mode: Some(diff_mode) });
+    let results = client.debug_trace_block_by_number(block_tag, tracer_opts).await.unwrap();
+
+    let mut post: Vec<BTreeMap<Address, AccountState>> = Vec::new();
+
+    for trace_result in results.into_iter() {
+        if let TraceResult::Success {result, ..} = trace_result {
+            match result {
+                GethTrace::PreStateTracer(geth_trace_frame) => match geth_trace_frame {
+                    PreStateFrame::Diff(diff_frame) => {
+                        post.push(diff_frame.post)
+                    }
+                    _ => println!("failed")
+                }
+                _ => println!("failed")
+            }
+        }
+    }
+    post
+}
+
+

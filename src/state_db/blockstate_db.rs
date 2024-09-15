@@ -122,39 +122,8 @@ impl<ExtDB: DatabaseRef> BlockStateDB<ExtDB> {
     }
 }
 
-impl<ExtDB> DatabaseCommit for BlockStateDB<ExtDB> {
-    fn commit(&mut self, changes: HashMap<Address, Account>) {
-        for (address, mut account) in changes {
-            if !account.is_touched() {
-                continue;
-            }
-            if account.is_selfdestructed() {
-                let db_account = self.accounts.entry(address).or_default();
-                db_account.storage.clear();
-                db_account.state = AccountState::NotExisting;
-                db_account.info = AccountInfo::default();
-                continue;
-            }
-            let is_newly_created = account.is_created();
-            self.insert_contract(&mut account.info);
 
-            let db_account = self.accounts.entry(address).or_default();
-            db_account.info = account.info;
-
-            db_account.state = if is_newly_created {
-                db_account.storage.clear();
-                AccountState::StorageCleared
-            } else if db_account.state.is_storage_cleared() {
-                // Preserve old account state if it already exists
-                AccountState::StorageCleared
-            } else {
-                AccountState::Touched
-            };
-            db_account.storage.extend(account.storage.into_iter().map(|(key, value)| (key, value.present_value())));
-        }
-    }
-}
-
+// Implement required Database trait
 impl<ExtDB: DatabaseRef> Database for BlockStateDB<ExtDB> {
     type Error = ExtDB::Error;
 
@@ -231,7 +200,7 @@ impl<ExtDB: DatabaseRef> Database for BlockStateDB<ExtDB> {
 }
 
 
-// Implement Database Ref for our db
+// Implement required database ref trait
 impl<ExtDB: DatabaseRef> DatabaseRef for BlockStateDB<ExtDB> {
     type Error = ExtDB::Error;
     

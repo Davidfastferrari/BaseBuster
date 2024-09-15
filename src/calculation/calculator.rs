@@ -3,6 +3,7 @@ use crate::swap::*;
 use alloy::primitives::{Address, U256};
 use alloy::providers::{ProviderBuilder, RootProvider};
 use alloy::transports::http::{Client, Http};
+use revm::db::DatabaseRef;
 use pool_sync::PoolType;
 use crate::AMOUNT;
 use std::sync::Arc;
@@ -34,7 +35,7 @@ impl Calculator {
 
         // for each step, calculate the amount out
         for step in &path.steps {
-            amount = self.get_amount_out(amount, &step, db_read);
+            amount = self.get_amount_out(amount, &step);
             if amount == U256::ZERO {
                 return U256::ZERO;
             }
@@ -45,7 +46,7 @@ impl Calculator {
 
     // get the amount out for an individual swap
     #[inline]
-    fn get_amount_out(&self, amount_in: U256, swap_step: &SwapStep, db_read: RwLockReadGuard) -> U256 {
+    fn get_amount_out(&self, amount_in: U256, swap_step: &SwapStep) -> U256 {
         let pool_address = swap_step.pool_address;
 
         // check to see if we have a up to date cache
@@ -72,19 +73,21 @@ impl Calculator {
     ) -> U256 {
         // get read access to the db
         let db_read = self.market_state.db.read().unwrap();
-        let zero_to_one = self.db_read.zero_to_one(&pool_address);
+        let zero_to_one = db_read.zero_to_one(&pool_address, token_in);
+        
 
         match pool_type {
             PoolType::UniswapV2 | PoolType::SushiSwapV2 | PoolType::SwapBasedV2 => {
-                let pool = self.pool_manager.get_v2pool(&pool_address);
+                let (reserve0, reserve1) = db_read.get_reserves(&pool_address);
                 self.uniswap_v2_out(
                     input_amount,
-                    pool.token0_reserves,
-                    pool.token1_reserves,
+                    reserve0,
+                    reserve1,
                     zero_to_one,
                     U256::from(9970),
                 )
             }
+            /* 
             PoolType::PancakeSwapV2 | PoolType::BaseSwapV2 | PoolType::DackieSwapV2 => {
                 let pool = self.pool_manager.get_v2pool(&pool_address);
                 self.uniswap_v2_out(
@@ -120,7 +123,9 @@ impl Calculator {
                 self.balancer_v2_out(input_amount, token_in, token_out, pool_address)
             }
             PoolType::CurveTwoCrypto | PoolType::CurveTriCrypto => todo!(),
+            */
             _ => U256::ZERO,
+        
         }
     }
 

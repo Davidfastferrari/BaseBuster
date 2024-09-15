@@ -1,7 +1,7 @@
-pub mod balancer;
+//pub mod balancer;
 pub mod uniswap;
-pub mod aerodrome;
+//pub mod aerodrome;
 pub mod calculator;
-pub mod curve;
-pub mod maverick;
+//pub mod curve;
+//pub mod maverick;
 pub use calculator::Calculator;

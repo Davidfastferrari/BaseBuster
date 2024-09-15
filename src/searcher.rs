@@ -8,6 +8,7 @@ use alloy::signers::local::PrivateKeySigner;
 use tokio::sync::broadcast::Receiver;
 //use tokio::sync::mpsc::{Receiver, Sender};
 use alloy::providers::{ProviderBuilder, Provider};
+use crate::market_state::MarketState;
 
 use std::sync::mpsc::Sender;
 use crate::events::Event;
@@ -28,8 +29,8 @@ pub struct Searchoor {
 
 impl Searchoor {
     // Construct the searcher with the calculator and all the swap paths
-    pub async fn new(cycles: Vec<SwapPath>, pool_manager: Arc<PoolManager>) -> Self {
-        let calculator = Calculator::new(pool_manager).await;
+    pub async fn new(cycles: Vec<SwapPath>, market_state: Arc<MarketState>) -> Self {
+        let calculator = Calculator::new(market_state).await;
 
         // make our path mapper for easily getting touched paths
         let mut index: HashMap<Address, Vec<usize>> = HashMap::new();
@@ -41,6 +42,8 @@ impl Searchoor {
 
         Self { calculator, cycles, path_index: index}
     }
+
+
     pub async fn search_paths(
         &mut self,
         arb_sender: Sender<Event>,
