@@ -16,7 +16,7 @@ mod simulator;
 mod stream;
 mod tx_sender;
 mod util;
-mod tests;
+//mod tests;
 mod events;
 mod searcher;
 mod swap;

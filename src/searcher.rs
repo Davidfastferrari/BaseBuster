@@ -1,4 +1,3 @@
-
 use alloy::primitives::{U256, Address};
 use tokio::sync::mpsc::{Sender, Receiver};
 use log::{info, warn, debug};
@@ -6,6 +5,9 @@ use rayon::prelude::*;
 use std::sync::Arc;
 use std::time::Instant;
 use std::collections::{HashMap, HashSet};
+use alloy::providers::Provider;
+use alloy::transports::Transport;
+use alloy::network::Network;
 
 use crate::calculation::Calculator;
 use crate::market_state::MarketState;
@@ -16,16 +18,26 @@ use crate::AMOUNT;
 
 // top level sercher struct
 // contains the calculator and all path information
-pub struct Searchoor {
-    calculator: Calculator,
+pub struct Searchoor<T, N, P> 
+where 
+    T: Transport + Clone,
+    N: Network,
+    P: Provider<T, N>
+{
+    calculator: Calculator<T, N, P>,
     path_index: HashMap<Address, Vec<usize>>,
     cycles: Vec<SwapPath>,
     min_profit: U256,
 }
 
-impl Searchoor {
+impl<T, N, P> Searchoor<T, N, P> 
+where 
+    T: Transport + Clone,
+    N: Network,
+    P: Provider<T, N>
+{
     // Construct the searcher with the calculator and all the swap paths
-    pub async fn new(cycles: Vec<SwapPath>, market_state: Arc<MarketState>) -> Self {
+    pub async fn new(cycles: Vec<SwapPath>, market_state: Arc<MarketState<T, N, P>>) -> Self {
         let calculator = Calculator::new(market_state).await;
 
         // make our path mapper for easily getting touched paths

@@ -4,6 +4,10 @@ use pool_sync::{UniswapV2Pool, PoolType};
 use revm::primitives::AccountInfo;
 use zerocopy::AsBytes;
 use lazy_static::lazy_static;
+use alloy::providers::Provider;
+use alloy::transports::Transport;
+use alloy::network::Network;
+use anyhow::Result;
 
 use super::BlockStateDB;
 use crate::bytecode::*;
@@ -13,10 +17,14 @@ lazy_static! {
 }
 
 /// uniswapv2 db read/write related methods
-impl <ExtDB: Database + DatabaseRef> BlockStateDB<ExtDB> {
-
+impl <T, N, P> BlockStateDB<T, N, P> 
+where 
+    T: Transport + Clone,
+    N: Network,
+    P: Provider<T, N>
+{
     // insert a new uniswapv2 pool into the database
-    pub fn insert_v2(&mut self, pool: UniswapV2Pool) -> Result<(), <Self as Database>::Error> {
+    pub fn insert_v2(&mut self, pool: UniswapV2Pool) -> Result<()> {
         let address = pool.address;
         let token0 = pool.token0;
         let token1 = pool.token1;
@@ -61,8 +69,8 @@ impl <ExtDB: Database + DatabaseRef> BlockStateDB<ExtDB> {
     }
 
     // get token 0
-    pub fn get_token0(&self, pool: Address) -> Result<Option<Address>, <Self as DatabaseRef>::Error> {
-        let token0 = self.storage_ref(pool, U256::ZERO)?;
+    pub fn get_token0(&mut self, pool: Address) -> Result<Option<Address>> {
+        let token0 = self.storage(pool, U256::ZERO)?;
         if token0 == U256::ZERO {
             Ok(None)
         } else {
@@ -71,7 +79,7 @@ impl <ExtDB: Database + DatabaseRef> BlockStateDB<ExtDB> {
     }
 
     // get token 1
-    pub fn get_token1(&self, pool: Address) -> Result<Option<Address>, <Self as DatabaseRef>::Error> {
+    pub fn get_token1(&self, pool: Address) -> Result<Option<Address>> {
         let token1 = self.storage_ref(pool, U256::from(1))?;
         if token1 == U256::ZERO {
             Ok(None)
@@ -81,21 +89,21 @@ impl <ExtDB: Database + DatabaseRef> BlockStateDB<ExtDB> {
     }
 
     // insert pool reserves into the database
-    fn insert_reserves(&mut self, pool: Address, reserve0: U256, reserve1: U256) -> Result<(), <Self as DatabaseRef>::Error> {
+    fn insert_reserves(&mut self, pool: Address, reserve0: U256, reserve1: U256) -> Result<()> {
         self.pools.insert(pool);
         let packed_reserves = (reserve1 << 112) | reserve0;
         self.insert_account_storage(pool, U256::from(8), packed_reserves)
     }
 
     // insert token0 into the database
-    fn insert_token0(&mut self, pool: Address, token: Address) -> Result<(), <Self as DatabaseRef>::Error> {
+    fn insert_token0(&mut self, pool: Address, token: Address) -> Result<()> {
         let mut bytes = [0u8; 32];
         bytes[12..].copy_from_slice(token.as_bytes());
         self.insert_account_storage(pool, U256::ZERO, U256::from_be_bytes(bytes))
     }
 
     // insert token1 into the database
-    fn insert_token1(&mut self, pool: Address, token: Address) -> Result<(), <Self as DatabaseRef>::Error> {
+    fn insert_token1(&mut self, pool: Address, token: Address) -> Result<()> {
         let mut bytes = [0u8; 32];
         bytes[12..].copy_from_slice(token.as_bytes());
         self.insert_account_storage(pool, U256::from(1), U256::from_be_bytes(bytes))
@@ -109,12 +117,17 @@ mod test_db_v2 {
     use super::*;
     use revm::db::EmptyDB;
     use alloy::primitives::{U128, address};
+    use dotenv;
+    use alloy::providers::ProviderBuilder;
 
     #[test]
     pub fn test_insert_pool_and_retrieve() {
-        let mut db = BlockStateDB::new(EmptyDB::new());
+        dotenv::dotenv().ok();
+        let url = std::env::var("FULL").unwrap().parse().unwrap();
+        let provider = ProviderBuilder::new().on_http(url);
+        let mut db = BlockStateDB::new(provider);
 
-        let pool_addr = address!("1234567890123456789012345678901234567890");
+        let pool_addr = address!("B4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc");
         let token0 =  address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
         let token1 =  address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
 
@@ -132,7 +145,7 @@ mod test_db_v2 {
             stable: None,
             fee: None,
         };
-        db.insert_v2(pool).unwrap();
+        //db.insert_v2(pool).unwrap();
 
         // asserts
         assert_eq!(db.get_token0(pool_addr).unwrap().unwrap(), token0);

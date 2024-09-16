@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, HashSet};
 use alloy::providers::ProviderBuilder;
 use revm::db::EmptyDB;
+use revm::{DatabaseRef, Database};
 use std::sync::RwLock;
 use tokio::sync::mpsc::{Sender, Receiver};
 use std::sync::Arc;
@@ -10,6 +11,9 @@ use pool_sync::Pool;
 use anyhow::Result;
 use std::time::Instant;
 use alloy::rpc::types::trace::geth::AccountState;
+use alloy::providers::Provider;
+use alloy::transports::Transport;
+use alloy::network::Network;
 use alloy::rpc::types::BlockNumberOrTag;
 
 use crate::events::Event;
@@ -17,11 +21,21 @@ use crate::state_db::BlockStateDB;
 use crate::tracing::debug_trace_block;
 
 // Internal representation of the current state of the blockchain
-pub struct MarketState {
-    pub db: RwLock<BlockStateDB<EmptyDB>>
+pub struct MarketState<T, N, P> 
+where 
+    T: Transport + Clone,
+    N: Network,
+    P: Provider<T, N>
+{
+    pub db: RwLock<BlockStateDB<T, N, P>>
 }
 
-impl MarketState {
+impl<T, N, P> MarketState<T, N, P> 
+where 
+    T: Transport + Clone,
+    N: Network,
+    P: Provider<T, N> + 'static
+{
 
     // constuct the market state with a populated db
     pub async fn init_state_and_start_stream(
@@ -29,11 +43,11 @@ impl MarketState {
         block_rx: Receiver<Event>,                             // receiver for new blocks
         address_tx: Sender<Event>,      // sender for touched addresses in a block
         last_synced_block: u64,                                  // the last block that was synced too
+        provider: P,
     ) -> Result<Arc<Self>> {
         // populate our state
-        let mut db = BlockStateDB::new(EmptyDB::new());
-        MarketState::populate_db_with_pools(pools, &mut db);
-        
+        let mut db = BlockStateDB::new(provider);
+        Self::populate_db_with_pools(pools, &mut db);
         let market_state = Arc::new(Self {
             db: RwLock::new(db)
         });
@@ -95,10 +109,10 @@ impl MarketState {
     }
 
     // Insert pool information into the database
-    fn populate_db_with_pools(pools: Vec<Pool>, db: &mut BlockStateDB<EmptyDB>) {
+    fn populate_db_with_pools<DB: Database + DatabaseRef>(pools: Vec<Pool>, db: &mut DB) {
         for pool in pools {
             if let Pool::UniswapV2(v2_pool) = pool {
-                db.insert_v2(v2_pool).unwrap();
+                //db.insert_v2(v2_pool).unwrap();
             }
         }
     }

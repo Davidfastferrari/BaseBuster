@@ -1,24 +1,36 @@
-use crate::swap::*;
 use alloy::primitives::{Address, U256};
-use alloy::providers::{ProviderBuilder, RootProvider};
-use alloy::transports::http::{Client, Http};
-use revm::db::DatabaseRef;
 use pool_sync::PoolType;
-use crate::AMOUNT;
 use std::sync::Arc;
+use std::time::Instant;
+use alloy::providers::Provider;
+use alloy::network::Network;
+use alloy::transports::Transport;
+
+use crate::AMOUNT;
+use crate::swap::*;
 use crate::cache::Cache;
-use revm::db::CacheDB;
 use crate::market_state::MarketState;
 
-pub struct Calculator {
-    pub market_state: Arc<MarketState>,
+// Calculator for getting the amount out
+pub struct Calculator<T, N, P>
+where 
+    T: Transport + Clone,
+    N: Network,
+    P: Provider<T, N>
+{
+    pub market_state: Arc<MarketState<T, N, P>>,
     pub cache: Arc<Cache>
 }
 
-impl Calculator {
+impl<T, N, P> Calculator<T, N, P> 
+where 
+    T: Transport + Clone,
+    N: Network,
+    P: Provider<T, N>
+{
     // construct a new calculator
     // contains the market state to access pool info and a cache for calculations
-    pub async fn new(market_state: Arc<MarketState>) -> Self {
+    pub async fn new(market_state: Arc<MarketState<T, N, P>>) -> Self {
         Self {
             market_state,
             cache: Arc::new(Cache::new(500))
@@ -52,10 +64,12 @@ impl Calculator {
             return cached_amount;
         }
 
+        let start = Instant::now();
         // compute the output amount and then store it in a cache
         let output_amount = self.compute_amount_out(
             amount_in, pool_address, swap_step.token_in, swap_step.token_out, swap_step.protocol
         );
+        println!("{:?}", start.elapsed());
         self.cache.set(amount_in, pool_address, output_amount);
         return output_amount;
     }

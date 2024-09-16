@@ -1,14 +1,15 @@
 use alloy::primitives::{Signed, U160};
 use alloy::sol_types::{SolValue, SolCall};
-use revm::primitives::ExecutionResult;
+use revm::primitives::{Bytecode, ExecutionResult};
 use alloy::primitives::U256;
 use alloy::primitives::{address, Address};
-use alloy::providers::ProviderBuilder;
+use alloy::providers::{Provider, ProviderBuilder};
 use revm::db::EmptyDB;
 use alloy::sol;
 use pool_sync::*;
-use revm::primitives::TransactTo;
+use revm::primitives::{TransactTo, AccountInfo};
 use revm::Evm;
+use revm::db::AlloyDB;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -47,7 +48,7 @@ mod offchain_calculations {
 
                 while let Some(_) = address_rx.recv().await {
                     let offchain_amount_out = offchain_quote(&swap_path, market.clone()).await;
-                    let onchain_amount_out = onchain_quote(&swap_path, PoolType::$pool_type).await;
+                    let onchain_amount_out = onchain_quote(&swap_path, PoolType::$pool_type, market.clone()).await;
                     println!("offchain: {:?}, onchain: {:?}", offchain_amount_out, onchain_amount_out);
                     assert_eq!(offchain_amount_out, onchain_amount_out);
                 }
@@ -109,6 +110,7 @@ mod offchain_calculations {
 pub async fn onchain_quote(
     swap_path: &SwapPath,
     pool_type: PoolType,
+    market_state: Arc<MarketState>, 
 ) -> U256 {
     dotenv::dotenv().ok();
     let swap_step = swap_path.steps.get(0).unwrap();
@@ -119,7 +121,7 @@ pub async fn onchain_quote(
         if pool_type == PoolType::Aerodrome {
             onchain_aerodrome(swap_step, amount_in).await
         } else {
-            onchain_v2(swap_step, pool_type, amount_in).await
+            onchain_v2(swap_step, pool_type, amount_in, market_state).await
         }
     } else if pool_type.is_v3() {
         onchain_v3(swap_step, pool_type, amount_in).await
@@ -151,7 +153,7 @@ pub async fn offchain_quote(
 // ONCHAIN QUOTERSK
 // --------------------------
 // Get the onchain quote for a v2 pool
-pub async fn onchain_v2(swap_step: &SwapStep, pool_type: PoolType, amount_in: U256) -> U256 {
+pub async fn onchain_v2(swap_step: &SwapStep, pool_type: PoolType, amount_in: U256, market_state: Arc<MarketState>) -> U256 {
     let provider = ProviderBuilder::new().on_http(std::env::var("FULL").unwrap().parse().unwrap());
 
     let address = match pool_type {
@@ -166,6 +168,58 @@ pub async fn onchain_v2(swap_step: &SwapStep, pool_type: PoolType, amount_in: U2
         _ => panic!("will not reach here"),
     };
 
+    sol!(
+        #[sol(rpc)]
+        contract Uniswap {
+            function getAmountsOut(uint amountIn, address[] memory path) external view returns (uint[] memory amounts);
+        }
+    );
+
+    let code = provider.get_code_at(address).await.unwrap();
+
+    let router = AccountInfo {
+        balance: U256::ZERO,
+        nonce: 1_u64,
+        code_hash: Bytecode::new_raw(code.clone()).hash_slow(),
+        code: Some(Bytecode::new_raw(code)),
+    };
+    market_state.db.write().unwrap().insert_account_info(address, router);
+
+    let calldata = Uniswap::getAmountsOutCall {
+        amountIn: amount_in,
+        path: vec![swap_step.token_in, swap_step.token_out],
+    }.abi_encode();
+
+
+    let mut evm = Evm::builder()
+        .with_db(market_state.db.read().unwrap().clone())
+        .modify_tx_env(|tx| {
+            tx.caller = address!("0000000000000000000000000000000000000001");
+            tx.transact_to = TransactTo::Call(address);
+            tx.data = calldata.into();
+            tx.value = U256::ZERO;
+        }).build();
+
+    
+    let ref_tx = evm.transact().unwrap();
+    println!("{:?}", ref_tx);
+    let result = ref_tx.result; 
+
+    println!("{:?}", result);
+    match result {
+        ExecutionResult::Success {
+            output: value,
+            ..
+        } => {
+            return U256::ZERO;
+        }
+        _=> U256::ZERO
+
+
+    }
+
+
+    /* 
     let contract = V2Router::new(address, provider);
     let V2Router::getAmountsOutReturn { amounts } = contract
         .getAmountsOut(amount_in, vec![swap_step.token_in, swap_step.token_out])
@@ -173,6 +227,7 @@ pub async fn onchain_v2(swap_step: &SwapStep, pool_type: PoolType, amount_in: U2
         .await
         .unwrap();
     return *amounts.last().unwrap();
+    */
 }
 
 

@@ -1,16 +1,23 @@
-
 use alloy::primitives::{Address, U256, B256, BlockNumber};
-
 use revm::primitives::{Account, AccountInfo, Bytecode, Log, KECCAK_EMPTY};
+use alloy::primitives::address;
 use revm::db::AccountState;
 use revm::{Database, DatabaseCommit, DatabaseRef};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::collections::hash_map::Entry;
+use std::future::IntoFuture;
 use pool_sync::PoolType;
 use alloy::rpc::types::trace::geth::AccountState as GethAccountState;
+use alloy::rpc::types::BlockId;
+use alloy::providers::{Provider, ProviderBuilder};
+use alloy::transports::{Transport, TransportError};
+use alloy::network::{BlockResponse, HeaderResponse, Network};
+use tokio::runtime::Runtime;
+use anyhow::Result;
 
-#[derive(Debug)]
+
+#[derive(Debug, Clone)]
 pub struct PoolInformation {
     pub token0: Address,
     pub token1: Address,
@@ -18,30 +25,25 @@ pub struct PoolInformation {
 }
 
 #[derive(Debug)]
-pub struct BlockStateDB<ExtDB> {
+pub struct BlockStateDB<T: Transport + Clone, N: Network, P: Provider<T, N>> {
     pub accounts: HashMap<Address, BlockStateDBAccount>,
     pub contracts: HashMap<B256, Bytecode>, 
     pub logs: Vec<Log>,
     pub block_hashes: HashMap<BlockNumber, B256>,
     pub pools: HashSet<Address>,
     pub pool_info: HashMap<Address, PoolInformation>,
-    pub db: ExtDB
-
+    provider: P,
+    runtime: Runtime,
+    _marker: std::marker::PhantomData<fn() -> (T, N)>,
 }
 
-impl<ExtDB: Default> Default for BlockStateDB<ExtDB> {
-    fn default() -> Self {
-        Self::new(ExtDB::default())
-    }
-}
-
-
-impl<ExtDB> BlockStateDB<ExtDB> {
+impl<T: Transport + Clone, N: Network, P: Provider<T, N>> BlockStateDB<T, N, P> {
     // Construct a new BlockStateDB
-    pub fn new(db: ExtDB) -> Self {
+    pub fn new(provider: P) -> Self {
         let mut contracts = HashMap::new();
         contracts.insert(KECCAK_EMPTY, Bytecode::default());
         contracts.insert(B256::ZERO, Bytecode::default());
+
         Self {
             accounts: HashMap::new(),
             contracts,
@@ -49,7 +51,9 @@ impl<ExtDB> BlockStateDB<ExtDB> {
             block_hashes: HashMap::new(),
             pools: HashSet::new(),
             pool_info: HashMap::new(),
-            db
+            provider,
+            runtime: Runtime::new().unwrap(),
+            _marker: std::marker::PhantomData
         }
     }
 
@@ -81,26 +85,19 @@ impl<ExtDB> BlockStateDB<ExtDB> {
         self.insert_contract(&mut info);
         self.accounts.entry(address).or_default().info = info;
     }
-}
 
-
-// Implement functions when ExtDB implements Database ref
-impl<ExtDB: DatabaseRef> BlockStateDB<ExtDB> {
-    pub fn load_account(&mut self, address: Address) -> Result<&mut BlockStateDBAccount, ExtDB::Error> {
-        let db = &self.db;
+    pub fn load_account(&mut self, address: Address) -> Result<&mut BlockStateDBAccount> {
         match self.accounts.entry(address) {
             Entry::Occupied(entry) => Ok(entry.into_mut()),
             Entry::Vacant(entry) => Ok(entry.insert(
-                db.basic_ref(address)?
-                    .map(|info| BlockStateDBAccount { info, ..Default::default() })
-                    .unwrap_or_else(BlockStateDBAccount::new_not_existing),
+                BlockStateDBAccount::new_not_existing()
             )),
         }
     }
 
     /// insert account storage without overriding account info
     #[inline]
-    pub fn insert_account_storage(&mut self, address: Address, slot: U256, value: U256) -> Result<(), ExtDB::Error> {
+    pub fn insert_account_storage(&mut self, address: Address, slot: U256, value: U256) -> Result<()> {
         let account = self.load_account(address)?;
         account.storage.insert(slot, value);
         Ok(())
@@ -109,114 +106,147 @@ impl<ExtDB: DatabaseRef> BlockStateDB<ExtDB> {
 
     // update all account storage slots for an account
     #[inline]
-    pub fn update_all_slots(&mut self, address: Address, account_state: GethAccountState) ->Result<(), ExtDB::Error> {
+    pub fn update_all_slots(&mut self, address: Address, account_state: GethAccountState) ->Result<()> {
         let storage = account_state.storage;
         for (slot, value) in storage {
             self.insert_account_storage(address, slot.into(), value.into())?
         }
         Ok(())
     }
-
-
 }
 
 
 // Implement required Database trait
-impl<ExtDB: DatabaseRef> Database for BlockStateDB<ExtDB> {
-    type Error = ExtDB::Error;
+impl<T: Transport + Clone, N: Network, P: Provider<T, N>> Database for BlockStateDB<T, N, P> {
+    type Error = TransportError;
+
 
     fn basic(&mut self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
-        let basic = match self.accounts.entry(address) {
-            Entry::Occupied(entry) => entry.into_mut(),
-            Entry::Vacant(entry) => entry.insert(
-                self.db
-                    .basic_ref(address)?
-                    .map(|info| BlockStateDBAccount { info, ..Default::default() })
-                    .unwrap_or_else(BlockStateDBAccount::new_not_existing),
-            ),
+        // look if we already have the account
+        if let Some(account) = self.accounts.get(&address) {
+            return Ok(account.info());
+        }
+
+        // fetch the account data if we dont have the account and insert it into database
+        let account_info = <Self as DatabaseRef>::basic_ref(self, address)?;
+        let account = match account_info {
+            Some(info) => BlockStateDBAccount {info, ..Default::default()},
+            None => BlockStateDBAccount::new_not_existing()
         };
-        Ok(basic.info())
+        self.accounts.insert(address, account.clone());
+        Ok(account.info())
     }
 
     fn code_by_hash(&mut self, code_hash: B256) -> Result<Bytecode, Self::Error> {
-        match self.contracts.entry(code_hash) {
-            Entry::Occupied(entry) => Ok(entry.get().clone()),
-            Entry::Vacant(entry) => {
-                // if you return code bytes when basic fn is called this function is not needed.
-                Ok(entry.insert(self.db.code_by_hash_ref(code_hash)?).clone())
-            }
+        println!("looking for {:?}", code_hash);
+        if let Some(code) = self.contracts.get(&code_hash) {
+            return Ok(code.clone());
         }
+        
+        let bytecode = <Self as DatabaseRef>::code_by_hash_ref(self, code_hash)?;
+        self.contracts.insert(code_hash, bytecode.clone());
+        Ok(bytecode)
     }
 
-    /// Get the value in an account's storage slot.
-    ///
-    /// It is assumed that account is already loaded.
+    // update all account storage slots for an account
+    #[inline]
     fn storage(&mut self, address: Address, index: U256) -> Result<U256, Self::Error> {
-        match self.accounts.entry(address) {
-            Entry::Occupied(mut acc_entry) => {
-                let acc_entry = acc_entry.get_mut();
-                match acc_entry.storage.entry(index) {
-                    Entry::Occupied(entry) => Ok(*entry.get()),
-                    Entry::Vacant(entry) => {
-                        if matches!(acc_entry.state, AccountState::StorageCleared | AccountState::NotExisting) {
-                            Ok(U256::ZERO)
-                        } else {
-                            let slot = self.db.storage_ref(address, index)?;
-                            entry.insert(slot);
-                            Ok(slot)
-                        }
-                    }
-                }
+        // Check if the account exists
+        if let Some(account) = self.accounts.get_mut(&address) {
+            // Check if the storage slot exists
+            if let Some(value) = account.storage.get(&index) {
+                return Ok(*value);
             }
-            Entry::Vacant(acc_entry) => {
-                // acc needs to be loaded for us to access slots.
-                let info = self.db.basic_ref(address)?;
-                let (account, value) = if info.is_some() {
-                    let value = self.db.storage_ref(address, index)?;
-                    let mut account: BlockStateDBAccount = info.into();
-                    account.storage.insert(index, value);
-                    (account, value)
-                } else {
-                    (info.into(), U256::ZERO)
-                };
-                acc_entry.insert(account);
-                Ok(value)
+
+            // Check the account state
+            if matches!(account.state, AccountState::StorageCleared | AccountState::NotExisting) {
+                return Ok(U256::ZERO);
             }
+
+            // Drop the mutable borrow before calling storage_ref
+            // by ending the scope
         }
+
+        // Now it's safe to call storage_ref with an immutable borrow of self
+        let slot_value = <Self as DatabaseRef>::storage_ref(self, address, index)?;
+        
+        // Re-obtain the mutable reference to update the storage
+        if let Some(account) = self.accounts.get_mut(&address) {
+            account.storage.insert(index, slot_value);
+            return Ok(slot_value);
+        }
+
+        // create a default account
+        let new_account = BlockStateDBAccount::new_not_existing();
+        self.accounts.insert(address, new_account);
+        self.insert_account_storage(address, index, slot_value).unwrap();
+
+        // Handle the case where the account might have been removed in between
+        Ok(slot_value)
     }
 
     fn block_hash(&mut self, number: BlockNumber) -> Result<B256, Self::Error> {
-        match self.block_hashes.entry(number) {
-            Entry::Occupied(entry) => Ok(*entry.get()),
-            Entry::Vacant(entry) => {
-                let hash = self.db.block_hash_ref(number)?;
-                entry.insert(hash);
-                Ok(hash)
-            }
+        if let Some(hash) = self.block_hashes.get(&number) {
+            return Ok(*hash);
         }
+
+        let hash = <Self as DatabaseRef>::block_hash_ref(self, number)?;
+        self.block_hashes.insert(number, hash);
+        Ok(hash)
     }
 }
 
 
 // Implement required database ref trait
-impl<ExtDB: DatabaseRef> DatabaseRef for BlockStateDB<ExtDB> {
-    type Error = ExtDB::Error;
+impl<T: Transport + Clone, N: Network, P: Provider<T, N>> DatabaseRef for BlockStateDB<T, N, P> {
+    type Error = TransportError;
     
     fn basic_ref(&self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
+        println!("looking for ref {:?}", address);
         match self.accounts.get(&address) {
             Some(acc) => Ok(acc.info()),
-            None => self.db.basic_ref(address)
+            None => {
+                let f = async {
+                    let nonce = self
+                        .provider
+                        .get_transaction_count(address)
+                        .block_id(BlockId::latest());
+                    let balance = self
+                        .provider
+                        .get_balance(address)
+                        .block_id(BlockId::latest());
+                    let code = self
+                        .provider
+                        .get_code_at(address)
+                        .block_id(BlockId::latest());
+                    tokio::join!(
+                        nonce,
+                        balance,
+                        code
+                    )
+                };
+                let (nonce, balance, code) = self.runtime.block_on(f);
+                let balance = balance?;
+                let code = Bytecode::new_raw(code?.0.into());
+                let code_hash = code.hash_slow();
+                let nonce = nonce?;
+        
+                Ok(Some(AccountInfo::new(balance, nonce, code_hash, code)))
+            }
         }
     }
 
     fn code_by_hash_ref(&self, code_hash:B256) -> Result<Bytecode,Self::Error> {
         match self.contracts.get(&code_hash) {
             Some(entry) => Ok(entry.clone()),
-            None => self.db.code_by_hash_ref(code_hash)
+            None => {
+                panic!("the codehsould already be loaded");
+            }
         }
     }
 
     fn storage_ref(&self,address:Address,index:U256) -> Result<U256,Self::Error> {
+        println!("looking ref asdfasdfasdasdffor {:?}, {:?}", address, index);
         match self.accounts.get(&address) {
             Some(acc_entry) => match acc_entry.storage.get(&index) {
                 Some(entry) => Ok(*entry),
@@ -225,27 +255,43 @@ impl<ExtDB: DatabaseRef> DatabaseRef for BlockStateDB<ExtDB> {
                         acc_entry.state,
                         AccountState::StorageCleared | AccountState::NotExisting
                     ) {
+                        println!("running asdfhere");
                         Ok(U256::ZERO)
                     } else {
-                        self.db.storage_ref(address, index)
+                        println!("running here");
+                        let f = self.provider.get_storage_at(address, index);
+                        let slot_val = self.runtime.block_on(f.into_future())?;
+                        Ok(slot_val)
                     }
                 }
             },
-            None => self.db.storage_ref(address, index),
+            None => {
+                println!("{}, {}", address, index);
+                let f = self.provider.get_storage_at(address, index);
+                let slot_val = self.runtime.block_on(f.into_future())?;
+                println!("{:?}", slot_val);
+                Ok(slot_val)
+            }
         }
     }
 
     fn block_hash_ref(&self,number: BlockNumber) -> Result<B256,Self::Error> {
         match self.block_hashes.get(&number) {
             Some(entry) => Ok(*entry),
-            None => self.db.block_hash_ref(number),
+            None => {
+                let block = self.runtime.block_on(
+                    self.provider
+                        .get_block_by_number(number.into(), false),
+                )?;
+                Ok(B256::new(*block.unwrap().header().hash()))
+            }
         }
     }
 }
 
 
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct BlockStateDBAccount {
     pub info: AccountInfo,
     pub state: AccountState,

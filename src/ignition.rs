@@ -3,6 +3,7 @@ use pool_sync::{Chain, Pool};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::sync::broadcast;
+use alloy::providers::ProviderBuilder;
 use std::collections::HashSet;
 use alloy::primitives::Address;
 use alloy::rpc::types::Block;
@@ -37,11 +38,14 @@ pub async fn start_workers(
 
     // Initialize our market state, this is a wrapper over the REVM database with all our pool state
     // then start the updater
+    let http_url = std::env::var("FULL").unwrap().parse().unwrap();
+    let provider = ProviderBuilder::new().on_http(http_url);
     let market_state = MarketState::init_state_and_start_stream(
         pools.clone(),
         block_rx, 
         address_tx,
-        last_synced_block
+        last_synced_block,
+        provider
     ).await.unwrap(); // add something to reeiver blocks, this the state will be updated here
 
 

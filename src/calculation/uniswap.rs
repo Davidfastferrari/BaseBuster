@@ -2,6 +2,9 @@ use alloy::primitives::{I256, U128, U256};
 use anyhow::Result;
 use alloy::primitives::Address;
 use uniswap_v3_math::tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK};
+use alloy::providers::Provider;
+use alloy::network::Network;
+use alloy::transports::Transport;
 use super::Calculator;
 
 pub const U256_1: U256 = U256::from_limbs([1, 0, 0, 0]);
@@ -25,7 +28,12 @@ pub struct StepComputations {
     pub fee_amount: U256,
 }
 
-impl Calculator {
+impl<T, N, P> Calculator<T, N, P> 
+where 
+    T: Transport + Clone,
+    N: Network,
+    P: Provider<T, N> 
+{
     // Calcualte the amount out for a uniswapv2 swap
     #[inline]
     pub fn uniswap_v2_out(
