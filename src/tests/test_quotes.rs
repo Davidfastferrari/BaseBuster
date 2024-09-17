@@ -1,5 +1,7 @@
+use alloy::network::Network;
 use alloy::primitives::{Signed, U160};
 use alloy::sol_types::{SolValue, SolCall};
+use alloy::transports::Transport;
 use revm::primitives::{Bytecode, ExecutionResult};
 use alloy::primitives::U256;
 use alloy::primitives::{address, Address};
@@ -17,7 +19,7 @@ use super::test_gen::*;
 use crate::calculation::Calculator;
 use crate::market_state::MarketState;
 use crate::swap::*;
-use crate::FlashSwap;
+use crate::gen::FlashSwap;
 use super::test_utils::*;
 use crate::swap::SwapPath;
 use crate::state_db::BlockStateDB;
@@ -110,8 +112,13 @@ mod offchain_calculations {
 pub async fn onchain_quote(
     swap_path: &SwapPath,
     pool_type: PoolType,
-    market_state: Arc<MarketState>, 
-) -> U256 {
+    market_state: Arc<MarketState<X, Y, Z>>, 
+) -> U256 
+where 
+    X: Transport + Clone,
+    Y: Network,
+    Z: Provider<X, Y>
+{
     dotenv::dotenv().ok();
     let swap_step = swap_path.steps.get(0).unwrap();
 

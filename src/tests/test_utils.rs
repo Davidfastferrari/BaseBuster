@@ -1,14 +1,23 @@
+use alloy::transports::http::{Http, Client};
 use pool_sync::*;
 use std::sync::Arc;
 use tokio::sync::mpsc;
+use alloy::providers::{Provider, ProviderBuilder, RootProvider};
+use alloy::transports::Transport;
+use alloy::network::Ethereum;
+use alloy::network::Network;
 
 use crate::events::Event;
 use crate::market_state::MarketState;
 use crate::stream::stream_new_blocks;
 
 // Create a market that is populated with a specific type of pool
-pub async fn market_with_type(pool_type: PoolType) -> (Arc<MarketState>, mpsc::Receiver<Event>) {
+pub async fn market_with_type(pool_type: PoolType) 
+-> (Arc<MarketState<Http<Client>, Ethereum, RootProvider<Http<Client>>>>, mpsc::Receiver<Event>) {
     dotenv::dotenv().ok();
+
+    let url = std::env::var("FULL").unwrap().parse().unwrap();
+    let provider = ProviderBuilder::new().on_http(url);
     // load in all of the pools
     let pool_sync = PoolSync::builder()
         .add_pool(pool_type)
@@ -26,7 +35,8 @@ pub async fn market_with_type(pool_type: PoolType) -> (Arc<MarketState>, mpsc::R
         pools,
         block_rx,
         address_tx,
-        last_synced_block
+        last_synced_block,
+        provider
     ).await.unwrap();
     (market_state, address_rx)
 }

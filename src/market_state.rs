@@ -45,7 +45,7 @@ where
         provider: P,
     ) -> Result<Arc<Self>> {
         // populate our state
-        let mut db = BlockStateDB::new(provider);
+        let mut db = BlockStateDB::new(provider).unwrap();
         MarketState::populate_db_with_pools(pools, &mut db);
         
         let market_state = Arc::new(Self {

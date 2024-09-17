@@ -73,3 +73,11 @@ sol! {
         );
     }
 }
+
+// define our flash swap contract
+sol!(
+    #[derive(Debug)]
+    #[sol(rpc)]
+    FlashSwap,
+    "src/abi/FlashSwap.json"
+);

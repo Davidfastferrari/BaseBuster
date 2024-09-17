@@ -21,7 +21,8 @@ use alloy::network::Ethereum;
 use crate::events::Event;
 
 use crate::swap::SwapStep;
-use crate::{FlashSwap, AMOUNT};
+use crate::gen::FlashSwap;
+use crate::AMOUNT;
 use crate::market::Market;
 
 type WalletProvider = FillProvider<JoinFill<JoinFill<JoinFill<JoinFill<Identity, GasFiller>, NonceFiller>, ChainIdFiller>, WalletFiller<EthereumWallet>>, RootProvider<Http<Client>>, Http<Client>, Ethereum>;

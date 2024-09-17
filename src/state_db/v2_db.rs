@@ -8,6 +8,7 @@ use alloy::providers::Provider;
 use alloy::transports::Transport;
 use alloy::network::Network;
 use anyhow::Result;
+use std::time::Instant;
 
 use super::BlockStateDB;
 use crate::bytecode::*;
@@ -117,6 +118,7 @@ where
 #[cfg(test)]
 mod test_db_v2 {
     use super::*;
+    use log::LevelFilter;
     use revm::db::EmptyDB;
     use alloy::primitives::{U128, address};
     use dotenv;
@@ -131,7 +133,7 @@ mod test_db_v2 {
         dotenv::dotenv().ok();
         let url = std::env::var("FULL").unwrap().parse().unwrap();
         let provider = ProviderBuilder::new().on_http(url);
-        let mut db = BlockStateDB::new(provider);
+        let mut db = BlockStateDB::new(provider).unwrap();
 
         let pool_addr = address!("B4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc");
         let token0 =  address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
@@ -162,9 +164,12 @@ mod test_db_v2 {
     #[test]
     pub fn test_fetch_pool_data() {
         dotenv::dotenv().ok();
+        env_logger::Builder::new()
+            .filter_level(LevelFilter::Debug) // or Info, Warn, etc.
+            .init();
         let url = std::env::var("FULL").unwrap().parse().unwrap();
         let provider = ProviderBuilder::new().on_http(url);
-        let mut db = BlockStateDB::new(provider);
+        let mut db = BlockStateDB::new(provider).unwrap();
 
         let pool_addr = address!("B4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc");
         let expected_token0 = address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
@@ -197,7 +202,7 @@ mod test_db_v2 {
         dotenv::dotenv().ok();
         let url = std::env::var("FULL").unwrap().parse().unwrap();
         let provider = ProviderBuilder::new().on_http(url);
-        let mut db = BlockStateDB::new(provider.clone());
+        let mut db = BlockStateDB::new(provider.clone()).unwrap();
 
         let pool_addr = address!("B4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc");
         let token0 = address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"); // USDC
@@ -222,10 +227,16 @@ mod test_db_v2 {
             }).build();
 
         
+        let start = Instant::now();
         let ref_tx = evm.transact().unwrap();
-        println!("{:?}", ref_tx);
-        let result = ref_tx.result; 
+        println!("First Took {:?}", start.elapsed());
 
-        println!("{:?}", result);
+        let end = Instant::now();
+        let ref_tx = evm.transact().unwrap();
+        println!("Second Took {:?}", end.elapsed());
+        //println!("{:?}", ref_tx);
+        //let result = ref_tx.result; 
+
+        //println!("{:?}", result);
     }
 }
