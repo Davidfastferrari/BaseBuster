@@ -138,7 +138,6 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> Database for BlockStat
     }
 
     fn code_by_hash(&mut self, code_hash: B256) -> Result<Bytecode, Self::Error> {
-        println!("looking for {:?}", code_hash);
         if let Some(code) = self.contracts.get(&code_hash) {
             return Ok(code.clone());
         }
@@ -158,25 +157,15 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> Database for BlockStat
                 return Ok(*value);
             }
 
-            // Check the account state
-            if matches!(account.state, AccountState::StorageCleared | AccountState::NotExisting) {
-                return Ok(U256::ZERO);
-            }
-
-            // Drop the mutable borrow before calling storage_ref
-            // by ending the scope
+            // the account exists, but we do not have the slot
+            // fetch, insert, return
+            let value = <Self as DatabaseRef>::storage_ref(self, address, index)?;
+            self.insert_account_storage(address, index, value).unwrap(); // fix error
+            return Ok(value);
         }
 
-        // Now it's safe to call storage_ref with an immutable borrow of self
+        // this is a brand new account, fetch the slots and make/insert a new account
         let slot_value = <Self as DatabaseRef>::storage_ref(self, address, index)?;
-        
-        // Re-obtain the mutable reference to update the storage
-        if let Some(account) = self.accounts.get_mut(&address) {
-            account.storage.insert(index, slot_value);
-            return Ok(slot_value);
-        }
-
-        // create a default account
         let new_account = BlockStateDBAccount::new_not_existing();
         self.accounts.insert(address, new_account);
         self.insert_account_storage(address, index, slot_value).unwrap();
@@ -202,7 +191,6 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> DatabaseRef for BlockS
     type Error = TransportError;
     
     fn basic_ref(&self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
-        println!("looking for ref {:?}", address);
         match self.accounts.get(&address) {
             Some(acc) => Ok(acc.info()),
             None => {
@@ -246,30 +234,18 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> DatabaseRef for BlockS
     }
 
     fn storage_ref(&self,address:Address,index:U256) -> Result<U256,Self::Error> {
-        println!("looking ref asdfasdfasdasdffor {:?}, {:?}", address, index);
         match self.accounts.get(&address) {
             Some(acc_entry) => match acc_entry.storage.get(&index) {
                 Some(entry) => Ok(*entry),
                 None => {
-                    if matches!(
-                        acc_entry.state,
-                        AccountState::StorageCleared | AccountState::NotExisting
-                    ) {
-                        println!("running asdfhere");
-                        Ok(U256::ZERO)
-                    } else {
-                        println!("running here");
-                        let f = self.provider.get_storage_at(address, index);
-                        let slot_val = self.runtime.block_on(f.into_future())?;
-                        Ok(slot_val)
-                    }
+                    let f = self.provider.get_storage_at(address, index);
+                    let slot_val = self.runtime.block_on(f.into_future())?;
+                    Ok(slot_val)
                 }
             },
             None => {
-                println!("{}, {}", address, index);
                 let f = self.provider.get_storage_at(address, index);
                 let slot_val = self.runtime.block_on(f.into_future())?;
-                println!("{:?}", slot_val);
                 Ok(slot_val)
             }
         }

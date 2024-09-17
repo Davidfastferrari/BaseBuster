@@ -70,7 +70,8 @@ where
 
     // get token 0
     pub fn get_token0(&mut self, pool: Address) -> Result<Option<Address>> {
-        let token0 = self.storage(pool, U256::ZERO)?;
+        let token0 = self.storage(pool, U256::from(6))?;
+        println!("Raw token0 value: {:?}", token0);
         if token0 == U256::ZERO {
             Ok(None)
         } else {
@@ -79,8 +80,9 @@ where
     }
 
     // get token 1
-    pub fn get_token1(&self, pool: Address) -> Result<Option<Address>> {
-        let token1 = self.storage_ref(pool, U256::from(1))?;
+    pub fn get_token1(&mut self, pool: Address) -> Result<Option<Address>> {
+        let token1 = self.storage(pool, U256::from(7))?;
+        println!("Raw token1 value: {:?}", token1);
         if token1 == U256::ZERO {
             Ok(None)
         } else {
@@ -119,6 +121,10 @@ mod test_db_v2 {
     use alloy::primitives::{U128, address};
     use dotenv;
     use alloy::providers::ProviderBuilder;
+    use revm::primitives::{ExecutionResult, TransactTo};
+    use alloy::sol_types::SolCall;
+    use revm::Evm;
+    use alloy::sol;
 
     #[test]
     pub fn test_insert_pool_and_retrieve() {
@@ -151,5 +157,75 @@ mod test_db_v2 {
         assert_eq!(db.get_token0(pool_addr).unwrap().unwrap(), token0);
         assert_eq!(db.get_token1(pool_addr).unwrap().unwrap(), token1);
         assert_eq!(db.get_reserves(&pool_addr), (U256::from(1e18), U256::from(1e16)));
+    }
+
+    #[test]
+    pub fn test_fetch_pool_data() {
+        dotenv::dotenv().ok();
+        let url = std::env::var("FULL").unwrap().parse().unwrap();
+        let provider = ProviderBuilder::new().on_http(url);
+        let mut db = BlockStateDB::new(provider);
+
+        let pool_addr = address!("B4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc");
+        let expected_token0 = address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
+        let expected_token1 = address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
+
+        // Fetch and assert token addresses
+        let fetched_token1 = db.get_token1(pool_addr);
+        let fetched_token0 = db.get_token0(pool_addr);
+        assert_eq!(fetched_token0.unwrap().unwrap(), expected_token0, "Token0 address mismatch");
+        assert_eq!(fetched_token1.unwrap().unwrap(), expected_token1, "Token1 address mismatch");
+
+        // Fetch reserves
+        let (reserve0, reserve1) = db.get_reserves(&pool_addr);
+        assert!(reserve0 > U256::ZERO, "Reserve0 should be non-zero");
+        assert!(reserve1 > U256::ZERO, "Reserve1 should be non-zero");
+        
+        println!("Fetched reserves: reserve0 = {}, reserve1 = {}", reserve0, reserve1);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_get_amounts_out() {
+
+        sol!(
+            #[sol(rpc)]
+            contract Uniswap {
+                function getAmountsOut(uint amountIn, address[] memory path) external view returns (uint[] memory amounts);
+            }
+        );
+
+        dotenv::dotenv().ok();
+        let url = std::env::var("FULL").unwrap().parse().unwrap();
+        let provider = ProviderBuilder::new().on_http(url);
+        let mut db = BlockStateDB::new(provider.clone());
+
+        let pool_addr = address!("B4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc");
+        let token0 = address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"); // USDC
+        let token1 = address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"); // WETH
+
+        let amount_in = U256::from(1000000000); // 1 USDC (6 decimals)
+        let calldata = Uniswap::getAmountsOutCall {
+            amountIn: amount_in,
+            path: vec![token0, token1],
+        }.abi_encode();
+
+        // Prepare calldata for getAmountsOut
+
+        // Create EVM instance
+        let mut evm = Evm::builder()
+            .with_db(db)
+            .modify_tx_env(|tx| {
+                tx.caller = address!("0000000000000000000000000000000000000001");
+                tx.transact_to = TransactTo::Call(address!("7a250d5630B4cF539739dF2C5dAcb4c659F2488D"));
+                tx.data = calldata.into();
+                tx.value = U256::ZERO;
+            }).build();
+
+        
+        let ref_tx = evm.transact().unwrap();
+        println!("{:?}", ref_tx);
+        let result = ref_tx.result; 
+
+        println!("{:?}", result);
     }
 }

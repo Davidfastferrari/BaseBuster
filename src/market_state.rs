@@ -1,7 +1,6 @@
 use std::collections::{BTreeMap, HashSet};
 use alloy::providers::ProviderBuilder;
 use revm::db::EmptyDB;
-use revm::{DatabaseRef, Database};
 use std::sync::RwLock;
 use tokio::sync::mpsc::{Sender, Receiver};
 use std::sync::Arc;
@@ -11,10 +10,10 @@ use pool_sync::Pool;
 use anyhow::Result;
 use std::time::Instant;
 use alloy::rpc::types::trace::geth::AccountState;
+use alloy::rpc::types::BlockNumberOrTag;
 use alloy::providers::Provider;
 use alloy::transports::Transport;
 use alloy::network::Network;
-use alloy::rpc::types::BlockNumberOrTag;
 
 use crate::events::Event;
 use crate::state_db::BlockStateDB;
@@ -22,7 +21,7 @@ use crate::tracing::debug_trace_block;
 
 // Internal representation of the current state of the blockchain
 pub struct MarketState<T, N, P> 
-where 
+where
     T: Transport + Clone,
     N: Network,
     P: Provider<T, N>
@@ -47,7 +46,8 @@ where
     ) -> Result<Arc<Self>> {
         // populate our state
         let mut db = BlockStateDB::new(provider);
-        Self::populate_db_with_pools(pools, &mut db);
+        MarketState::populate_db_with_pools(pools, &mut db);
+        
         let market_state = Arc::new(Self {
             db: RwLock::new(db)
         });
@@ -109,10 +109,10 @@ where
     }
 
     // Insert pool information into the database
-    fn populate_db_with_pools<DB: Database + DatabaseRef>(pools: Vec<Pool>, db: &mut DB) {
+    fn populate_db_with_pools(pools: Vec<Pool>, db: &mut BlockStateDB<T, N, P>) {
         for pool in pools {
             if let Pool::UniswapV2(v2_pool) = pool {
-                //db.insert_v2(v2_pool).unwrap();
+                db.insert_v2(v2_pool).unwrap();
             }
         }
     }
