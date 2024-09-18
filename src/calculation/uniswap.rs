@@ -6,8 +6,10 @@ use alloy::providers::Provider;
 use alloy::network::Network;
 use alloy::transports::Transport;
 use super::Calculator;
+use std::collections::HashMap;
 
 pub const U256_1: U256 = U256::from_limbs([1, 0, 0, 0]);
+
 
 pub struct CurrentState {
     amount_specified_remaining: I256,
@@ -28,6 +30,12 @@ pub struct StepComputations {
     pub fee_amount: U256,
 }
 
+//Computes the position in the mapping where the initialized bit for a tick lives
+pub fn position(tick: i32) -> (i16, u8) {
+    ((tick >> 8) as i16, (tick % 256) as u8)
+}
+
+
 impl<T, N, P> Calculator<T, N, P> 
 where 
     T: Transport + Clone,
@@ -39,11 +47,15 @@ where
     pub fn uniswap_v2_out(
         &self,
         amount_in: U256,
-        reserve0: U256,
-        reserve1: U256,
-        zero_to_one: bool,
+        pool_address: &Address, 
+        token_in: &Address,
         fee: U256,
     ) -> U256 {
+        // get read access to db
+        let db_read = self.market_state.db.read().unwrap();
+        let zero_to_one = db_read.zero_to_one(&pool_address, *token_in).unwrap();
+        let (reserve0, reserve1) = db_read.get_reserves(&pool_address);
+
         let scalar = U256::from(10000);
 
         let (reserve0, reserve1) = if zero_to_one {
@@ -57,18 +69,23 @@ where
         let denominator = reserve0 * scalar + amount_in_with_fee;
         numerator / denominator
     }
-}
 
     // calculate the amount out for a uniswapv3 swap
-    /* *
     pub fn uniswap_v3_out(
         &self, 
         amount_in: U256,
-        pool_address: Address,
-        zero_to_one: bool,
+        pool_address: &Address,
+        token_in: &Address,
+        fee: u32,
     ) -> Result<U256> {
 
-        let pool = self.pool_manager.get_v3pool(&pool_address);
+        // acquire db read access and get all our state information
+        let db_read = self.market_state.db.read().unwrap();
+        let zero_to_one = db_read.zero_to_one(&pool_address, *token_in).unwrap();
+        let slot0 = db_read.slot0(*pool_address)?;
+        let liquidity = db_read.liquidity(*pool_address)?;
+        let tick_spacing = 10;
+
 
         if amount_in.is_zero() {
             return Ok(U256::ZERO);
@@ -83,11 +100,11 @@ where
 
         // Initialize a mutable state state struct to hold the dynamic simulated state of the pool
         let mut current_state = CurrentState {
-            sqrt_price_x_96: pool.sqrt_price, //Active price on the pool
+            sqrt_price_x_96: slot0.sqrtPriceX96.to(), //Active price on the pool
             amount_calculated: I256::ZERO,    //Amount of token_out that has been calculated
             amount_specified_remaining: I256::from_raw(amount_in), //Amount of token_in that has not been swapped
-            tick: pool.tick,
-            liquidity: pool.liquidity, //Current available liquidity in the tick range
+            tick: slot0.tick.as_i32(),
+            liquidity //Current available liquidity in the tick range
         };
         while current_state.amount_specified_remaining != I256::ZERO
             && current_state.sqrt_price_x_96 != sqrt_price_limit_x_96
@@ -99,12 +116,19 @@ where
                 ..Default::default()
             };
 
+            let mut tick_bitmap: HashMap<i16, U256> = HashMap::new();
+            let (word_pos, _bit_pos) = position(current_state.tick / (tick_spacing as i32));
+
+            for i in word_pos - 1..=word_pos + 1 {
+                tick_bitmap.insert(i, db_read.tick_bitmap(*pool_address, i).unwrap_or_default());
+            }
+
             // Get the next tick from the current tick
             (step.tick_next, step.initialized) =
                 uniswap_v3_math::tick_bitmap::next_initialized_tick_within_one_word(
-                    &pool.tick_bitmap,
+                    &tick_bitmap,
                     current_state.tick,
-                    pool.tick_spacing,
+                    tick_spacing as i32,
                     zero_to_one,
                 )?;
 
@@ -140,7 +164,7 @@ where
                 swap_target_sqrt_ratio,
                 current_state.liquidity,
                 current_state.amount_specified_remaining,
-                pool.fee,
+                fee,
             )?;
 
             // Decrement the amount remaining to be swapped and amount received from the step
@@ -156,11 +180,7 @@ where
             // If the price moved all the way to the next price, recompute the liquidity change for the next iteration
             if current_state.sqrt_price_x_96 == step.sqrt_price_next_x96 {
                 if step.initialized {
-                    let mut liquidity_net = if let Some(info) = pool.ticks.get(&step.tick_next) {
-                        info.liquidity_net
-                    } else {
-                        0
-                    };
+                    let mut liquidity_net: i128 = db_read.ticks_liquidity_net(*pool_address, step.tick_next)?;
 
                     // we are on a tick boundary, and the next tick is initialized, so we must charge a protocol fee
                     if zero_to_one {
@@ -196,5 +216,4 @@ where
         Ok(amount_out)
     }
 }
-    */
 

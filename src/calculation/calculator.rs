@@ -1,43 +1,43 @@
+use alloy::network::Network;
 use alloy::primitives::{Address, U256};
+use alloy::providers::Provider;
+use alloy::transports::Transport;
 use pool_sync::PoolType;
 use std::sync::Arc;
 use std::time::Instant;
-use alloy::providers::Provider;
-use alloy::network::Network;
-use alloy::transports::Transport;
 
-use crate::AMOUNT;
-use crate::swap::*;
 use crate::cache::Cache;
 use crate::market_state::MarketState;
+use crate::swap::*;
+use crate::AMOUNT;
 
 // Calculator for getting the amount out
 pub struct Calculator<T, N, P>
-where 
+where
     T: Transport + Clone,
     N: Network,
-    P: Provider<T, N>
+    P: Provider<T, N>,
 {
     pub market_state: Arc<MarketState<T, N, P>>,
-    pub cache: Arc<Cache>
+    pub cache: Arc<Cache>,
 }
 
-impl<T, N, P> Calculator<T, N, P> 
-where 
+impl<T, N, P> Calculator<T, N, P>
+where
     T: Transport + Clone,
     N: Network,
-    P: Provider<T, N>
+    P: Provider<T, N>,
 {
     // construct a new calculator
     // contains the market state to access pool info and a cache for calculations
     pub async fn new(market_state: Arc<MarketState<T, N, P>>) -> Self {
         Self {
             market_state,
-            cache: Arc::new(Cache::new(500))
+            cache: Arc::new(Cache::new(500)),
         }
     }
 
-    // calculate the output amount 
+    // calculate the output amount
     // we can get read access to the db since we know it will not change for duration of calculation
     #[inline]
     pub fn calculate_output(&self, path: &SwapPath) -> U256 {
@@ -53,7 +53,6 @@ where
         amount
     }
 
-
     // get the amount out for an individual swap
     #[inline]
     fn get_amount_out(&self, amount_in: U256, swap_step: &SwapStep) -> U256 {
@@ -67,7 +66,12 @@ where
         let start = Instant::now();
         // compute the output amount and then store it in a cache
         let output_amount = self.compute_amount_out(
-            amount_in, pool_address, swap_step.token_in, swap_step.token_out, swap_step.protocol
+            amount_in,
+            pool_address,
+            swap_step.token_in,
+            swap_step.token_out,
+            swap_step.protocol,
+            swap_step.fee
         );
         println!("{:?}", start.elapsed());
         self.cache.set(amount_in, pool_address, output_amount);
@@ -76,50 +80,23 @@ where
 
     // calculate the ratio for the pool
     pub fn compute_amount_out(
-        &self, 
+        &self,
         input_amount: U256,
         pool_address: Address,
         token_in: Address,
         token_out: Address,
         pool_type: PoolType,
+        fee: u32,
     ) -> U256 {
-        // get read access to the db
-        let db_read = self.market_state.db.read().unwrap();
-        let zero_to_one = db_read.zero_to_one(&pool_address, token_in).unwrap();
-        //println!("{:?} {:?}, {}", pool_address, token_in, zero_to_one);
-        
-
         match pool_type {
             PoolType::UniswapV2 | PoolType::SushiSwapV2 | PoolType::SwapBasedV2 => {
-                let (reserve0, reserve1) = db_read.get_reserves(&pool_address);
-                self.uniswap_v2_out(
-                    input_amount,
-                    reserve0,
-                    reserve1,
-                    zero_to_one,
-                    U256::from(9970),
-                )
+                self.uniswap_v2_out(input_amount, &pool_address, &token_in, U256::from(9970))
             }
-            /* 
             PoolType::PancakeSwapV2 | PoolType::BaseSwapV2 | PoolType::DackieSwapV2 => {
-                let pool = self.pool_manager.get_v2pool(&pool_address);
-                self.uniswap_v2_out(
-                    input_amount,
-                    pool.token0_reserves,
-                    pool.token1_reserves,
-                    zero_to_one,
-                    U256::from(9975),
-                )
+                self.uniswap_v2_out(input_amount, &pool_address, &token_in, U256::from(9975))
             }
             PoolType::AlienBaseV2 => {
-                let pool = self.pool_manager.get_v2pool(&pool_address);
-                self.uniswap_v2_out(
-                    input_amount,
-                    pool.token0_reserves,
-                    pool.token1_reserves,
-                    zero_to_one,
-                    U256::from(9984),
-                )
+                self.uniswap_v2_out(input_amount, &pool_address, &token_in, U256::from(9984))
             }
             PoolType::UniswapV3
             | PoolType::SushiSwapV3
@@ -128,8 +105,10 @@ where
             | PoolType::PancakeSwapV3
             | PoolType::AlienBaseV3
             | PoolType::SwapBasedV3
-            | PoolType::DackieSwapV3 => self
-                .uniswap_v3_out(input_amount, pool_address, zero_to_one).unwrap(),
+            | PoolType::DackieSwapV3 =>{
+                 self.uniswap_v3_out(input_amount, &pool_address, &token_in, fee).unwrap()
+            }
+            /*
             PoolType::Aerodrome => self.aerodrome_out(input_amount, token_in, pool_address),
             PoolType::MaverickV1 | PoolType::MaverickV2 => todo!(),
             PoolType::BalancerV2 => {
@@ -138,7 +117,6 @@ where
             PoolType::CurveTwoCrypto | PoolType::CurveTriCrypto => todo!(),
             */
             _ => U256::ZERO,
-        
         }
     }
 
