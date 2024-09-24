@@ -51,7 +51,7 @@ where
         // calculate the min profit percentage
         let flash_loan_fee: U256 = U256::from(9) / U256::from(10000); // 0.09% flash loan fee
         let min_profit_percentage: U256 = U256::from(2) / U256::from(100); // 2% minimum profit
-        let initial_amount = U256::from(AMOUNT);
+        let initial_amount: U256 = *AMOUNT;
         let repayment_amount = initial_amount + (initial_amount * flash_loan_fee);
         let min_profit = repayment_amount + (initial_amount * min_profit_percentage);
 

@@ -41,7 +41,7 @@ where
     // we can get read access to the db since we know it will not change for duration of calculation
     #[inline]
     pub fn calculate_output(&self, path: &SwapPath) -> U256 {
-        let mut amount = U256::from(AMOUNT);
+        let mut amount = *AMOUNT;
 
         // for each step, calculate the amount out
         for step in &path.steps {

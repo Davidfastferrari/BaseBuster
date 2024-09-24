@@ -1,12 +1,12 @@
-use alloy::providers::{ProviderBuilder, Provider};
-use alloy::primitives::{address, U256};
-use log::{info, LevelFilter};
+use alloy::primitives::U256;
 use anyhow::Result;
-use pool_sync::*;
 use ignition::start_workers;
+use lazy_static::lazy_static;
+use log::{info, LevelFilter};
+use pool_sync::*;
 
-mod graph;
 mod calculation;
+mod graph;
 mod ignition;
 mod market;
 mod simulator;
@@ -14,18 +14,20 @@ mod stream;
 mod tx_sender;
 mod util;
 //mod tests;
-mod events;
-mod searcher;
-mod swap;
+mod bytecode;
 mod cache;
-mod state_db;
-mod tracing;
+mod events;
 mod gen;
 mod market_state;
-mod bytecode;
+mod searcher;
+mod state_db;
+mod swap;
+mod tracing;
 
 // initial amount we are trying to arb over
-pub const AMOUNT: u128 = 10000000000000000;
+lazy_static! {
+    pub static ref AMOUNT: U256 = U256::from(1e16);
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -34,14 +36,6 @@ async fn main() -> Result<()> {
     env_logger::Builder::new()
         .filter_level(LevelFilter::Info) // or Info, Warn, etc.
         .init();
-
-    let provider = ProviderBuilder::new().on_http(std::env::var("ARCHIVE")?.parse()?);
-    let address = address!("B4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc");
-    for i in 0..25 {
-        let res = provider.get_storage_at(address, U256::from(i)).await?;
-        println!("{:?}", res);
-
-    }
 
     // Load in all the pools
     info!("Loading and syncing pools...");
@@ -56,5 +50,4 @@ async fn main() -> Result<()> {
     loop {
         tokio::time::sleep(std::time::Duration::from_secs(1000)).await;
     }
-    
 }

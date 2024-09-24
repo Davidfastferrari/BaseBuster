@@ -62,6 +62,7 @@ pub async fn start_workers(
 
     // finally.... start the searcher!!!!!
     info!("Starting arbitrage searcher...");
+    /* 
     let mut searcher = Searchoor::new(cycles, market_state.clone()).await;
     tokio::spawn(async move {
         searcher.search_paths(
@@ -69,6 +70,7 @@ pub async fn start_workers(
             address_rx
         ).await
     });
+*/
     // start the simulator
     // start the sender
     // start the searcher

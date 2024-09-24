@@ -90,10 +90,6 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> BlockStateDB<T, N, P> 
 
     // Track pool information for easy access
     pub fn add_pool(&mut self, pool: Address, token0: Address, token1: Address, pool_type: PoolType) {
-        info!(
-            "Adding pool: {:?}, token0: {:?}, token1: {:?}, type: {:?}",
-            pool, token0, token1, pool_type
-        );
         self.pools.insert(pool);
         self.pool_info.insert(pool, PoolInformation { token0, token1, pool_type });
     }

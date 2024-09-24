@@ -87,7 +87,7 @@ impl TransactionSender {
                 fee: step.fee.try_into().unwrap()
             }).collect();
             println!("Path {:?}", path);
-            let tx = contract.executeArbitrage(path.clone(), U256::from(AMOUNT))
+            let tx = contract.executeArbitrage(path.clone(), *AMOUNT)
                 .max_fee_per_gas(max_fee_per_gas * 20 )
                 .max_priority_fee_per_gas(max_priority_fee_per_gas * 20)
                 .chain_id(8453)
