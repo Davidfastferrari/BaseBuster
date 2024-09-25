@@ -12,8 +12,10 @@ use alloy::network::Network;
 use crate::calculation::Calculator;
 use crate::market_state::MarketState;
 use crate::swap::{SwapStep, SwapPath};
+use crate::onchain::onchain_out;
 use crate::events::Event;
 use crate::AMOUNT;
+use crate::gen::FlashQuoter;
 
 
 // top level sercher struct
@@ -28,6 +30,7 @@ where
     path_index: HashMap<Address, Vec<usize>>,
     cycles: Vec<SwapPath>,
     min_profit: U256,
+    sim: bool,
 }
 
 impl<T, N, P> Searchoor<T, N, P> 
@@ -54,8 +57,10 @@ where
         let initial_amount: U256 = *AMOUNT;
         let repayment_amount = initial_amount + (initial_amount * flash_loan_fee);
         let min_profit = repayment_amount + (initial_amount * min_profit_percentage);
+        let sim = std::env::var("SIM").unwrap().parse().unwrap();
 
-        Self { calculator, cycles, path_index: index, min_profit}
+
+        Self { calculator, cycles, path_index: index, min_profit, sim}
     }
 
 
@@ -70,7 +75,7 @@ where
             let start = Instant::now();
 
             // invalidate all updated pools in the cache
-            //self.calculator.invalidate_cache(&updated_pools);
+            self.calculator.invalidate_cache(&pools);
 
             // from the updated pools, get all paths that we want to recheck
             let affected_paths: HashSet<&SwapPath> = pools
@@ -82,13 +87,13 @@ where
             info!("{} touched paths", affected_paths.len());
 
             // get the output amount and check for profitability
-            let profitable_paths: Vec<(Vec<SwapStep>, U256)> = affected_paths
+            let profitable_paths: Vec<(Vec<FlashQuoter::SwapStep>, U256)> = affected_paths
                 .par_iter()
                 .filter_map(|path| {
                     let output_amount = self.calculator.calculate_output(&path);
-                    println!("{:?}", output_amount);
+
                     if output_amount >= self.min_profit {
-                        Some((path.steps.clone(), output_amount))
+                        Some((path.clone().clone().into(), output_amount))
                     } else {
                         None
                     }
@@ -97,11 +102,27 @@ where
             info!("{:?} elapsed", start.elapsed());
             info!("{} profitable paths", profitable_paths.len());
 
-            // send to the simulator
+
+            // if this is a simulation, confirm the output amount is correct
+            // otherwise, send to the onchain simulator (same thing.. ish)
             for path in profitable_paths {
-                match paths_tx.send(Event::ArbPath((path.0, path.1))).await{
-                    Ok(_) => debug!("Sent path"),
-                    Err(_) => warn!("Failed to send path")
+                let arb_path = path.0;
+                let calculated_out = path.1;
+
+                if self.sim {
+                    let simulated_out = onchain_out(arb_path.clone(), U256::from(1e16)).await;
+                    if calculated_out != simulated_out && simulated_out != U256::ZERO {
+                        info!("Calculated {}, Simulated {}, Path {:#?}", calculated_out, simulated_out, arb_path);
+                    } else if simulated_out != U256::ZERO {
+                        info!("Success... Calculated {}, Simulated {}", calculated_out, simulated_out);
+                    }
+                } else {
+                    /* *
+                    match paths_tx.send(Event::ArbPath((path.0, path.1))).await{
+                        Ok(_) => debug!("Sent path"),
+                        Err(_) => warn!("Failed to send path")
+                    }
+                    */
                 }
             }
         }

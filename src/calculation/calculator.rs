@@ -4,11 +4,13 @@ use alloy::providers::Provider;
 use alloy::transports::Transport;
 use pool_sync::PoolType;
 use std::sync::Arc;
+use std::collections::HashSet;
 use std::time::Instant;
 
 use crate::cache::Cache;
 use crate::market_state::MarketState;
 use crate::swap::*;
+use crate::onchain::onchain_out;
 use crate::AMOUNT;
 
 // Calculator for getting the amount out
@@ -44,38 +46,33 @@ where
         let mut amount = *AMOUNT;
 
         // for each step, calculate the amount out
-        for step in &path.steps {
-            amount = self.get_amount_out(amount, &step);
+        for swap_step in &path.steps {
+            let pool_address = swap_step.pool_address;
+
+            // check to see if we have a up to date cache 
+            if let Some(cached_amount) = self.cache.get(amount, pool_address) {
+                amount =  cached_amount;
+            } else {
+                // compute the output amount and then store it in cache
+                let output_amount = self.compute_amount_out(
+                    amount,
+                    pool_address,
+                    swap_step.token_in,
+                    swap_step.token_out,
+                    swap_step.protocol,
+                    swap_step.fee
+                );
+                self.cache.set(amount, pool_address, output_amount);
+                amount = output_amount;
+            }
+
             if amount == U256::ZERO {
                 return U256::ZERO;
             }
         }
+
+        // all good, return the output amount of the path
         amount
-    }
-
-    // get the amount out for an individual swap
-    #[inline]
-    fn get_amount_out(&self, amount_in: U256, swap_step: &SwapStep) -> U256 {
-        let pool_address = swap_step.pool_address;
-
-        // check to see if we have a up to date cache
-        if let Some(cached_amount) = self.cache.get(amount_in, pool_address) {
-            return cached_amount;
-        }
-
-        let start = Instant::now();
-        // compute the output amount and then store it in a cache
-        let output_amount = self.compute_amount_out(
-            amount_in,
-            pool_address,
-            swap_step.token_in,
-            swap_step.token_out,
-            swap_step.protocol,
-            swap_step.fee
-        );
-        println!("{:?}", start.elapsed());
-        self.cache.set(amount_in, pool_address, output_amount);
-        return output_amount;
     }
 
     // calculate the ratio for the pool
@@ -121,7 +118,7 @@ where
     }
 
     #[inline]
-    pub fn invalidate_cache(&self, updated_pools: &[Address]) {
+    pub fn invalidate_cache(&self, updated_pools: &HashSet<Address>) {
         for pool in updated_pools {
             self.cache.invalidate(*pool)
         }

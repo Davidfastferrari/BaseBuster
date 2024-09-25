@@ -2,6 +2,9 @@ use alloy::primitives::Address;
 use pool_sync::PoolType;
 use std::hash::Hash;
 use serde::{Serialize, Deserialize};
+use alloy::primitives::Uint;
+use std::convert::From;
+use crate::gen::FlashQuoter;
 
 // A full representation of a path that we can swap along with its hash
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -19,6 +22,27 @@ pub struct SwapStep {
     pub protocol: PoolType,
     pub fee: u32,
 }
+
+
+// conversions
+impl From<SwapPath> for Vec<FlashQuoter::SwapStep> {
+    fn from(path: SwapPath) -> Self {
+        path.steps.into_iter().map(|step| step.into()).collect()
+    }
+}
+
+impl From<SwapStep> for FlashQuoter::SwapStep {
+    fn from(step: SwapStep) -> Self {
+        FlashQuoter::SwapStep {
+            poolAddress: step.pool_address,
+            tokenIn: step.token_in,
+            tokenOut: step.token_out,
+            protocol: step.as_u8(),
+            fee: Uint::from(step.fee)
+        }
+    }
+}
+
 
 // Mapping of pool type to number for contract
 impl SwapStep {

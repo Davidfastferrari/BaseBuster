@@ -2,6 +2,7 @@ use alloy::primitives::U256;
 use alloy::primitives::address;
 use std::sync::mpsc::{Receiver, Sender};
 //use tokio::sync::mpsc::{Receiver, Sender};
+/* 
 use revm::db::CacheDB;
 use alloy::sol_types::SolCall;
 use revm::primitives::Bytecode;
@@ -11,28 +12,15 @@ use revm::Evm;
 use revm::db::AlloyDB;
 use alloy::sol;
 use alloy::eips::{BlockId, BlockHashOrNumber};
+*/
 
-use crate::swap::SwapStep;
+//use crate::swap::SwapStep;
 use crate::events::Event;
 
-use alloy::sol_types::SolValue;
-use revm::primitives::{keccak256, Bytes, ExecutionResult};
+//use alloy::sol_types::SolValue;
+//use revm::primitives::{keccak256, Bytes, ExecutionResult};
 
 use crate::{AMOUNT};
-sol!(
-    #[derive(Debug)]
-    #[sol(rpc)]
-    FlashQuoter,
-    "src/abi/FlashQuoter.json"
-);
-
-sol!(
-    #[derive(Debug)]
-    contract Approval {
-        function approve(address spender, uint256 amount) external returns (bool);
-        function deposit(uint256 amount) external;
-    }
-);
 // recieve a stream of potential arbitrage paths from the searcher and
 // simulate them against the contract to determine if they are actually viable
 pub fn simulate_paths(
