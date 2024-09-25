@@ -276,6 +276,8 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> Database for BlockStat
 }
 
 
+
+
 // Implement required DatabaseRef trait
 impl<T: Transport + Clone, N: Network, P: Provider<T, N>> DatabaseRef for BlockStateDB<T, N, P> {
     type Error = TransportError;
@@ -425,6 +427,45 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> DatabaseRef for BlockS
 }
 
 
+impl<T: Transport + Clone, N: Network, P: Provider<T, N>> DatabaseCommit for BlockStateDB<T, N, P> {
+    fn commit(&mut self, changes: HashMap<Address, Account>) {
+        for (address, mut account) in changes {
+            if !account.is_touched() {
+                continue;
+            }
+            if account.is_selfdestructed() {
+                let db_account = self.accounts.entry(address).or_default();
+                db_account.storage.clear();
+                db_account.state = AccountState::NotExisting;
+                db_account.info = AccountInfo::default();
+                continue;
+            }
+            let is_newly_created = account.is_created();
+            self.insert_contract(&mut account.info);
+
+            let db_account = self.accounts.entry(address).or_default();
+            db_account.info = account.info;
+
+            db_account.state = if is_newly_created {
+                db_account.storage.clear();
+                AccountState::StorageCleared
+            } else if db_account.state.is_storage_cleared() {
+                // Preserve old account state if it already exists
+                AccountState::StorageCleared
+            } else {
+                AccountState::Touched
+            };
+            db_account.storage.extend(
+                account
+                    .storage
+                    .into_iter()
+                    .map(|(key, value)| (key, value.present_value())),
+            );
+        }
+    }
+}
+
+
 
 #[derive(Default, Debug, Clone)]
 pub struct BlockStateDBAccount {
@@ -479,6 +520,11 @@ impl From<AccountInfo> for BlockStateDBAccount {
     }
 }
 
+
+
+#[cfg(test)]
+mod BlockStateDB_TESTS {
+}
 
 
 

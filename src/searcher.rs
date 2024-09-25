@@ -12,7 +12,7 @@ use alloy::network::Network;
 use crate::calculation::Calculator;
 use crate::market_state::MarketState;
 use crate::swap::{SwapStep, SwapPath};
-use crate::onchain::onchain_out;
+use crate::quoter::{onchain_out, revm_out};
 use crate::events::Event;
 use crate::AMOUNT;
 use crate::gen::FlashQuoter;
@@ -111,10 +111,11 @@ where
 
                 if self.sim {
                     let simulated_out = onchain_out(arb_path.clone(), U256::from(1e16)).await;
+                    let revm_out = revm_out(arb_path.clone(), U256::from(1e16), &self.calculator.market_state.clone().db);
                     if calculated_out != simulated_out && simulated_out != U256::ZERO {
-                        info!("Calculated {}, Simulated {}, Path {:#?}", calculated_out, simulated_out, arb_path);
+                        info!("Calculated {}, Simulated {}, Revm {}, Path {:#?}", calculated_out, simulated_out, revm_out, arb_path);
                     } else if simulated_out != U256::ZERO {
-                        info!("Success... Calculated {}, Simulated {}", calculated_out, simulated_out);
+                        info!("Success... Calculated {}, Simulated {}, Revm {}", calculated_out, simulated_out, revm_out);
                     }
                 } else {
                     /* *

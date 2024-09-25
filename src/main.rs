@@ -23,7 +23,7 @@ mod searcher;
 mod state_db;
 mod swap;
 mod tracing;
-mod onchain;
+mod quoter;
 
 // initial amount we are trying to arb over
 lazy_static! {
