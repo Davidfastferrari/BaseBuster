@@ -1,18 +1,16 @@
+use crate::swap::{SwapPath, SwapStep};
 use alloy::primitives::Address;
-use std::hash::{DefaultHasher, Hasher};
 use petgraph::graph::UnGraph;
 use petgraph::prelude::*;
-use pool_sync::{BalancerV2Pool, Pool, PoolInfo, CurveTriCryptoPool};
+use pool_sync::{BalancerV2Pool, CurveTriCryptoPool, Pool, PoolInfo};
 use std::collections::HashSet;
 use std::hash::Hash;
-use crate::swap::{SwapPath, SwapStep};
+use std::hash::{DefaultHasher, Hasher};
 
 pub struct ArbGraph;
 impl ArbGraph {
     // Constructor, takes the set of working tokens we are interested in searching over
-    pub async fn generate_cycles(
-        working_pools: Vec<Pool>,
-    ) -> Vec<SwapPath> {
+    pub async fn generate_cycles(working_pools: Vec<Pool>) -> Vec<SwapPath> {
         // build the graph
         let token: Address = std::env::var("ARB_TOKEN").unwrap().parse().unwrap();
         let graph = ArbGraph::build_graph(working_pools);
@@ -25,18 +23,20 @@ impl ArbGraph {
         let cycles = ArbGraph::find_all_arbitrage_paths(&graph, start_node, 3);
 
         // form our swappaths
-        let swappaths: Vec<SwapPath> = cycles.iter().map(|cycle| {
-            let mut hasher = DefaultHasher::new();
-            cycle.iter().for_each(|step| step.hash(&mut hasher));
-            let output_hash = hasher.finish();
-            SwapPath {
-                steps: cycle.clone(),
-                hash: output_hash,
-            }
-        }).collect();
+        let swappaths: Vec<SwapPath> = cycles
+            .iter()
+            .map(|cycle| {
+                let mut hasher = DefaultHasher::new();
+                cycle.iter().for_each(|step| step.hash(&mut hasher));
+                let output_hash = hasher.finish();
+                SwapPath {
+                    steps: cycle.clone(),
+                    hash: output_hash,
+                }
+            })
+            .collect();
 
         swappaths
-
     }
 
     // Build the graph from the working set of pools
@@ -55,11 +55,7 @@ impl ArbGraph {
                     );
                 }
                 Pool::CurveTriCrypto(curve_pool) => {
-                    Self::add_curve_pool_to_graph(
-                        &mut graph,
-                        &mut inserted_nodes,
-                        curve_pool,
-                    );
+                    Self::add_curve_pool_to_graph(&mut graph, &mut inserted_nodes, curve_pool);
                 }
                 _ => {
                     Self::add_simple_pool_to_graph(&mut graph, &mut inserted_nodes, pool);
@@ -123,7 +119,7 @@ impl ArbGraph {
                     .find(|&n| graph[n] == token_out)
                     .unwrap();
 
-                    // Create a new Pool::BalancerV2 for each edge
+                // Create a new Pool::BalancerV2 for each edge
                 let pool = Pool::CurveTriCrypto(curve_pool.clone());
                 graph.add_edge(node_in, node_out, pool);
             }
@@ -253,3 +249,4 @@ impl ArbGraph {
         }
     }
 }
+

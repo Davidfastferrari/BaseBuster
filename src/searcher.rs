@@ -1,30 +1,29 @@
-use alloy::primitives::{U256, Address};
-use tokio::sync::mpsc::{Sender, Receiver};
-use log::{info, warn, debug};
-use rayon::prelude::*;
-use std::sync::Arc;
-use std::time::Instant;
-use std::collections::{HashMap, HashSet};
+use alloy::network::Network;
+use alloy::primitives::{Address, U256};
 use alloy::providers::Provider;
 use alloy::transports::Transport;
-use alloy::network::Network;
+use log::{debug, info, warn};
+use rayon::prelude::*;
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
+use std::time::Instant;
+use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::calculation::Calculator;
-use crate::market_state::MarketState;
-use crate::swap::{SwapStep, SwapPath};
-use crate::quoter::{onchain_out, revm_out};
 use crate::events::Event;
-use crate::AMOUNT;
 use crate::gen::FlashQuoter;
-
+use crate::market_state::MarketState;
+use crate::quoter::{onchain_out, revm_out};
+use crate::swap::{SwapPath, SwapStep};
+use crate::AMOUNT;
 
 // top level sercher struct
 // contains the calculator and all path information
-pub struct Searchoor<T, N, P> 
-where 
+pub struct Searchoor<T, N, P>
+where
     T: Transport + Clone,
     N: Network,
-    P: Provider<T, N>
+    P: Provider<T, N>,
 {
     calculator: Calculator<T, N, P>,
     path_index: HashMap<Address, Vec<usize>>,
@@ -33,11 +32,11 @@ where
     sim: bool,
 }
 
-impl<T, N, P> Searchoor<T, N, P> 
-where 
+impl<T, N, P> Searchoor<T, N, P>
+where
     T: Transport + Clone,
     N: Network,
-    P: Provider<T, N>
+    P: Provider<T, N>,
 {
     // Construct the searcher with the calculator and all the swap paths
     pub async fn new(cycles: Vec<SwapPath>, market_state: Arc<MarketState<T, N, P>>) -> Self {
@@ -59,16 +58,16 @@ where
         let min_profit = repayment_amount + (initial_amount * min_profit_percentage);
         let sim = std::env::var("SIM").unwrap().parse().unwrap();
 
-
-        Self { calculator, cycles, path_index: index, min_profit, sim}
+        Self {
+            calculator,
+            cycles,
+            path_index: index,
+            min_profit,
+            sim,
+        }
     }
 
-
-    pub async fn search_paths(
-        &mut self,
-        paths_tx: Sender<Event>,
-        mut address_rx: Receiver<Event>,
-    ) {
+    pub async fn search_paths(&mut self, paths_tx: Sender<Event>, mut address_rx: Receiver<Event>) {
         // wait for a new single with the pools that have reserved updated
         while let Some(Event::PoolsTouched(pools)) = address_rx.recv().await {
             info!("Searching for arbs...");
@@ -97,11 +96,11 @@ where
                     } else {
                         None
                     }
-                }).collect();
+                })
+                .collect();
 
             info!("{:?} elapsed", start.elapsed());
             info!("{} profitable paths", profitable_paths.len());
-
 
             // if this is a simulation, confirm the output amount is correct
             // otherwise, send to the onchain simulator (same thing.. ish)
@@ -111,11 +110,21 @@ where
 
                 if self.sim {
                     let simulated_out = onchain_out(arb_path.clone(), U256::from(1e16)).await;
-                    let revm_out = revm_out(arb_path.clone(), U256::from(1e16), &self.calculator.market_state.clone().db);
+                    let revm_out = revm_out(
+                        arb_path.clone(),
+                        U256::from(1e16),
+                        &self.calculator.market_state.clone().db,
+                    );
                     if calculated_out != simulated_out && simulated_out != U256::ZERO {
-                        info!("Calculated {}, Simulated {}, Revm {}, Path {:#?}", calculated_out, simulated_out, revm_out, arb_path);
+                        info!(
+                            "Calculated {}, Simulated {}, Revm {}, Path {:#?}",
+                            calculated_out, simulated_out, revm_out, arb_path
+                        );
                     } else if simulated_out != U256::ZERO {
-                        info!("Success... Calculated {}, Simulated {}, Revm {}", calculated_out, simulated_out, revm_out);
+                        info!(
+                            "Success... Calculated {}, Simulated {}, Revm {}",
+                            calculated_out, simulated_out, revm_out
+                        );
                     }
                 } else {
                     /* *

@@ -3,14 +3,14 @@ use alloy::primitives::{Address, U256};
 use alloy::providers::Provider;
 use alloy::transports::Transport;
 use pool_sync::PoolType;
-use std::sync::Arc;
 use std::collections::HashSet;
+use std::sync::Arc;
 use std::time::Instant;
 
 use crate::cache::Cache;
 use crate::market_state::MarketState;
-use crate::swap::*;
 use crate::quoter::onchain_out;
+use crate::swap::*;
 use crate::AMOUNT;
 
 // Calculator for getting the amount out
@@ -49,9 +49,9 @@ where
         for swap_step in &path.steps {
             let pool_address = swap_step.pool_address;
 
-            // check to see if we have a up to date cache 
+            // check to see if we have a up to date cache
             if let Some(cached_amount) = self.cache.get(amount, pool_address) {
-                amount =  cached_amount;
+                amount = cached_amount;
             } else {
                 // compute the output amount and then store it in cache
                 let output_amount = self.compute_amount_out(
@@ -60,7 +60,7 @@ where
                     swap_step.token_in,
                     swap_step.token_out,
                     swap_step.protocol,
-                    swap_step.fee
+                    swap_step.fee,
                 );
                 self.cache.set(amount, pool_address, output_amount);
                 amount = output_amount;
@@ -102,9 +102,9 @@ where
             | PoolType::PancakeSwapV3
             | PoolType::AlienBaseV3
             | PoolType::SwapBasedV3
-            | PoolType::DackieSwapV3 =>{
-                 self.uniswap_v3_out(input_amount, &pool_address, &token_in, fee).unwrap()
-            }
+            | PoolType::DackieSwapV3 => self
+                .uniswap_v3_out(input_amount, &pool_address, &token_in, fee)
+                .unwrap(),
             /*
             PoolType::Aerodrome => self.aerodrome_out(input_amount, token_in, pool_address),
             PoolType::MaverickV1 | PoolType::MaverickV2 => todo!(),

@@ -8,32 +8,23 @@ debug = true
 
 
 [dependencies]
-anyhow = "1.0.86"
-env_logger = "0.11.3"
-futures = "0.3.30"
-log = "0.4.21"
-dotenv = "0.15.0"
+alloy = { version = "0.4.2", features = ["full", "node-bindings", "providers", "rpc-client", "rpc-types-debug", "rpc-types-trace"] }
+anyhow = "1.0.89"
+env_logger = "0.11.5"
+futures = "0.3.31"
 pool-sync = { path = "../PoolSync" }
-rayon = "1.10.0"
+log = "0.4.22"
 petgraph = "0.6.5"
-serde = { version = "1.0.204", features = ["derive"] }
-serde_json = "1.0.120"
-rustc-hash = "2.0.0"
-dashmap = "6.1.0"
+rayon = "1.10.0"
+revm = { version = "16.0.0", features = ["alloydb"] }
+serde = { version = "1.0.210", features = ["derive"] }
+serde_json = "1.0.129"
 sha2 = "0.10.8"
-zerocopy = "0.7.35"
-reth-chainspec = {git = "https://github.com/paradigmxyz/reth.git" }
-reth-db = { git = "https://github.com/paradigmxyz/reth.git" } 
-reth-db-api = { git = "https://github.com/paradigmxyz/reth.git" }
-reth-node-ethereum = { git = "https://github.com/paradigmxyz/reth.git" } 
-reth-node-optimism = { git = "https://github.com/paradigmxyz/reth.git" } 
-reth-optimism-chainspec = { git = "https://github.com/paradigmxyz/reth.git" } 
-reth-blockchain-tree = { git = "https://github.com/paradigmxyz/reth.git" }
-reth-primitives = { git = "https://github.com/paradigmxyz/reth.git" }
-reth-provider = { git = "https://github.com/paradigmxyz/reth.git"}
-reth = { git = "https://github.com/paradigmxyz/reth.git"}
-alloy = { version = "0.3.1", features = ["full", "node-bindings", "rpc-types-trace", "rpc-client", "rpc-types-debug", "providers"] }
-tokio = { version = "1.39.3", features = ["full"] }
-revm = {version = "14.0.1", features = ["alloydb"]}
-uniswap_v3_math = { path = "../uniswap-v3-math" }
+dashmap = "6.1.0"
+tokio = { version = "1.40.0", features = ["full"] }
 lazy_static = "1.5.0"
+uniswap_v3_math = "0.5.1"
+dotenv = "0.15.0"
+reqwest = "0.12.8"
+zerocopy = "0.8.6"
+rustc-hash = "2.0.0"

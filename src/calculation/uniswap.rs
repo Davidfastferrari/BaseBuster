@@ -1,15 +1,14 @@
-use alloy::primitives::{I256, U128, U256};
-use anyhow::Result;
-use alloy::primitives::Address;
-use uniswap_v3_math::tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK};
-use alloy::providers::Provider;
-use alloy::network::Network;
-use alloy::transports::Transport;
 use super::Calculator;
+use alloy::network::Network;
+use alloy::primitives::Address;
+use alloy::primitives::{I256, U128, U256};
+use alloy::providers::Provider;
+use alloy::transports::Transport;
+use anyhow::Result;
 use std::collections::HashMap;
+use uniswap_v3_math::tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK};
 
 pub const U256_1: U256 = U256::from_limbs([1, 0, 0, 0]);
-
 
 pub struct CurrentState {
     amount_specified_remaining: I256,
@@ -35,19 +34,18 @@ pub fn position(tick: i32) -> (i16, u8) {
     ((tick >> 8) as i16, (tick % 256) as u8)
 }
 
-
-impl<T, N, P> Calculator<T, N, P> 
-where 
+impl<T, N, P> Calculator<T, N, P>
+where
     T: Transport + Clone,
     N: Network,
-    P: Provider<T, N> 
+    P: Provider<T, N>,
 {
     // Calcualte the amount out for a uniswapv2 swap
     #[inline]
     pub fn uniswap_v2_out(
         &self,
         amount_in: U256,
-        pool_address: &Address, 
+        pool_address: &Address,
         token_in: &Address,
         fee: U256,
     ) -> U256 {
@@ -72,20 +70,20 @@ where
 
     // calculate the amount out for a uniswapv3 swap
     pub fn uniswap_v3_out(
-        &self, 
+        &self,
         amount_in: U256,
         pool_address: &Address,
         token_in: &Address,
         fee: u32,
     ) -> Result<U256> {
-
+        todo!()
+            /*
         // acquire db read access and get all our state information
         let db_read = self.market_state.db.read().unwrap();
         let zero_to_one = db_read.zero_to_one(&pool_address, *token_in).unwrap();
         let slot0 = db_read.slot0(*pool_address)?;
         let liquidity = db_read.liquidity(*pool_address)?;
         let tick_spacing = 10;
-
 
         if amount_in.is_zero() {
             return Ok(U256::ZERO);
@@ -101,10 +99,10 @@ where
         // Initialize a mutable state state struct to hold the dynamic simulated state of the pool
         let mut current_state = CurrentState {
             sqrt_price_x_96: slot0.sqrtPriceX96.to(), //Active price on the pool
-            amount_calculated: I256::ZERO,    //Amount of token_out that has been calculated
+            amount_calculated: I256::ZERO,            //Amount of token_out that has been calculated
             amount_specified_remaining: I256::from_raw(amount_in), //Amount of token_in that has not been swapped
             tick: slot0.tick.as_i32(),
-            liquidity //Current available liquidity in the tick range
+            liquidity, //Current available liquidity in the tick range
         };
         while current_state.amount_specified_remaining != I256::ZERO
             && current_state.sqrt_price_x_96 != sqrt_price_limit_x_96
@@ -163,7 +161,7 @@ where
                 current_state.sqrt_price_x_96,
                 swap_target_sqrt_ratio,
                 current_state.liquidity,
-                current_state.amount_specified_remaining,
+                current_state.amount_specified_remaining.into(),
                 fee,
             )?;
 
@@ -180,7 +178,8 @@ where
             // If the price moved all the way to the next price, recompute the liquidity change for the next iteration
             if current_state.sqrt_price_x_96 == step.sqrt_price_next_x96 {
                 if step.initialized {
-                    let mut liquidity_net: i128 = db_read.ticks_liquidity_net(*pool_address, step.tick_next)?;
+                    let mut liquidity_net: i128 =
+                        db_read.ticks_liquidity_net(*pool_address, step.tick_next)?;
 
                     // we are on a tick boundary, and the next tick is initialized, so we must charge a protocol fee
                     if zero_to_one {
@@ -206,14 +205,15 @@ where
                 // If the current_state sqrt price is not equal to the step sqrt price, then we are not on the same tick.
                 // Update the current_state.tick to the tick at the current_state.sqrt_price_x_96
             } else if current_state.sqrt_price_x_96 != step.sqrt_price_start_x_96 {
-                current_state.tick =
-                    uniswap_v3_math::tick_math::get_tick_at_sqrt_ratio(current_state.sqrt_price_x_96)?;
+                current_state.tick = uniswap_v3_math::tick_math::get_tick_at_sqrt_ratio(
+                    current_state.sqrt_price_x_96,
+                )?;
             }
         }
 
         let amount_out = (-current_state.amount_calculated).into_raw();
 
         Ok(amount_out)
+            */
     }
 }
-

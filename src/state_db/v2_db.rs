@@ -2,7 +2,7 @@ use revm::db::{Database, DatabaseRef};
 use alloy::primitives::{Address, U256};
 use pool_sync::{UniswapV2Pool, PoolType};
 use revm::primitives::AccountInfo;
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 use lazy_static::lazy_static;
 use alloy::providers::Provider;
 use alloy::transports::Transport;

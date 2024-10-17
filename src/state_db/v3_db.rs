@@ -4,7 +4,7 @@ use pool_sync::{UniswapV2Pool, PoolType};
 use revm::primitives::AccountInfo;
 use alloy::sol;
 
-use zerocopy::AsBytes;
+use zerocopy::IntoBytes;
 use lazy_static::lazy_static;
 use alloy::providers::Provider;
 use alloy::transports::Transport;

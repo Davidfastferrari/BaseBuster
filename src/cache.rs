@@ -1,7 +1,7 @@
-use dashmap::DashMap;
 use alloy::primitives::{Address, U256};
-use std::hash::{Hash, Hasher};
+use dashmap::DashMap;
 use rustc_hash::FxHasher;
+use std::hash::{Hash, Hasher};
 
 // Custom hasher for better performance
 #[derive(Default)]
@@ -48,25 +48,33 @@ impl Cache {
         Self {
             entries: DashMap::with_capacity_and_hasher(
                 num_pools * 100, // Assume 100 different input amounts per pool
-                std::hash::BuildHasherDefault::default()
+                std::hash::BuildHasherDefault::default(),
             ),
         }
     }
 
     #[inline]
     pub fn get(&self, amount_in: U256, pool_address: Address) -> Option<U256> {
-        let key = CacheKey { pool_address, amount_in };
+        let key = CacheKey {
+            pool_address,
+            amount_in,
+        };
         self.entries.get(&key).map(|entry| entry.output_amount)
     }
 
     #[inline]
     pub fn set(&self, amount_in: U256, pool_address: Address, output_amount: U256) {
-        let key = CacheKey { pool_address, amount_in };
+        let key = CacheKey {
+            pool_address,
+            amount_in,
+        };
         self.entries.insert(key, CacheEntry { output_amount });
     }
 
     #[inline]
     pub fn invalidate(&self, pool_address: Address) {
-        self.entries.retain(|key, _| key.pool_address != pool_address);
+        self.entries
+            .retain(|key, _| key.pool_address != pool_address);
     }
 }
+

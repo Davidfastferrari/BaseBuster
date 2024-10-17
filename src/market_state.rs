@@ -1,5 +1,5 @@
 use alloy::network::Network;
-use alloy::primitives::{Address, U256, address};
+use alloy::primitives::{address, Address, U256};
 use alloy::providers::{Provider, ProviderBuilder};
 use alloy::rpc::types::trace::geth::AccountState;
 use alloy::rpc::types::BlockNumberOrTag;
@@ -8,16 +8,16 @@ use alloy::transports::Transport;
 use anyhow::Result;
 use log::{error, info};
 use pool_sync::Pool;
+use revm::primitives::{keccak256, AccountInfo, Bytecode, Bytes};
 use std::collections::{BTreeMap, HashSet};
 use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::sync::mpsc::{Receiver, Sender};
-use revm::primitives::{keccak256, AccountInfo, Bytes, Bytecode};
 
 use crate::events::Event;
+use crate::gen::FlashQuoter;
 use crate::state_db::BlockStateDB;
 use crate::tracing::debug_trace_block;
-use crate::gen::FlashQuoter;
 
 // Internal representation of the current state of the blockchain
 pub struct MarketState<T, N, P>
@@ -47,7 +47,6 @@ where
         let mut db = BlockStateDB::new(provider).unwrap();
         MarketState::populate_db_with_pools(pools, &mut db);
 
-
         // give the dummy account some weth
         let dummy_account = address!("1E0294b6e4D72857B5eC467f5c2E52BDA37CA5b8");
         let weth = std::env::var("WETH").unwrap().parse().unwrap();
@@ -75,7 +74,6 @@ where
             code: Some(Bytecode::new_raw(quoter_bytecode)),
         };
         db.insert_account_info(quoter, quoter_acc_info);
-
 
         let market_state = Arc::new(Self {
             db: RwLock::new(db),
@@ -117,7 +115,11 @@ where
 
             // update the db based on teh traces
             let updated_pools = self.process_block_trace(updates);
-            info!("Got {} updates in block {}", updated_pools.len(), block_number);
+            info!(
+                "Got {} updates in block {}",
+                updated_pools.len(),
+                block_number
+            );
 
             // send the updated pools
             if let Err(e) = address_tx.send(Event::PoolsTouched(updated_pools)).await {
