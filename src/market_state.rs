@@ -46,35 +46,9 @@ where
         // populate our state
         let mut db = BlockStateDB::new(provider).unwrap();
         MarketState::populate_db_with_pools(pools, &mut db);
+        MarketState::populate_db_with_accounts(&mut db);
 
-        // give the dummy account some weth
-        let dummy_account = address!("1E0294b6e4D72857B5eC467f5c2E52BDA37CA5b8");
-        let weth = std::env::var("WETH").unwrap().parse().unwrap();
-        let weth_balance_slot = U256::from(3);
-        let one_ether = U256::from(1_000_000_000_000_000_000u128);
-        let hashed_acc_balance_slot = keccak256((dummy_account, weth_balance_slot).abi_encode());
-        db.insert_account_storage(weth, hashed_acc_balance_slot.into(), one_ether)
-            .unwrap();
-
-        let acc_info = AccountInfo {
-            nonce: 0_u64,
-            balance: one_ether,
-            code_hash: keccak256(Bytes::new()),
-            code: None,
-        };
-        db.insert_account_info(dummy_account, acc_info);
-
-        // Insert the quoter contract, used for simulations
-        let quoter = address!("0000000000000000000000000000000000001000");
-        let quoter_bytecode = FlashQuoter::DEPLOYED_BYTECODE.clone();
-        let quoter_acc_info = AccountInfo {
-            nonce: 0_u64,
-            balance: U256::ZERO,
-            code_hash: keccak256(&quoter_bytecode),
-            code: Some(Bytecode::new_raw(quoter_bytecode)),
-        };
-        db.insert_account_info(quoter, quoter_acc_info);
-
+        // init the market state with the db
         let market_state = Arc::new(Self {
             db: RwLock::new(db),
         });
@@ -144,7 +118,7 @@ where
         // iterate over the updates
         for (address, account_state) in updates.iter().flat_map(|btree_map| btree_map.iter()) {
             if db.tracking_pool(address) {
-                db.update_all_slots(address.clone(), account_state.clone())
+                db.update_all_slots(*address, account_state.clone())
                     .unwrap();
                 updated_pools.insert(*address);
             }
@@ -159,5 +133,36 @@ where
                 db.insert_v2(v2_pool).unwrap();
             }
         }
+    }
+
+    // Insert the quoter and dummy account into the db
+    fn populate_db_with_accounts(db: &mut BlockStateDB<T, N, P>) {
+        // give the dummy account some weth
+        let dummy_account = address!("1E0294b6e4D72857B5eC467f5c2E52BDA37CA5b8");
+        let weth = std::env::var("WETH").unwrap().parse().unwrap();
+        let weth_balance_slot = U256::from(3);
+        let one_ether = U256::from(1_000_000_000_000_000_000u128);
+        let hashed_acc_balance_slot = keccak256((dummy_account, weth_balance_slot).abi_encode());
+        db.insert_account_storage(weth, hashed_acc_balance_slot.into(), one_ether)
+            .unwrap();
+
+        let acc_info = AccountInfo {
+            nonce: 0_u64,
+            balance: one_ether,
+            code_hash: keccak256(Bytes::new()),
+            code: None,
+        };
+        db.insert_account_info(dummy_account, acc_info);
+
+        // Insert the quoter contract, used for simulations
+        let quoter = address!("0000000000000000000000000000000000001000");
+        let quoter_bytecode = FlashQuoter::DEPLOYED_BYTECODE.clone();
+        let quoter_acc_info = AccountInfo {
+            nonce: 0_u64,
+            balance: U256::ZERO,
+            code_hash: keccak256(&quoter_bytecode),
+            code: Some(Bytecode::new_raw(quoter_bytecode)),
+        };
+        db.insert_account_info(quoter, quoter_acc_info);
     }
 }

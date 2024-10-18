@@ -16,9 +16,9 @@ use crate::graph::ArbGraph;
 use crate::stream::stream_new_blocks;
 //use crate::swap::SwapStep;
 //use crate::tx_sender::TransactionSender;
+use crate::filter::filter_pools;
 use crate::market_state::MarketState;
 use crate::searcher::Searchoor;
-use crate::filter::filter_pools;
 
 /// Start all of the workers
 pub async fn start_workers(pools: Vec<Pool>, last_synced_block: u64) {

@@ -1,8 +1,17 @@
+use alloy::primitives::U256;
 use alloy::primitives::{address, Address};
+use alloy::providers::ProviderBuilder;
+use alloy::sol;
+use alloy::sol_types::SolCall;
 use anyhow::Result;
 use lazy_static::lazy_static;
+use pool_sync::PoolType;
 use pool_sync::{Chain, Pool, PoolInfo};
 use reqwest::header::{HeaderMap, HeaderValue};
+use revm::db::{AlloyDB, CacheDB, EmptyDB};
+use revm::primitives::ExecutionResult;
+use revm::primitives::TransactTo;
+use revm::Evm;
 use serde::{Deserialize, Serialize};
 use std::fs::{create_dir_all, File};
 use std::io::{BufReader, BufWriter};
@@ -43,6 +52,20 @@ struct Token {
     address: String,
 }
 
+// Abi to swap
+sol!(
+    #[sol(rpc)]
+    contract Uniswap {
+        function swapExactTokensForTokens(
+            uint256 amountIn,
+            uint256 amountOutMin,
+            address[] calldata path,
+            address to,
+            uint256 deadline
+        ) external returns (uint256[] memory amounts);
+    }
+);
+
 // Given a set of pools, filter them down to a proper working set
 pub async fn filter_pools(pools: Vec<Pool>, num_results: usize, chain: Chain) -> Vec<Pool> {
     // get all of the top volume tokens from birdeye, we imply volume = volatility
@@ -63,11 +86,12 @@ pub async fn filter_pools(pools: Vec<Pool>, num_results: usize, chain: Chain) ->
 
     // simulate swap on every pool that we have, this will filter out pools that have a pair we
     // want but dont have any liq to swap with
-
-    pools
+    filter_by_swap(pools).await
 }
 
+// ---------------------------------------------------
 // Helper functions to get all data and filter the pools
+// ---------------------------------------------------
 
 // fetch all the top volume tokens from birdeye
 async fn get_top_volume_tokens(chain: Chain, num_results: usize) -> Result<Vec<Address>> {
@@ -155,4 +179,64 @@ async fn fetch_top_volume_tokens(num_results: usize, chain: Chain) -> Vec<Addres
         .into_iter()
         .map(|addr| Address::from_str(&addr).unwrap())
         .collect()
+}
+
+// Go through the pools and try to perform a swap on it. This is to test liquidity depth as we
+// dont want to include paths that dont have enough liq for a swap
+async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
+    let account = address!("c9034c3E7F58003E6ae0C8438e7c8f4598d5ACAA");
+    let mut filtered_pools: Vec<Pool> = vec![];
+
+    // setup provider
+    let url = std::env::var("FULL").unwrap().parse().unwrap();
+    let provider = ProviderBuilder::new().on_http(url);
+
+    // setup revm
+    let db = CacheDB::new(EmptyDB::new());
+    let mut evm = Evm::builder()
+        .with_db(db)
+        .modify_tx_env(|tx| {
+            tx.caller = address!("0000000000000000000000000000000000000001");
+            tx.value = U256::ZERO;
+        })
+        .build();
+
+    // go through all the pools and try a swap on each one
+    for pool in pools {
+        // get the router address
+        let address = match pool.pool_type() {
+            //PoolType::UniswapV2 => address!("4752ba5dbc23f44d87826276bf6fd6b1c372ad24"),
+            PoolType::UniswapV2 => address!("7a250d5630B4cF539739dF2C5dAcb4c659F2488D"),
+            PoolType::SushiSwapV2 => address!("6BDED42c6DA8FBf0d2bA55B2fa120C5e0c8D7891"),
+            PoolType::PancakeSwapV2 => address!("8cFe327CEc66d1C090Dd72bd0FF11d690C33a2Eb"),
+            PoolType::BaseSwapV2 => address!("327Df1E6de05895d2ab08513aaDD9313Fe505d86"),
+            PoolType::SwapBasedV2 => address!("aaa3b1F1bd7BCc97fD1917c18ADE665C5D31F066"),
+            PoolType::DackieSwapV2 => address!("Ca4EAa32E7081b0c4Ba47e2bDF9B7163907Fe56f"),
+            PoolType::AlienBaseV2 => address!("8c1A3cF8f83074169FE5D7aD50B978e1cD6b37c7"),
+            _ => panic!("will not reach here"),
+        };
+
+        // setup the calldata
+        let calldata = Uniswap::swapExactTokensForTokensCall {
+            amountIn: U256::from(1e16),
+            amountOutMin: U256::ZERO,
+            path: vec![pool.token0_address(), pool.token1_address()],
+            to: account,
+            deadline: U256::MAX,
+        }
+        .abi_encode();
+
+        // set call to the router
+        evm.tx_mut().transact_to = TransactTo::Call(address);
+        evm.tx_mut().data = calldata.into();
+
+        // if we can transact, add it as it is a valid pool. Else ignore it
+        let ref_tx = evm.transact().unwrap();
+        let result = ref_tx.result;
+        if let ExecutionResult::Success { .. } = result {
+            filtered_pools.push(pool.clone());
+        }
+    }
+
+    filtered_pools
 }
