@@ -1,3 +1,4 @@
+use alloy::eips::BlockId;
 use alloy::primitives::U256;
 use alloy::primitives::{address, Address};
 use alloy::providers::ProviderBuilder;
@@ -191,6 +192,8 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
     let url = std::env::var("FULL").unwrap().parse().unwrap();
     let provider = ProviderBuilder::new().on_http(url);
 
+    //let db = AlloyDB::new(provider, BlockId::latest());
+
     // setup revm
     let db = CacheDB::new(EmptyDB::new());
     let mut evm = Evm::builder()
@@ -205,7 +208,6 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
     for pool in pools {
         // get the router address
         let address = match pool.pool_type() {
-            //PoolType::UniswapV2 => address!("4752ba5dbc23f44d87826276bf6fd6b1c372ad24"),
             PoolType::UniswapV2 => address!("7a250d5630B4cF539739dF2C5dAcb4c659F2488D"),
             PoolType::SushiSwapV2 => address!("6BDED42c6DA8FBf0d2bA55B2fa120C5e0c8D7891"),
             PoolType::PancakeSwapV2 => address!("8cFe327CEc66d1C090Dd72bd0FF11d690C33a2Eb"),

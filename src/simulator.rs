@@ -1,100 +1,42 @@
-use alloy::primitives::U256;
-use alloy::primitives::address;
-use std::sync::mpsc::{Receiver, Sender};
-//use tokio::sync::mpsc::{Receiver, Sender};
-/* 
-use revm::db::CacheDB;
-use alloy::sol_types::SolCall;
-use revm::primitives::Bytecode;
+use alloy::primitives::{address, Address, U256};
+use alloy::sol_types::{SolValue, SolCall};
+use revm::db::{CacheDB, EmptyDB, EmptyDBTyped};
 use revm::primitives::AccountInfo;
-use revm::primitives::TransactTo;
-use revm::Evm;
-use revm::db::AlloyDB;
 use alloy::sol;
-use alloy::eips::{BlockId, BlockHashOrNumber};
-*/
+use revm::primitives::Bytecode;
+use std::convert::Infallible;
+use std::sync::mpsc::{Receiver, Sender};
 
-//use crate::swap::SwapStep;
+use lazy_static::lazy_static;
+use revm::primitives::{keccak256, Bytes, TransactTo};
+use revm::Evm;
+
 use crate::events::Event;
+use crate::gen::FlashQuoter;
 
-//use alloy::sol_types::SolValue;
-//use revm::primitives::{keccak256, Bytes, ExecutionResult};
+// Const addresses quoter
+lazy_static! {
+    pub static ref account: Address = address!("1E0294b6e4D72857B5eC467f5c2E52BDA37CA5b8");
+    pub static ref weth: Address = std::env::var("WETH").unwrap().parse().unwrap();
+    pub static ref quoter: Address = address!("0000000000000000000000000000000000001000");
+}
 
-use crate::{AMOUNT};
 // recieve a stream of potential arbitrage paths from the searcher and
 // simulate them against the contract to determine if they are actually viable
-pub fn simulate_paths(
-    tx_sender: Sender<Event>,
-    mut arb_receiver: Receiver<Event>,
-) {
-    /* *
-    //let mut evm = setup_evm();
-    //let quoter = address!("0000000000000000000000000000000000001000");
-    //let provider = ProviderBuilder::new().on_http(std::env::var("FULL").unwrap().parse().unwrap());
-    let mut db = CacheDB::new(RethDB::new());
-    //let mut db = CacheDB::new(AlloyDB::new(provider, BlockId::latest()).unwrap());
+pub fn simulate_paths(tx_sender: Sender<Event>, mut arb_receiver: Receiver<Event>) {
 
-    let account = address!("1E0294b6e4D72857B5eC467f5c2E52BDA37CA5b8");
-    let weth = address!("4200000000000000000000000000000000000006");
-    let quoter = address!("0000000000000000000000000000000000001000");
-
-    // Give ourselves WETH
-    let weth_balance_slot = U256::from(3);
-    let one_ether = U256::from(1_000_000_000_000_000_000u128);
-    let hashed_acc_balance_slot = keccak256((account, weth_balance_slot).abi_encode());
-    db.insert_account_storage(weth, hashed_acc_balance_slot.into(), one_ether)
-        .unwrap();
-
-    let acc_info = AccountInfo {
-        nonce: 0_u64,
-        balance: one_ether,
-        code_hash: keccak256(Bytes::new()),
-        code: None,
-    };
-    db.insert_account_info(account, acc_info);
-
-    // Insert quoter bytecode
-    let quoter_bytecode = FlashQuoter::DEPLOYED_BYTECODE.clone();
-    let quoter_acc_info = AccountInfo {
-        nonce: 0_u64,
-        balance: U256::ZERO,
-        code_hash: keccak256(&quoter_bytecode),
-        code: Some(Bytecode::new_raw(quoter_bytecode)),
-    };
-    db.insert_account_info(quoter, quoter_acc_info);
-
-    let mut evm = Evm::builder()
-        .with_db(db)
-        .modify_tx_env(|tx| {
-            tx.caller = account;
-            tx.transact_to = TransactTo::Call(weth);
-            tx.value = U256::ZERO;
-        }).build();
-
-    let approve_calldata = Approval::approveCall {
-        spender: quoter,
-        amount: U256::from(1e18)
-    }.abi_encode();
-
-    evm.tx_mut().data = approve_calldata.into();
-
-    evm.transact_commit().unwrap();
+    // populate the db with quoter information
+    let mut evm = setup_quoter();
 
 
     // wait for a new arbitrage path
+    /*
     while let Ok(Event::ArbPath((arb_path, expected_out, u64))) = arb_receiver.recv() {
         // convert from searcher format into quoter format
-        let converted_path: Vec<FlashQuoter::SwapStep> = arb_path
-            .clone()
-            .iter()
-            .map(|step| FlashQuoter::SwapStep {
-                poolAddress: step.pool_address,
-                tokenIn: step.token_in,
-                tokenOut: step.token_out,
-                protocol: step.as_u8(),
-                fee: step.fee.try_into().unwrap(),
-            })
-            .collect();
+        let converted_path: Vec<FlashQuoter::SwapStep> = arb_path.into()
+
+
+        // f
 
         // make our calldata
         let calldata = FlashQuoter::quoteArbitrageCall {
@@ -126,6 +68,61 @@ pub fn simulate_paths(
             _ => {}//println!("{:#?}", result),
         }
     }
-    */
-    
+        */
 }
+
+pub fn setup_quoter() -> Evm<'static, (), CacheDB<EmptyDBTyped<Infallible>>> {
+
+    sol!(
+        #[derive(Debug)]
+        contract Approval {
+            function approve(address spender, uint256 amount) external returns (bool);
+            function deposit(uint256 amount) external;
+        }
+    );
+    let mut db = CacheDB::new(EmptyDB::new());
+
+    // Give ourselves WETH
+    let weth_balance_slot = U256::from(3);
+    let one_ether = U256::from(1_000_000_000_000_000_000u128);
+    let hashed_acc_balance_slot = keccak256((*account, weth_balance_slot).abi_encode());
+    db.insert_account_storage(*weth, hashed_acc_balance_slot.into(), one_ether)
+        .unwrap();
+    let acc_info = AccountInfo {
+        nonce: 0_u64,
+        balance: one_ether,
+        code_hash: keccak256(Bytes::new()),
+        code: None,
+    };
+    db.insert_account_info(*account, acc_info);
+
+    // Insert quoter bytecode
+    let quoter_bytecode = FlashQuoter::DEPLOYED_BYTECODE.clone();
+    let quoter_acc_info = AccountInfo {
+        nonce: 0_u64,
+        balance: U256::ZERO,
+        code_hash: keccak256(&quoter_bytecode),
+        code: Some(Bytecode::new_raw(quoter_bytecode)),
+    };
+    db.insert_account_info(*quoter, quoter_acc_info);
+
+    let mut evm = Evm::builder()
+        .with_db(db)
+        .modify_tx_env(|tx| {
+            tx.caller = *account;
+            tx.transact_to = TransactTo::Call(*weth);
+            tx.value = U256::ZERO;
+        })
+        .build();
+
+    let approve_calldata = Approval::approveCall {
+        spender: *quoter,
+        amount: U256::from(1e18),
+    }
+    .abi_encode();
+
+    evm.tx_mut().data = approve_calldata.into();
+    evm.transact_commit().unwrap();
+    evm
+}
+
