@@ -7,7 +7,7 @@ use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Instant;
-use tokio::sync::mpsc::{Receiver, Sender};
+use std::sync::mpsc::{Receiver, Sender};
 
 use crate::calculation::Calculator;
 use crate::events::Event;
@@ -30,7 +30,6 @@ where
     cycles: Vec<SwapPath>,
     min_profit: U256,
     sim: bool,
-    quoter: Quoter,
 }
 
 impl<T, N, P> Searchoor<T, N, P>
@@ -40,8 +39,8 @@ where
     P: Provider<T, N>,
 {
     // Construct the searcher with the calculator and all the swap paths
-    pub async fn new(cycles: Vec<SwapPath>, market_state: Arc<MarketState<T, N, P>>) -> Self {
-        let calculator = Calculator::new(market_state).await;
+    pub fn new(cycles: Vec<SwapPath>, market_state: Arc<MarketState<T, N, P>>) -> Self {
+        let calculator = Calculator::new(market_state);
 
         // make our path mapper for easily getting touched paths
         let mut index: HashMap<Address, Vec<usize>> = HashMap::new();
@@ -59,8 +58,6 @@ where
         let min_profit = repayment_amount + (initial_amount * min_profit_percentage);
         let sim = std::env::var("SIM").unwrap().parse().unwrap();
 
-        // quoter for sims
-        let quoter = Quoter::new();
 
         Self {
             calculator,
@@ -68,13 +65,15 @@ where
             path_index: index,
             min_profit,
             sim,
-            quoter
         }
     }
 
-    pub async fn search_paths(&mut self, paths_tx: Sender<Event>, mut address_rx: Receiver<Event>) {
+    pub fn search_paths(&mut self, paths_tx: Sender<Event>, mut address_rx: Receiver<Event>) {
+        // quoter for sims
+        let mut quoter = Quoter::new();
+
         // wait for a new single with the pools that have reserved updated
-        while let Some(Event::PoolsTouched(pools)) = address_rx.recv().await {
+        while let Ok(Event::PoolsTouched(pools)) = address_rx.recv() {
             info!("Searching for arbs...");
             let start = Instant::now();
 
@@ -114,8 +113,8 @@ where
                 let calculated_out = path.1;
 
                 if self.sim {
-                    let quote_path = arb_path.clone().into_iter().map(|step| step.into()).collect();
-                    match self.quoter.quote_path(quote_path, *AMOUNT) {
+                    let quote_path = arb_path.clone().into_iter().collect();
+                    match quoter.quote_path(quote_path, *AMOUNT) {
                         Ok(quoted_out) => {
                             if calculated_out != quoted_out && quoted_out != U256::ZERO {
                                 info!(

@@ -13,7 +13,7 @@ use revm::state::{AccountInfo, Bytecode};
 use std::collections::{BTreeMap, HashSet};
 use std::sync::Arc;
 use std::sync::RwLock;
-use tokio::sync::mpsc::{Receiver, Sender};
+use std::sync::mpsc::{Sender, Receiver};
 
 use crate::events::Event;
 use crate::gen::FlashQuoter;
@@ -77,7 +77,7 @@ where
         let http = Arc::new(ProviderBuilder::new().on_http(http_url));
 
         // stream in new blocks
-        while let Some(Event::NewBlock(block)) = block_rx.recv().await {
+        while let Ok(Event::NewBlock(block)) = block_rx.recv() {
             let block_number = block.header.number;
             if block_number <= last_synced_block {
                 continue;
@@ -97,7 +97,7 @@ where
             );
 
             // send the updated pools
-            if let Err(e) = address_tx.send(Event::PoolsTouched(updated_pools)).await {
+            if let Err(e) = address_tx.send(Event::PoolsTouched(updated_pools)) {
                 error!("Failed to send updated pools");
             }
 

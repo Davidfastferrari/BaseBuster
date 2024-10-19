@@ -31,7 +31,7 @@ where
 {
     // construct a new calculator
     // contains the market state to access pool info and a cache for calculations
-    pub async fn new(market_state: Arc<MarketState<T, N, P>>) -> Self {
+    pub fn new(market_state: Arc<MarketState<T, N, P>>) -> Self {
         Self {
             market_state,
             cache: Arc::new(Cache::new(500)),

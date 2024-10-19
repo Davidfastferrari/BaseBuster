@@ -42,7 +42,7 @@ async fn main() -> Result<()> {
     info!("Loading and syncing pools...");
     let pool_sync = PoolSync::builder()
         .add_pools(&[PoolType::UniswapV2])
-        .chain(Chain::Ethereum)
+        .chain(Chain::Base)
         .rate_limit(1000)
         .build()?;
     let (pools, last_synced_block) = pool_sync.sync_pools().await?;

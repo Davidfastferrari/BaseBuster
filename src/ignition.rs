@@ -6,7 +6,8 @@ use pool_sync::{Chain, Pool};
 use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::sync::broadcast;
-use tokio::sync::mpsc;
+use std::sync::mpsc;
+use std::thread;
 //use tokio::sync::mpsc;
 
 use crate::events::Event;
@@ -23,10 +24,10 @@ use crate::searcher::Searchoor;
 /// Start all of the workers
 pub async fn start_workers(pools: Vec<Pool>, last_synced_block: u64) {
     // all of the sender and receivers
-    let (block_tx, block_rx) = mpsc::channel::<Event>(100);
-    let (address_tx, address_rx) = mpsc::channel::<Event>(100);
-    let (paths_tx, paths_rx) = mpsc::channel::<Event>(1000);
-    let (profitable_tx, profitable_rx) = mpsc::channel::<Event>(100);
+    let (block_sender, block_receiver) = mpsc::channel::<Event>();
+    let (address_sender, address_receiver) = mpsc::channel::<Event>();
+    let (paths_sender, paths_receiver) = mpsc::channel::<Event>();
+    let (profitable_sender, profitable_receiver) = mpsc::channel::<Event>();
 
     // filter the pools here to smartly select the working set
     info!("Pool count before filter {}", pools.len());
@@ -39,8 +40,8 @@ pub async fn start_workers(pools: Vec<Pool>, last_synced_block: u64) {
     let provider = ProviderBuilder::new().on_http(http_url);
     let market_state = MarketState::init_state_and_start_stream(
         pools.clone(),
-        block_rx,
-        address_tx,
+        block_receiver,
+        address_sender,
         last_synced_block,
         provider,
     )
@@ -50,7 +51,7 @@ pub async fn start_workers(pools: Vec<Pool>, last_synced_block: u64) {
     // start our block reciever
     // Stream in new blocks
     info!("Starting block stream...");
-    tokio::spawn(stream_new_blocks(block_tx));
+    tokio::spawn(stream_new_blocks(block_sender));
 
     // generate the graph
     info!("Generating cycles...");
@@ -59,8 +60,8 @@ pub async fn start_workers(pools: Vec<Pool>, last_synced_block: u64) {
 
     // finally.... start the searcher!!!!!
     info!("Starting arbitrage searcher...");
-    let mut searcher = Searchoor::new(cycles, market_state.clone()).await;
-    tokio::spawn(async move { searcher.search_paths(paths_tx, address_rx).await });
+    let mut searcher = Searchoor::new(cycles, market_state.clone());
+    thread::spawn(move || { searcher.search_paths(paths_sender, address_receiver)});
     // start the simulator
     // start the sender
     // start the searcher
