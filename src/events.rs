@@ -5,10 +5,11 @@ use alloy::rpc::types::Block;
 use std::collections::HashSet;
 
 use crate::swap::SwapStep;
+use crate::swap::SwapPath;
 
 #[derive(Debug, Clone)]
 pub enum Event {
-    ArbPath((Vec<SwapStep>, U256)),
+    ArbPath((SwapPath, U256)),
     PoolsTouched(HashSet<Address>),
     NewBlock(Block),
     ReserveUpdate((Vec<Address>, u64)),

@@ -1,12 +1,13 @@
 use alloy::network::Network;
 use alloy::primitives::{address, Address, U256};
-use alloy::providers::{Provider, ProviderBuilder};
+use alloy::providers::{Provider, ProviderBuilder, RootProvider};
 use alloy::rpc::types::trace::geth::AccountState;
 use alloy::rpc::types::BlockNumberOrTag;
 use alloy::sol_types::SolValue;
 use alloy::transports::Transport;
+use alloy::transports::http::{Http, Client};
 use anyhow::Result;
-use log::{error, info};
+use log::{debug, error, info};
 use pool_sync::Pool;
 use revm::primitives::{keccak256, Bytes};
 use revm::state::{AccountInfo, Bytecode};
@@ -45,6 +46,7 @@ where
         provider: P,
     ) -> Result<Arc<Self>> {
         // populate our state
+        debug!("Populating the db with {} pools", pools.len());
         let mut db = BlockStateDB::new(provider).unwrap();
         MarketState::populate_db_with_pools(pools, &mut db);
         MarketState::populate_db_with_accounts(&mut db);
@@ -76,25 +78,30 @@ where
         let http_url = std::env::var("FULL").unwrap().parse().unwrap();
         let http = Arc::new(ProviderBuilder::new().on_http(http_url));
 
+        // fast block times mean we can fall behind while initializing
+        // catch up to the head to we are not missing any state
+        let mut current_block = http.get_block_number().await.unwrap();
+
+        while last_synced_block < current_block {
+            debug!("Catching up. Last synced block {}, Current block {}", last_synced_block, current_block);
+            for block_num in last_synced_block..=current_block {
+                debug!("Processing block {block_num}");
+                let _ = self.update_state(http.clone(), block_num).await;
+            }
+            last_synced_block = current_block;
+            current_block = http.get_block_number().await.unwrap();
+        }
+
         // stream in new blocks
         while let Ok(Event::NewBlock(block)) = block_rx.recv() {
             let block_number = block.header.number;
             if block_number <= last_synced_block {
                 continue;
             }
+            debug!("Processing block {block_number}");
 
-            // trace the block to get all post state changes
-            // todo!() this has to make up for lost blocks
-            let updates =
-                debug_trace_block(http.clone(), BlockNumberOrTag::Number(block_number), true).await;
-
-            // update the db based on teh traces
-            let updated_pools = self.process_block_trace(updates);
-            info!(
-                "Got {} updates in block {}",
-                updated_pools.len(),
-                block_number
-            );
+            // update the state and get the list of updated pools
+            let updated_pools = self.update_state(http.clone(), block_number).await;
 
             // send the updated pools
             if let Err(e) = address_tx.send(Event::PoolsTouched(updated_pools)) {
@@ -103,6 +110,22 @@ where
 
             last_synced_block = block_number;
         }
+    }
+
+    // after getting a new block, update our market state 
+    async fn update_state(&self, provider: Arc<RootProvider<Http<Client>>>, block_num: u64) -> HashSet<Address> {
+        // trace the block to get all post state changes
+        let updates =
+            debug_trace_block(provider, BlockNumberOrTag::Number(block_num), true).await;
+
+        // update the db based on teh traces
+        let updated_pools = self.process_block_trace(updates);
+        info!(
+            "Got {} updates in block {}",
+            updated_pools.len(),
+            block_num
+        );
+        updated_pools
     }
 
     // process the block trace and update all pools that were affected
@@ -130,8 +153,8 @@ where
     // Insert pool information into the database
     fn populate_db_with_pools(pools: Vec<Pool>, db: &mut BlockStateDB<T, N, P>) {
         for pool in pools {
-            if let Pool::UniswapV2(v2_pool) = pool {
-                db.insert_v2(v2_pool).unwrap();
+            if pool.is_v2() {
+                db.insert_v2(pool.get_v2().unwrap().clone()).unwrap();
             }
         }
     }

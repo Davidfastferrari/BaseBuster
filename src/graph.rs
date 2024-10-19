@@ -6,6 +6,10 @@ use pool_sync::{BalancerV2Pool, CurveTriCryptoPool, Pool, PoolInfo};
 use std::collections::HashSet;
 use std::hash::Hash;
 use std::hash::{DefaultHasher, Hasher};
+use std::fs::{create_dir_all, File};
+use std::io::{BufReader, BufWriter};
+use std::path::Path;
+use std::str::FromStr;
 
 pub struct ArbGraph;
 impl ArbGraph {
@@ -20,7 +24,7 @@ impl ArbGraph {
             .node_indices()
             .find(|node| graph[*node] == token)
             .unwrap();
-        let cycles = ArbGraph::find_all_arbitrage_paths(&graph, start_node, 3);
+        let cycles = ArbGraph::find_all_arbitrage_paths(&graph, start_node, 4);
 
         // form our swappaths
         let swappaths: Vec<SwapPath> = cycles
@@ -35,6 +39,9 @@ impl ArbGraph {
                 }
             })
             .collect();
+
+        // if this is executing, then we know we do not have a cached cycle file
+        // so we want to write the cycles out
 
         swappaths
     }

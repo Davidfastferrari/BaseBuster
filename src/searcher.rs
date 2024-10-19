@@ -5,16 +5,15 @@ use alloy::transports::Transport;
 use log::{debug, info, warn};
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
+use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 use std::time::Instant;
-use std::sync::mpsc::{Receiver, Sender};
 
 use crate::calculation::Calculator;
 use crate::events::Event;
 use crate::gen::FlashQuoter;
 use crate::market_state::MarketState;
 use crate::swap::{SwapPath, SwapStep};
-use crate::quoter::Quoter;
 use crate::AMOUNT;
 
 // top level sercher struct
@@ -29,7 +28,6 @@ where
     path_index: HashMap<Address, Vec<usize>>,
     cycles: Vec<SwapPath>,
     min_profit: U256,
-    sim: bool,
 }
 
 impl<T, N, P> Searchoor<T, N, P>
@@ -56,21 +54,17 @@ where
         let initial_amount: U256 = *AMOUNT;
         let repayment_amount = initial_amount + (initial_amount * flash_loan_fee);
         let min_profit = repayment_amount + (initial_amount * min_profit_percentage);
-        let sim = std::env::var("SIM").unwrap().parse().unwrap();
-
 
         Self {
             calculator,
             cycles,
             path_index: index,
             min_profit,
-            sim,
         }
     }
 
     pub fn search_paths(&mut self, paths_tx: Sender<Event>, mut address_rx: Receiver<Event>) {
-        // quoter for sims
-        let mut quoter = Quoter::new();
+        let sim: bool = std::env::var("SIM").unwrap().parse().unwrap();
 
         // wait for a new single with the pools that have reserved updated
         while let Ok(Event::PoolsTouched(pools)) = address_rx.recv() {
@@ -90,53 +84,35 @@ where
             info!("{} touched paths", affected_paths.len());
 
             // get the output amount and check for profitability
-            let profitable_paths: Vec<(Vec<FlashQuoter::SwapStep>, U256)> = affected_paths
+            let profitable_paths: Vec<(SwapPath, U256)> = affected_paths
                 .par_iter()
                 .filter_map(|path| {
                     let output_amount = self.calculator.calculate_output(&path);
 
-                    if output_amount >= self.min_profit {
-                        Some((path.clone().clone().into(), output_amount))
+                    if sim {
+                        // if this is a sim, we are concerened about correct amounts out
+                        Some((path.clone().clone(), output_amount))
                     } else {
-                        None
+                        // this is not a sim, make sure it is a profitable path
+                        if output_amount >= self.min_profit {
+                            Some((path.clone().clone(), output_amount))
+                        } else {
+                            None
+                        }
                     }
+
+
+
                 })
                 .collect();
 
             info!("{:?} elapsed", start.elapsed());
             info!("{} profitable paths", profitable_paths.len());
 
-            // if this is a simulation, confirm the output amount is correct
-            // otherwise, send to the onchain simulator (same thing.. ish)
             for path in profitable_paths {
-                let arb_path = path.0;
-                let calculated_out = path.1;
-
-                if self.sim {
-                    let quote_path = arb_path.clone().into_iter().collect();
-                    match quoter.quote_path(quote_path, *AMOUNT) {
-                        Ok(quoted_out) => {
-                            if calculated_out != quoted_out && quoted_out != U256::ZERO {
-                                info!(
-                                    "Calculated {}, Quoted {}, Path {:#?}",
-                                    calculated_out, quoted_out, arb_path
-                                );
-                            } else if quoted_out != U256::ZERO {
-                                info!(
-                                    "Success... Calculated {}, Quoted {}",
-                                    calculated_out, quoted_out
-                                );
-                            }
-                        }
-                        Err(_) => todo!()
-                    }
-                } else {
-                    /* *
-                    match paths_tx.send(Event::ArbPath((path.0, path.1))).await{
-                        Ok(_) => debug!("Sent path"),
-                        Err(_) => warn!("Failed to send path")
-                    }
-                    */
+                match paths_tx.send(Event::ArbPath((path.0, path.1))) {
+                    Ok(_) => debug!("Sent path"),
+                    Err(_) => warn!("Failed to send path")
                 }
             }
         }

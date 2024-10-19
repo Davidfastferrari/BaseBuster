@@ -130,9 +130,9 @@ contract FlashQuoter {
 
     // Router addresses group by interface/swap method
     // V2 VARIATIONS
-    // BASE address constant UNISWAP_V2_ROUTER = 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24; 
-    address constant UNISWAP_V2_ROUTER = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D; // ETH
-    address constant SUSHISWAP_V2_ROUTER = 0x6BDED42c6DA8FBf0d2bA55B2fa120C5e0c8D7891; 
+    address constant UNISWAP_V2_ROUTER = 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24; 
+    address constant SUSHISWAP_V2_ROUTER = 0x6BDED42c6DA8FBf0d2bA55B2fa120C5e0c8D7891;
+
     address constant PANCAKESWAP_V2_ROUTER = 0x8cFe327CEc66d1C090Dd72bd0FF11d690C33a2Eb; 
     address constant BASESWAP_V2_ROUTER = 0x327Df1E6de05895d2ab08513aaDD9313Fe505d86; 
     address constant SWAPBASED_V2_ROUTER = 0xaaa3b1F1bd7BCc97fD1917c18ADE665C5D31F066;
@@ -165,8 +165,7 @@ contract FlashQuoter {
     // TOADD
     // Mavirkc v1, v2, curve two and tri
 
-    // BASE IWETH public constant WETH = IWETH(0x4200000000000000000000000000000000000006);
-    IWETH public constant WETH = IWETH(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+    IWETH public constant WETH = IWETH(0x4200000000000000000000000000000000000006);
 
     function quoteArbitrage(SwapStep[] calldata steps, uint256 amount) external returns (uint256) {
         require(steps.length > 0, "Invalid path");

@@ -8,17 +8,14 @@ use alloy::transports::http::Client as AlloyClient;
 use alloy::transports::http::Http;
 use anyhow::Result;
 use lazy_static::lazy_static;
-use anyhow::anyhow;
-use pool_sync::PoolType;
-use pool_sync::{Chain, Pool, PoolInfo};
+use log::debug;
+use pool_sync::{Chain, Pool, PoolInfo, PoolType};
 use reqwest::header::{HeaderMap, HeaderValue};
 use revm::database_interface::WrapDatabaseAsync;
 use revm::primitives::keccak256;
 use revm::wiring::default::TransactTo;
 use revm::wiring::result::ExecutionResult;
 use revm::wiring::EthereumWiring;
-use revm::primitives::TxKind;
-use revm::wiring::result::Output;
 use revm::Evm;
 use revm_database::{AlloyDB, CacheDB};
 use serde::{Deserialize, Serialize};
@@ -89,6 +86,8 @@ sol!(
 
 // Given a set of pools, filter them down to a proper working set
 pub async fn filter_pools(pools: Vec<Pool>, num_results: usize, chain: Chain) -> Vec<Pool> {
+    debug!("Initial pool count before filter: {}", pools.len());
+
     // get all of the top volume tokens from birdeye, we imply volume = volatility
     let top_volume_tokens = get_top_volume_tokens(chain, num_results)
         .await
@@ -105,9 +104,13 @@ pub async fn filter_pools(pools: Vec<Pool>, num_results: usize, chain: Chain) ->
         })
         .collect();
 
+    debug!("Pool count after token match filter: {}", pools.len());
+
     // simulate swap on every pool that we have, this will filter out pools that have a pair we
     // want but dont have any liq to swap with
-    filter_by_swap(pools).await
+    let pools = filter_by_swap(pools).await;
+    debug!("Pool count after swap filter: {}", pools.len());
+    pools
 }
 
 // ---------------------------------------------------
@@ -208,7 +211,7 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
     // pools that pass through swap filter
     let mut filtered_pools: Vec<Pool> = vec![];
 
-    // state 
+    // state
     let account = address!("0000000000000000000000000000000000000001");
     let balance_slot = keccak256((account, U256::from(3)).abi_encode());
     let ten_units = U256::from(10_000_000_000_000_000_000u128);
@@ -236,13 +239,15 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
         };
 
         // give ourselves some of the input token, just assume 18 decimal points
-        cache_db.insert_account_storage(pool.token0_address(), balance_slot.into(), ten_units).unwrap();
+        cache_db
+            .insert_account_storage(pool.token0_address(), balance_slot.into(), ten_units)
+            .unwrap();
 
         // construct a new evm instance
         let mut evm = Evm::<EthereumWiring<&mut AlloyCacheDB, ()>>::builder()
             .with_db(&mut cache_db)
             .with_default_ext_ctx()
-            .modify_cfg_env(|env|{
+            .modify_cfg_env(|env| {
                 env.disable_nonce_check = true;
             })
             .modify_tx_env(|tx| {
@@ -251,16 +256,15 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
             })
             .build();
 
-
         // setup approval call and transact
         let approve_calldata = Approval::approveCall {
             spender: address,
-            amount: ten_units
-        }.abi_encode();
+            amount: ten_units,
+        }
+        .abi_encode();
         evm.tx_mut().transact_to = TransactTo::Call(pool.token0_address());
         evm.tx_mut().data = approve_calldata.into();
         evm.transact_commit().unwrap();
-
 
         // we now have some of the input token and we have approved the router to spend it
         // try a swap to see if if it is valid
@@ -282,10 +286,12 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
         let result = ref_tx.result;
         //println!("{:#?}", ref_tx);
         if let ExecutionResult::Success { .. } = result {
+            debug!("Successful swap for pool {}", pool.address());
             filtered_pools.push(pool.clone());
+        } else {
+            debug!("Unsuccessful swap for pool {}", pool.address());
         }
     }
 
     filtered_pools
 }
-

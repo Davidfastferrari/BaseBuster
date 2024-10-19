@@ -11,7 +11,7 @@ use crate::market_state::MarketState;
 use crate::searcher::Searchoor;
 use crate::stream::stream_new_blocks;
 //use crate::market::Market;
-//use crate::simulator::simulate_paths;
+use crate::simulator::simulate_paths;
 //use crate::swap::SwapStep;
 //use crate::tx_sender::TransactionSender;
 
@@ -42,7 +42,6 @@ pub async fn start_workers(pools: Vec<Pool>, last_synced_block: u64) {
     .await
     .unwrap(); // add something to reeiver blocks, this the state will be updated here
 
-
     // generate the graph
     info!("Generating cycles...");
     let cycles = ArbGraph::generate_cycles(pools.clone()).await;
@@ -52,10 +51,13 @@ pub async fn start_workers(pools: Vec<Pool>, last_synced_block: u64) {
     info!("Starting block stream...");
     tokio::spawn(stream_new_blocks(block_sender));
 
-    /*
+    // start the simulator
+    info!("Starting the simulator...");
+    tokio::spawn(simulate_paths(profitable_sender, paths_receiver));
+
     // start the searcher
     info!("Starting arbitrage searcher...");
     let mut searcher = Searchoor::new(cycles, market_state.clone());
-    thread::spawn(move || { searcher.search_paths(paths_sender, address_receiver)});
-    */
+    thread::spawn(move || searcher.search_paths(paths_sender, address_receiver));
+
 }

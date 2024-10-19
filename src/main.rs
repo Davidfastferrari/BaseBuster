@@ -35,7 +35,7 @@ async fn main() -> Result<()> {
     // init dots and logger
     dotenv::dotenv().ok();
     env_logger::Builder::new()
-        .filter_level(LevelFilter::Info) // or Info, Warn, etc.
+        .filter_module("BaseBuster", LevelFilter::Debug)
         .init();
 
     // Load in all the pools

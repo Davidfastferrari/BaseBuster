@@ -1,24 +1,23 @@
-use alloy::primitives::{Address, U256, B256, BlockNumber};
-use revm::state::{Account, AccountInfo, Bytecode};
+use alloy::primitives::{Address, BlockNumber, B256, U256};
 use revm::primitives::{Log, KECCAK_EMPTY};
+use revm::state::{Account, AccountInfo, Bytecode};
 use revm_database::AccountState;
 
+use alloy::network::{BlockResponse, HeaderResponse, Network};
 use alloy::primitives::address;
-use revm::{Database, DatabaseCommit, DatabaseRef};
-use std::collections::HashMap;
-use std::collections::HashSet;
-use std::collections::hash_map::Entry;
-use std::future::IntoFuture;
-use pool_sync::PoolType;
+use alloy::providers::{Provider, ProviderBuilder};
 use alloy::rpc::types::trace::geth::AccountState as GethAccountState;
 use alloy::rpc::types::BlockId;
-use alloy::providers::{Provider, ProviderBuilder};
 use alloy::transports::{Transport, TransportError};
-use alloy::network::{BlockResponse, HeaderResponse, Network};
 use anyhow::Result;
-use log::{debug, info, warn, error};
+use log::{debug, error, info, warn};
+use pool_sync::PoolType;
+use revm::{Database, DatabaseCommit, DatabaseRef};
+use std::collections::hash_map::Entry;
+use std::collections::HashMap;
+use std::collections::HashSet;
+use std::future::IntoFuture;
 use tokio::runtime::{Handle, Runtime};
-
 
 #[derive(Debug)]
 pub enum HandleOrRuntime {
@@ -50,7 +49,7 @@ pub struct PoolInformation {
 #[derive(Debug)]
 pub struct BlockStateDB<T: Transport + Clone, N: Network, P: Provider<T, N>> {
     pub accounts: HashMap<Address, BlockStateDBAccount>,
-    pub contracts: HashMap<B256, Bytecode>, 
+    pub contracts: HashMap<B256, Bytecode>,
     pub logs: Vec<Log>,
     pub block_hashes: HashMap<BlockNumber, B256>,
     pub pools: HashSet<Address>,
@@ -63,7 +62,7 @@ pub struct BlockStateDB<T: Transport + Clone, N: Network, P: Provider<T, N>> {
 impl<T: Transport + Clone, N: Network, P: Provider<T, N>> BlockStateDB<T, N, P> {
     // Construct a new BlockStateDB
     pub fn new(provider: P) -> Option<Self> {
-        debug!("Initializing new BlockStateDB");
+        debug!("Creating new BlockStateDB");
         let mut contracts = HashMap::new();
         contracts.insert(KECCAK_EMPTY, Bytecode::default());
         contracts.insert(B256::ZERO, Bytecode::default());
@@ -76,7 +75,6 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> BlockStateDB<T, N, P> 
             Err(_) => return None,
         };
 
-
         Some(Self {
             accounts: HashMap::new(),
             contracts,
@@ -86,14 +84,27 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> BlockStateDB<T, N, P> 
             pool_info: HashMap::new(),
             provider,
             runtime: rt,
-            _marker: std::marker::PhantomData
+            _marker: std::marker::PhantomData,
         })
     }
 
     // Track pool information for easy access
-    pub fn add_pool(&mut self, pool: Address, token0: Address, token1: Address, pool_type: PoolType) {
+    pub fn add_pool(
+        &mut self,
+        pool: Address,
+        token0: Address,
+        token1: Address,
+        pool_type: PoolType,
+    ) {
         self.pools.insert(pool);
-        self.pool_info.insert(pool, PoolInformation { token0, token1, pool_type });
+        self.pool_info.insert(
+            pool,
+            PoolInformation {
+                token0,
+                token1,
+                pool_type,
+            },
+        );
     }
 
     // Insert a contract into the DB
@@ -139,17 +150,23 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> BlockStateDB<T, N, P> 
                 Ok(entry.into_mut())
             }
             Entry::Vacant(entry) => {
-                debug!("Account not found for address: {:?}, inserting new account", address);
-                Ok(entry.insert(
-                    BlockStateDBAccount::new_not_existing()
-                ))
+                debug!(
+                    "Account not found for address: {:?}, inserting new account",
+                    address
+                );
+                Ok(entry.insert(BlockStateDBAccount::new_not_existing()))
             }
         }
     }
 
     /// Insert account storage without overriding account info
     #[inline]
-    pub fn insert_account_storage(&mut self, address: Address, slot: U256, value: U256) -> Result<()> {
+    pub fn insert_account_storage(
+        &mut self,
+        address: Address,
+        slot: U256,
+        value: U256,
+    ) -> Result<()> {
         debug!(
             "Inserting storage for address: {:?}, slot: {:?}, value: {:?}",
             address, slot, value
@@ -159,10 +176,13 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> BlockStateDB<T, N, P> 
         Ok(())
     }
 
-
     // Update all account storage slots for an account
     #[inline]
-    pub fn update_all_slots(&mut self, address: Address, account_state: GethAccountState) -> Result<()> {
+    pub fn update_all_slots(
+        &mut self,
+        address: Address,
+        account_state: GethAccountState,
+    ) -> Result<()> {
         debug!(
             "Updating all storage slots for address: {:?}, account_state: {:?}",
             address, account_state
@@ -175,11 +195,9 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> BlockStateDB<T, N, P> 
     }
 }
 
-
 // Implement required Database trait
 impl<T: Transport + Clone, N: Network, P: Provider<T, N>> Database for BlockStateDB<T, N, P> {
     type Error = TransportError;
-
 
     fn basic(&mut self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
         debug!("Fetching basic account info for address: {:?}", address);
@@ -190,13 +208,22 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> Database for BlockStat
         }
 
         // Fetch the account data if we don't have the account and insert it into database
-        debug!("Account not found in cache, fetching from provider for address: {:?}", address);
+        debug!(
+            "Account not found in cache, fetching from provider for address: {:?}",
+            address
+        );
         let account_info = <Self as DatabaseRef>::basic_ref(self, address)?;
         let account = match account_info {
             Some(info) => {
-                debug!("Fetched account info from provider for address: {:?}", address);
-                BlockStateDBAccount {info, ..Default::default()}
-            },
+                debug!(
+                    "Fetched account info from provider for address: {:?}",
+                    address
+                );
+                BlockStateDBAccount {
+                    info,
+                    ..Default::default()
+                }
+            }
             None => {
                 debug!("No account info found for address: {:?}", address);
                 BlockStateDBAccount::new_not_existing()
@@ -212,8 +239,11 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> Database for BlockStat
             debug!("Code found in cache for hash: {:?}", code_hash);
             return Ok(code.clone());
         }
-        
-        debug!("Code not found in cache, fetching from provider for hash: {:?}", code_hash);
+
+        debug!(
+            "Code not found in cache, fetching from provider for hash: {:?}",
+            code_hash
+        );
         let bytecode = <Self as DatabaseRef>::code_by_hash_ref(self, code_hash)?;
         self.contracts.insert(code_hash, bytecode.clone());
         Ok(bytecode)
@@ -222,7 +252,10 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> Database for BlockStat
     // Update all account storage slots for an account
     #[inline]
     fn storage(&mut self, address: Address, index: U256) -> Result<U256, Self::Error> {
-        debug!("Accessing storage for address: {:?}, index: {:?}", address, index);
+        debug!(
+            "Accessing storage for address: {:?}, index: {:?}",
+            address, index
+        );
         // Check if the account exists
         if let Some(account) = self.accounts.get_mut(&address) {
             // Check if the storage slot exists
@@ -253,7 +286,8 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> Database for BlockStat
         let slot_value = <Self as DatabaseRef>::storage_ref(self, address, index)?;
         let new_account = BlockStateDBAccount::new_not_existing();
         self.accounts.insert(address, new_account);
-        self.insert_account_storage(address, index, slot_value).unwrap();
+        self.insert_account_storage(address, index, slot_value)
+            .unwrap();
 
         // Handle the case where the account might have been removed in between
         debug!(
@@ -270,29 +304,32 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> Database for BlockStat
             return Ok(*hash);
         }
 
-        debug!("Block hash not found in cache, fetching from provider for block number: {:?}", number);
+        debug!(
+            "Block hash not found in cache, fetching from provider for block number: {:?}",
+            number
+        );
         let hash = <Self as DatabaseRef>::block_hash_ref(self, number)?;
         self.block_hashes.insert(number, hash);
         Ok(hash)
     }
 }
 
-
-
-
 // Implement required DatabaseRef trait
 impl<T: Transport + Clone, N: Network, P: Provider<T, N>> DatabaseRef for BlockStateDB<T, N, P> {
     type Error = TransportError;
-    
+
     fn basic_ref(&self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
         debug!("Fetching basic_ref for address: {:?}", address);
         match self.accounts.get(&address) {
             Some(acc) => {
                 debug!("Account info found in cache for address: {:?}", address);
                 Ok(acc.info())
-            },
+            }
             None => {
-                debug!("Account info not found in cache, fetching from provider for address: {:?}", address);
+                debug!(
+                    "Account info not found in cache, fetching from provider for address: {:?}",
+                    address
+                );
                 let f = async {
                     let nonce = self
                         .provider
@@ -306,11 +343,7 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> DatabaseRef for BlockS
                         .provider
                         .get_code_at(address)
                         .block_id(BlockId::latest());
-                    tokio::join!(
-                        nonce,
-                        balance,
-                        code
-                    )
+                    tokio::join!(nonce, balance, code)
                 };
                 let (nonce, balance, code) = self.runtime.block_on(f);
                 match (nonce, balance, code) {
@@ -323,11 +356,14 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> DatabaseRef for BlockS
                         let code = Bytecode::new_raw(code_val.0.into());
                         let code_hash = code.hash_slow();
                         let nonce = nonce_val;
-                
+
                         Ok(Some(AccountInfo::new(balance, nonce, code_hash, code)))
-                    },
+                    }
                     _ => {
-                        warn!("Failed to fetch account info from provider for address: {:?}", address);
+                        warn!(
+                            "Failed to fetch account info from provider for address: {:?}",
+                            address
+                        );
                         Ok(None)
                     }
                 }
@@ -341,16 +377,22 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> DatabaseRef for BlockS
             Some(entry) => {
                 debug!("Code found in cache for hash: {:?}", code_hash);
                 Ok(entry.clone())
-            },
+            }
             None => {
-                error!("Code with hash {:?} not found in cache and cannot be fetched", code_hash);
+                error!(
+                    "Code with hash {:?} not found in cache and cannot be fetched",
+                    code_hash
+                );
                 panic!("The code should already be loaded");
             }
         }
     }
 
-    fn storage_ref(&self,address:Address,index:U256) -> Result<U256,Self::Error> {
-        debug!("Fetching storage_ref for address: {:?}, index: {:?}", address, index);
+    fn storage_ref(&self, address: Address, index: U256) -> Result<U256, Self::Error> {
+        debug!(
+            "Fetching storage_ref for address: {:?}, index: {:?}",
+            address, index
+        );
         match self.accounts.get(&address) {
             Some(acc_entry) => match acc_entry.storage.get(&index) {
                 Some(entry) => {
@@ -359,7 +401,7 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> DatabaseRef for BlockS
                         address, index
                     );
                     Ok(*entry)
-                },
+                }
                 None => {
                     debug!(
                         "Storage slot not found in cache, fetching from provider for address: {:?}, index: {:?}",
@@ -390,7 +432,7 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> DatabaseRef for BlockS
         }
     }
 
-    fn block_hash_ref(&self,number: BlockNumber) -> Result<B256,Self::Error> {
+    fn block_hash_ref(&self, number: BlockNumber) -> Result<B256, Self::Error> {
         debug!("Fetching block_hash_ref for block number: {:?}", number);
         match self.block_hashes.get(&number) {
             Some(entry) => {
@@ -399,16 +441,15 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> DatabaseRef for BlockS
                     number, entry
                 );
                 Ok(*entry)
-            },
+            }
             None => {
                 debug!(
                     "Block hash not found in cache, fetching from provider for block number: {:?}",
                     number
                 );
-                let block = self.runtime.block_on(
-                    self.provider
-                        .get_block_by_number(number.into(), false),
-                )?;
+                let block = self
+                    .runtime
+                    .block_on(self.provider.get_block_by_number(number.into(), false))?;
                 match block {
                     Some(block_data) => {
                         let hash = B256::new(*block_data.header().hash());
@@ -417,7 +458,7 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> DatabaseRef for BlockS
                             number, hash
                         );
                         Ok(hash)
-                    },
+                    }
                     None => {
                         warn!("No block found for block number: {:?}", number);
                         Ok(B256::ZERO)
@@ -427,7 +468,6 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> DatabaseRef for BlockS
         }
     }
 }
-
 
 impl<T: Transport + Clone, N: Network, P: Provider<T, N>> DatabaseCommit for BlockStateDB<T, N, P> {
     fn commit(&mut self, changes: HashMap<Address, Account>) {
@@ -467,13 +507,11 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> DatabaseCommit for Blo
     }
 }
 
-
-
 #[derive(Default, Debug, Clone)]
 pub struct BlockStateDBAccount {
     pub info: AccountInfo,
     pub state: AccountState,
-    pub storage: HashMap<U256, U256>
+    pub storage: HashMap<U256, U256>,
 }
 
 impl BlockStateDBAccount {
@@ -502,7 +540,7 @@ impl From<Option<AccountInfo>> for BlockStateDBAccount {
             Some(info) => {
                 debug!("Converting Some(AccountInfo) into BlockStateDBAccount");
                 Self::from(info)
-            },
+            }
             None => {
                 debug!("Converting None into BlockStateDBAccount::new_not_existing");
                 Self::new_not_existing()
@@ -522,42 +560,5 @@ impl From<AccountInfo> for BlockStateDBAccount {
     }
 }
 
-
-
 #[cfg(test)]
-mod BlockStateDB_TESTS {
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+mod BlockStateDB_TESTS {}

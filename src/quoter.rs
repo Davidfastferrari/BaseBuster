@@ -30,7 +30,7 @@ pub struct Quoter {
 
 impl Quoter {
     // Setup quoter with account information and proper approvals
-    pub fn new() -> Self{
+    pub async fn new() -> Self{
         // approval call for contract 
         sol!(
             #[derive(Debug)]
@@ -41,7 +41,7 @@ impl Quoter {
         );
 
         let account = address!("18B06aaF27d44B756FCF16Ca20C1f183EB49111f");
-        let weth = address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2");
+        let weth = std::env::var("WETH").unwrap().parse().unwrap();
         let quoter: Address = address!("0000000000000000000000000000000000001000");
 
         // setup the provider
@@ -69,24 +69,24 @@ impl Quoter {
         };
         cache_db.insert_account_info(quoter, quoter_acc_info);
 
-        // setup evm instance with approve call
-        let approve_calldata = Approval::approveCall {
-            spender: quoter,
-            amount: U256::from(1e18),
-        }
-        .abi_encode();
 
         let mut evm = Evm::<EthereumWiring<AlloyCacheDB, ()>>::builder()
             .with_db(cache_db)
             .with_default_ext_ctx()
             .modify_tx_env(|tx| {
-                tx.caller = address!("0000000000000000000000000000000000000001");
-                tx.value = U256::ZERO;
-                tx.data = approve_calldata.into();
+                tx.caller = account;
             })
             .build();
+        evm.cfg_mut().disable_nonce_check = true;
 
-        // persist the approve call
+        // approve quoter to spend the eth
+        let approve_calldata = Approval::approveCall {
+            spender: quoter,
+            amount: U256::from(1e18),
+        }
+        .abi_encode();
+        evm.tx_mut().data = approve_calldata.into();
+        evm.tx_mut().transact_to = TransactTo::Call(weth);
         evm.transact_commit().unwrap();
 
         // setup call address for quotes
@@ -111,13 +111,15 @@ impl Quoter {
 
         match result {
             ExecutionResult::Success { output: value, .. } => {
-                if let Ok(amount) = U256::abi_decode(&value.data(), false) {
+                if let Ok(amount) = U256::abi_decode(value.data(), false) {
                     Ok(amount)
                 } else {
                     Err(anyhow!("Failed to decode"))
                 }
             }
+            ExecutionResult::Revert { output, .. } => Err(anyhow!("Simulation reverted {output}")),
             _ => Err(anyhow!("Failed to simulate"))
+
         }
     }
 }
