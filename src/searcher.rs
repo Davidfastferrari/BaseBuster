@@ -14,6 +14,7 @@ use crate::events::Event;
 use crate::gen::FlashQuoter;
 use crate::market_state::MarketState;
 use crate::swap::{SwapPath, SwapStep};
+use crate::quoter::Quoter;
 use crate::AMOUNT;
 
 // top level sercher struct
@@ -29,6 +30,7 @@ where
     cycles: Vec<SwapPath>,
     min_profit: U256,
     sim: bool,
+    quoter: Quoter,
 }
 
 impl<T, N, P> Searchoor<T, N, P>
@@ -57,12 +59,16 @@ where
         let min_profit = repayment_amount + (initial_amount * min_profit_percentage);
         let sim = std::env::var("SIM").unwrap().parse().unwrap();
 
+        // quoter for sims
+        let quoter = Quoter::new();
+
         Self {
             calculator,
             cycles,
             path_index: index,
             min_profit,
             sim,
+            quoter
         }
     }
 
@@ -107,24 +113,23 @@ where
                 let arb_path = path.0;
                 let calculated_out = path.1;
 
-                /* 
                 if self.sim {
-                    let simulated_out = onchain_out(arb_path.clone(), U256::from(1e16)).await;
-                    let revm_out = revm_out(
-                        arb_path.clone(),
-                        U256::from(1e16),
-                        &self.calculator.market_state.clone().db,
-                    );
-                    if calculated_out != simulated_out && simulated_out != U256::ZERO {
-                        info!(
-                            "Calculated {}, Simulated {}, Revm {}, Path {:#?}",
-                            calculated_out, simulated_out, revm_out, arb_path
-                        );
-                    } else if simulated_out != U256::ZERO {
-                        info!(
-                            "Success... Calculated {}, Simulated {}, Revm {}",
-                            calculated_out, simulated_out, revm_out
-                        );
+                    let quote_path = arb_path.clone().into_iter().map(|step| step.into()).collect();
+                    match self.quoter.quote_path(quote_path, *AMOUNT) {
+                        Ok(quoted_out) => {
+                            if calculated_out != quoted_out && quoted_out != U256::ZERO {
+                                info!(
+                                    "Calculated {}, Quoted {}, Path {:#?}",
+                                    calculated_out, quoted_out, arb_path
+                                );
+                            } else if quoted_out != U256::ZERO {
+                                info!(
+                                    "Success... Calculated {}, Quoted {}",
+                                    calculated_out, quoted_out
+                                );
+                            }
+                        }
+                        Err(_) => todo!()
                     }
                 } else {
                     /* *
@@ -134,7 +139,6 @@ where
                     }
                     */
                 }
-                */
             }
         }
     }
