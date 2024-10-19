@@ -11,9 +11,9 @@ use pool_sync::Pool;
 use revm::primitives::{keccak256, Bytes};
 use revm::state::{AccountInfo, Bytecode};
 use std::collections::{BTreeMap, HashSet};
+use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 use std::sync::RwLock;
-use std::sync::mpsc::{Sender, Receiver};
 
 use crate::events::Event;
 use crate::gen::FlashQuoter;
@@ -68,11 +68,11 @@ where
     // task to retrieve new blockchain state and update our db
     async fn state_updater(
         self: Arc<Self>,
-        mut block_rx: Receiver<Event>,
+        block_rx: Receiver<Event>,
         address_tx: Sender<Event>,
         mut last_synced_block: u64,
     ) {
-        // http provider
+        // setup a provider for tracing
         let http_url = std::env::var("FULL").unwrap().parse().unwrap();
         let http = Arc::new(ProviderBuilder::new().on_http(http_url));
 
@@ -98,7 +98,7 @@ where
 
             // send the updated pools
             if let Err(e) = address_tx.send(Event::PoolsTouched(updated_pools)) {
-                error!("Failed to send updated pools");
+                error!("Failed to send updated pools: {}", e);
             }
 
             last_synced_block = block_number;

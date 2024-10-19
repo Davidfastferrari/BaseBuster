@@ -1,30 +1,35 @@
 use alloy::eips::BlockId;
+use alloy::network::Ethereum;
 use alloy::primitives::{address, Address, U256};
 use alloy::providers::{ProviderBuilder, RootProvider};
 use alloy::sol;
-use alloy::sol_types::SolCall;
+use alloy::sol_types::{SolCall, SolValue};
+use alloy::transports::http::Client as AlloyClient;
+use alloy::transports::http::Http;
 use anyhow::Result;
 use lazy_static::lazy_static;
+use anyhow::anyhow;
 use pool_sync::PoolType;
 use pool_sync::{Chain, Pool, PoolInfo};
 use reqwest::header::{HeaderMap, HeaderValue};
-use revm::wiring::default::TransactTo;
-use revm_database::{AlloyDB, CacheDB};
 use revm::database_interface::WrapDatabaseAsync;
+use revm::primitives::keccak256;
+use revm::wiring::default::TransactTo;
 use revm::wiring::result::ExecutionResult;
 use revm::wiring::EthereumWiring;
-use alloy::network::Ethereum;
-use alloy::transports::http::Http;
-use alloy::transports::http::Client as AlloyClient;
+use revm::primitives::TxKind;
+use revm::wiring::result::Output;
 use revm::Evm;
+use revm_database::{AlloyDB, CacheDB};
 use serde::{Deserialize, Serialize};
 use std::fs::{create_dir_all, File};
 use std::io::{BufReader, BufWriter};
 use std::path::Path;
 use std::str::FromStr;
 
-type AlloyCacheDB =
-    CacheDB<WrapDatabaseAsync<AlloyDB<Http<AlloyClient>, Ethereum, RootProvider<Http<AlloyClient>>>>>;
+type AlloyCacheDB = CacheDB<
+    WrapDatabaseAsync<AlloyDB<Http<AlloyClient>, Ethereum, RootProvider<Http<AlloyClient>>>>,
+>;
 
 // Blacklisted tokens we dont want to consider
 lazy_static! {
@@ -71,6 +76,14 @@ sol!(
             address to,
             uint256 deadline
         ) external returns (uint256[] memory amounts);
+    }
+);
+
+sol!(
+    #[derive(Debug)]
+    contract Approval {
+        function approve(address spender, uint256 amount) external returns (bool);
+        function deposit(uint256 amount) external;
     }
 );
 
@@ -192,30 +205,27 @@ async fn fetch_top_volume_tokens(num_results: usize, chain: Chain) -> Vec<Addres
 // Go through the pools and try to perform a swap on it. This is to test liquidity depth as we
 // dont want to include paths that dont have enough liq for a swap
 async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
-    let account = address!("c9034c3E7F58003E6ae0C8438e7c8f4598d5ACAA");
+    // pools that pass through swap filter
     let mut filtered_pools: Vec<Pool> = vec![];
+
+    // state 
+    let account = address!("0000000000000000000000000000000000000001");
+    let balance_slot = keccak256((account, U256::from(3)).abi_encode());
+    let ten_units = U256::from(10_000_000_000_000_000_000u128);
 
     // setup provider
     let url = std::env::var("FULL").unwrap().parse().unwrap();
     let provider = ProviderBuilder::new().on_http(url);
 
+    // construct the db
     let db = WrapDatabaseAsync::new(AlloyDB::new(provider, BlockId::latest())).unwrap();
     let mut cache_db = CacheDB::new(db);
-
-    let mut evm = Evm::<EthereumWiring<&mut AlloyCacheDB, ()>>::builder()
-        .with_db(&mut cache_db)
-        .with_default_ext_ctx()
-        .modify_tx_env(|tx| {
-            tx.caller = address!("0000000000000000000000000000000000000001");
-            tx.value = U256::ZERO
-        })
-        .build();
 
     // go through all the pools and try a swap on each one
     for pool in pools {
         // get the router address
         let address = match pool.pool_type() {
-            PoolType::UniswapV2 => address!("7a250d5630B4cF539739dF2C5dAcb4c659F2488D"),
+            PoolType::UniswapV2 => address!("4752ba5dbc23f44d87826276bf6fd6b1c372ad24"),
             PoolType::SushiSwapV2 => address!("6BDED42c6DA8FBf0d2bA55B2fa120C5e0c8D7891"),
             PoolType::PancakeSwapV2 => address!("8cFe327CEc66d1C090Dd72bd0FF11d690C33a2Eb"),
             PoolType::BaseSwapV2 => address!("327Df1E6de05895d2ab08513aaDD9313Fe505d86"),
@@ -225,7 +235,35 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
             _ => panic!("will not reach here"),
         };
 
-        // setup the calldata
+        // give ourselves some of the input token, just assume 18 decimal points
+        cache_db.insert_account_storage(pool.token0_address(), balance_slot.into(), ten_units).unwrap();
+
+        // construct a new evm instance
+        let mut evm = Evm::<EthereumWiring<&mut AlloyCacheDB, ()>>::builder()
+            .with_db(&mut cache_db)
+            .with_default_ext_ctx()
+            .modify_cfg_env(|env|{
+                env.disable_nonce_check = true;
+            })
+            .modify_tx_env(|tx| {
+                tx.caller = account;
+                tx.value = U256::ZERO;
+            })
+            .build();
+
+
+        // setup approval call and transact
+        let approve_calldata = Approval::approveCall {
+            spender: address,
+            amount: ten_units
+        }.abi_encode();
+        evm.tx_mut().transact_to = TransactTo::Call(pool.token0_address());
+        evm.tx_mut().data = approve_calldata.into();
+        evm.transact_commit().unwrap();
+
+
+        // we now have some of the input token and we have approved the router to spend it
+        // try a swap to see if if it is valid
         let calldata = Uniswap::swapExactTokensForTokensCall {
             amountIn: U256::from(1e16),
             amountOutMin: U256::ZERO,
@@ -242,6 +280,7 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
         // if we can transact, add it as it is a valid pool. Else ignore it
         let ref_tx = evm.transact().unwrap();
         let result = ref_tx.result;
+        //println!("{:#?}", ref_tx);
         if let ExecutionResult::Success { .. } = result {
             filtered_pools.push(pool.clone());
         }
@@ -249,3 +288,4 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
 
     filtered_pools
 }
+
