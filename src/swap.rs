@@ -43,7 +43,6 @@ impl From<SwapStep> for FlashQuoter::SwapStep {
     }
 }
 
-
 // Mapping of pool type to number for contract
 impl SwapStep {
     pub fn as_u8(&self) -> u8 {

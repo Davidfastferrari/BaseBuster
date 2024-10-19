@@ -2,12 +2,14 @@ use alloy::primitives::{address, Address, U256};
 use alloy::providers::{ProviderBuilder, RootProvider};
 use alloy::network::Ethereum;
 use alloy::transports::http::{Http, Client};
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use alloy::sol_types::SolCall;
 use alloy::sol;
 use alloy::sol_types::SolValue;
 use alloy::eips::BlockId;
 use revm::state::{AccountInfo, Bytecode};
+use revm::wiring::default::TransactTo;
+use revm::wiring::result::ExecutionResult;
 use revm::wiring::EthereumWiring;
 use revm::primitives::keccak256;
 use revm::Evm;
@@ -87,42 +89,35 @@ impl Quoter {
         // persist the approve call
         evm.transact_commit().unwrap();
 
+        // setup call address for quotes
+        evm.tx_mut().transact_to = TransactTo::Call(quoter);
+
         // we now have a database with an account with 1 weth, our quoter bytecode, and the quoter approved to spend 1 weth
         Self {evm}
     }
 
     // get a quote for the path
-    pub fn quote_path(&self, quote_path: Vec<FlashQuoter::SwapStep>) -> Result<U256> {
-        todo!()
-    }
+    pub fn quote_path(&mut self, quote_path: Vec<FlashQuoter::SwapStep>, amount_in: U256) -> Result<U256> {
+        // setup the calldata
+        let quote_calldata = FlashQuoter::quoteArbitrageCall {
+            steps: quote_path,
+            amount: amount_in,
+        }.abi_encode();
+        self.evm.tx_mut().data = quote_calldata.into();
 
+        // transact
+        let ref_tx = self.evm.transact().unwrap();
+        let result = ref_tx.result;
 
-}
-
-
-    /* 
-    // make our calldata
-    let calldata = FlashQuoter::quoteArbitrageCall {
-        steps: quoter_path,
-        amount: amount_in,
-    }
-    .abi_encode();
-
-    evm.tx_mut().data = calldata.into();
-    evm.tx_mut().transact_to = TransactTo::Call(quoter);
-
-    let ref_tx = evm.transact().unwrap();
-    let result = ref_tx.result;
-    println!("{:#?}", result);
-
-    match result {
-        ExecutionResult::Success { output: value, .. } => {
-            if let Ok(amount) = U256::abi_decode(&value.data(), false) {
-                amount
-            } else {
-                U256::ZERO
+        match result {
+            ExecutionResult::Success { output: value, .. } => {
+                if let Ok(amount) = U256::abi_decode(&value.data(), false) {
+                    Ok(amount)
+                } else {
+                    Err(anyhow!("Failed to decode"))
+                }
             }
+            _ => Err(anyhow!("Failed to simulate"))
         }
-        _ => U256::ZERO,
     }
-    */
+}
