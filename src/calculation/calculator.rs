@@ -9,7 +9,6 @@ use std::time::Instant;
 
 use crate::cache::Cache;
 use crate::market_state::MarketState;
-use crate::quoter::onchain_out;
 use crate::swap::*;
 use crate::AMOUNT;
 

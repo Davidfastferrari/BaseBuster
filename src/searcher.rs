@@ -13,7 +13,6 @@ use crate::calculation::Calculator;
 use crate::events::Event;
 use crate::gen::FlashQuoter;
 use crate::market_state::MarketState;
-use crate::quoter::{onchain_out, revm_out};
 use crate::swap::{SwapPath, SwapStep};
 use crate::AMOUNT;
 
@@ -108,6 +107,7 @@ where
                 let arb_path = path.0;
                 let calculated_out = path.1;
 
+                /* 
                 if self.sim {
                     let simulated_out = onchain_out(arb_path.clone(), U256::from(1e16)).await;
                     let revm_out = revm_out(
@@ -134,6 +134,7 @@ where
                     }
                     */
                 }
+                */
             }
         }
     }

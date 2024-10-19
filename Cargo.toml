@@ -16,7 +16,8 @@ pool-sync = { path = "../PoolSync" }
 log = "0.4.22"
 petgraph = "0.6.5"
 rayon = "1.10.0"
-revm = { version = "16.0.0", features = ["alloydb"] }
+revm = {git = "https://github.com/bluealloy/revm" }
+revm-database = { git = "https://github.com/bluealloy/revm", package = "revm-database", features = ["alloydb"] }
 serde = { version = "1.0.210", features = ["derive"] }
 serde_json = "1.0.129"
 sha2 = "0.10.8"

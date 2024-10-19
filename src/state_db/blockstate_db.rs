@@ -1,7 +1,9 @@
 use alloy::primitives::{Address, U256, B256, BlockNumber};
-use revm::primitives::{Account, AccountInfo, Bytecode, Log, KECCAK_EMPTY};
+use revm::state::{Account, AccountInfo, Bytecode};
+use revm::primitives::{Log, KECCAK_EMPTY};
+use revm_database::AccountState;
+
 use alloy::primitives::address;
-use revm::db::AccountState;
 use revm::{Database, DatabaseCommit, DatabaseRef};
 use std::collections::HashMap;
 use std::collections::HashSet;

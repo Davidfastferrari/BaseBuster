@@ -1,7 +1,7 @@
-use revm::db::{Database, DatabaseRef};
+use revm::database_interface::{Database, DatabaseRef};
 use alloy::primitives::{Address, U256, B256, keccak256, I256, Uint, Signed, U160};
 use pool_sync::{UniswapV2Pool, PoolType};
-use revm::primitives::AccountInfo;
+use revm::state::AccountInfo;
 use alloy::sol;
 
 use zerocopy::IntoBytes;

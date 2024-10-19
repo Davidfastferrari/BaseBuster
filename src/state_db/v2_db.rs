@@ -1,14 +1,13 @@
-use revm::db::{Database, DatabaseRef};
+use revm::database_interface::{Database, DatabaseRef};
 use alloy::primitives::{Address, U256};
 use pool_sync::{UniswapV2Pool, PoolType};
-use revm::primitives::AccountInfo;
+use revm::state::AccountInfo;
 use zerocopy::IntoBytes;
 use lazy_static::lazy_static;
 use alloy::providers::Provider;
 use alloy::transports::Transport;
 use alloy::network::Network;
 use anyhow::Result;
-use std::time::Instant;
 
 use super::BlockStateDB;
 use crate::bytecode::*;
@@ -119,12 +118,16 @@ where
 mod test_db_v2 {
     use super::*;
     use log::LevelFilter;
-    use revm::db::EmptyDB;
     use alloy::primitives::{U128, address};
     use dotenv;
     use alloy::providers::ProviderBuilder;
-    use revm::primitives::{ExecutionResult, TransactTo};
+    use revm::wiring::default::TransactTo;
+    use alloy::providers::RootProvider;
+    use alloy::network::Ethereum;
+    use alloy::transports::http::{Http, Client};
     use alloy::sol_types::SolCall;
+    use revm::wiring::EthereumWiring;
+    use std::time::Instant;
     use revm::Evm;
     use alloy::sol;
 
@@ -217,8 +220,8 @@ mod test_db_v2 {
         // Prepare calldata for getAmountsOut
 
         // Create EVM instance
-        let mut evm = Evm::builder()
-            .with_db(db)
+        let mut evm = Evm::<EthereumWiring<&mut BlockStateDB<Http<Client>, Ethereum, RootProvider<Http<Client>>>, ()>>::builder()
+            .with_db(&mut db)
             .modify_tx_env(|tx| {
                 tx.caller = address!("0000000000000000000000000000000000000001");
                 tx.transact_to = TransactTo::Call(address!("7a250d5630B4cF539739dF2C5dAcb4c659F2488D"));

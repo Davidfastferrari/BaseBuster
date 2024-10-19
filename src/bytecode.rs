@@ -1,6 +1,6 @@
 use std::str::FromStr;
 use lazy_static::lazy_static;
-use revm::primitives::Bytecode;
+use revm::state::Bytecode;
 use revm::primitives::Bytes;
 use alloy::primitives::B256;
 

@@ -1,7 +1,6 @@
 use alloy::eips::BlockId;
-use alloy::primitives::U256;
-use alloy::primitives::{address, Address};
-use alloy::providers::ProviderBuilder;
+use alloy::primitives::{address, Address, U256};
+use alloy::providers::{ProviderBuilder, RootProvider};
 use alloy::sol;
 use alloy::sol_types::SolCall;
 use anyhow::Result;
@@ -9,15 +8,23 @@ use lazy_static::lazy_static;
 use pool_sync::PoolType;
 use pool_sync::{Chain, Pool, PoolInfo};
 use reqwest::header::{HeaderMap, HeaderValue};
-use revm::db::{AlloyDB, CacheDB, EmptyDB};
-use revm::primitives::ExecutionResult;
-use revm::primitives::TransactTo;
+use revm::wiring::default::TransactTo;
+use revm_database::{AlloyDB, CacheDB};
+use revm::database_interface::WrapDatabaseAsync;
+use revm::wiring::result::ExecutionResult;
+use revm::wiring::EthereumWiring;
+use alloy::network::Ethereum;
+use alloy::transports::http::Http;
+use alloy::transports::http::Client as AlloyClient;
 use revm::Evm;
 use serde::{Deserialize, Serialize};
 use std::fs::{create_dir_all, File};
 use std::io::{BufReader, BufWriter};
 use std::path::Path;
 use std::str::FromStr;
+
+type AlloyCacheDB =
+    CacheDB<WrapDatabaseAsync<AlloyDB<Http<AlloyClient>, Ethereum, RootProvider<Http<AlloyClient>>>>>;
 
 // Blacklisted tokens we dont want to consider
 lazy_static! {
@@ -192,15 +199,15 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
     let url = std::env::var("FULL").unwrap().parse().unwrap();
     let provider = ProviderBuilder::new().on_http(url);
 
-    //let db = AlloyDB::new(provider, BlockId::latest());
+    let db = WrapDatabaseAsync::new(AlloyDB::new(provider, BlockId::latest())).unwrap();
+    let mut cache_db = CacheDB::new(db);
 
-    // setup revm
-    let db = CacheDB::new(EmptyDB::new());
-    let mut evm = Evm::builder()
-        .with_db(db)
+    let mut evm = Evm::<EthereumWiring<&mut AlloyCacheDB, ()>>::builder()
+        .with_db(&mut cache_db)
+        .with_default_ext_ctx()
         .modify_tx_env(|tx| {
             tx.caller = address!("0000000000000000000000000000000000000001");
-            tx.value = U256::ZERO;
+            tx.value = U256::ZERO
         })
         .build();
 
