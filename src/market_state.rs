@@ -4,8 +4,8 @@ use alloy::providers::{Provider, ProviderBuilder, RootProvider};
 use alloy::rpc::types::trace::geth::AccountState;
 use alloy::rpc::types::BlockNumberOrTag;
 use alloy::sol_types::SolValue;
+use alloy::transports::http::{Client, Http};
 use alloy::transports::Transport;
-use alloy::transports::http::{Http, Client};
 use anyhow::Result;
 use log::{debug, error, info};
 use pool_sync::Pool;
@@ -83,7 +83,10 @@ where
         let mut current_block = http.get_block_number().await.unwrap();
 
         while last_synced_block < current_block {
-            debug!("Catching up. Last synced block {}, Current block {}", last_synced_block, current_block);
+            debug!(
+                "Catching up. Last synced block {}, Current block {}",
+                last_synced_block, current_block
+            );
             for block_num in last_synced_block..=current_block {
                 debug!("Processing block {block_num}");
                 let _ = self.update_state(http.clone(), block_num).await;
@@ -113,19 +116,18 @@ where
         }
     }
 
-    // after getting a new block, update our market state 
-    async fn update_state(&self, provider: Arc<RootProvider<Http<Client>>>, block_num: u64) -> HashSet<Address> {
+    // after getting a new block, update our market state
+    async fn update_state(
+        &self,
+        provider: Arc<RootProvider<Http<Client>>>,
+        block_num: u64,
+    ) -> HashSet<Address> {
         // trace the block to get all post state changes
-        let updates =
-            debug_trace_block(provider, BlockNumberOrTag::Number(block_num), true).await;
+        let updates = debug_trace_block(provider, BlockNumberOrTag::Number(block_num), true).await;
 
         // update the db based on teh traces
         let updated_pools = self.process_block_trace(updates);
-        info!(
-            "Got {} updates in block {}",
-            updated_pools.len(),
-            block_num
-        );
+        info!("Got {} updates in block {}", updated_pools.len(), block_num);
         updated_pools
     }
 
@@ -144,7 +146,8 @@ where
         for (address, account_state) in updates.iter().flat_map(|btree_map| btree_map.iter()) {
             if db.tracking_pool(address) {
                 debug!("Updating state for pool {address}");
-                db.update_all_slots(*address, account_state.clone()).unwrap();
+                db.update_all_slots(*address, account_state.clone())
+                    .unwrap();
                 updated_pools.insert(*address);
             }
         }

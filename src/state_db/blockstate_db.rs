@@ -4,16 +4,14 @@ use revm::state::{Account, AccountInfo, Bytecode};
 use revm_database::AccountState;
 
 use alloy::network::{BlockResponse, HeaderResponse, Network};
-use alloy::primitives::address;
-use alloy::providers::{Provider, ProviderBuilder};
+use alloy::providers::Provider;
 use alloy::rpc::types::trace::geth::AccountState as GethAccountState;
 use alloy::rpc::types::BlockId;
 use alloy::transports::{Transport, TransportError};
 use anyhow::Result;
-use log::{debug, error, info, trace, warn};
+use log::{debug, info, trace, warn};
 use pool_sync::PoolType;
 use revm::{Database, DatabaseCommit, DatabaseRef};
-use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::future::IntoFuture;
@@ -98,6 +96,30 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> BlockStateDB<T, N, P> 
         })
     }
 
+    // Record a new pool in our working set
+    pub fn add_pool(
+        &mut self,
+        pool: Address,
+        token0: Address,
+        token1: Address,
+        pool_type: PoolType,
+    ) {
+        self.pools.insert(pool);
+        self.pool_info.insert(
+            pool,
+            PoolInformation {
+                token0,
+                token1,
+                pool_type,
+            },
+        );
+    }
+
+    // Insertion functions to insert state into the database
+
+    // insert a new account into the database
+    //
+
     // Insert a contract into the DB
     pub fn insert_contract(&mut self, account: &mut AccountInfo) {
         debug!("Inserting contract for account: {:?}", account);
@@ -134,22 +156,6 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> BlockStateDB<T, N, P> 
         self.accounts.entry(address).or_default().info = info;
     }
 
-    pub fn load_account(&mut self, address: Address) -> Result<&mut BlockStateDBAccount> {
-        match self.accounts.entry(address) {
-            Entry::Occupied(entry) => {
-                debug!("Loading existing account for address: {:?}", address);
-                Ok(entry.into_mut())
-            }
-            Entry::Vacant(entry) => {
-                debug!(
-                    "Account not found for address: {:?}, inserting new account",
-                    address
-                );
-                Ok(entry.insert(BlockStateDBAccount::new_not_existing()))
-            }
-        }
-    }
-
     /// Insert account storage without overriding account info
     #[inline]
     pub fn insert_account_storage(
@@ -158,29 +164,34 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> BlockStateDB<T, N, P> 
         slot: U256,
         value: U256,
     ) -> Result<()> {
-        debug!(
-            "Inserting storage for address: {:?}, slot: {:?}, value: {:?}",
-            address, slot, value
+        trace!(
+            "Insert account storage: Inserting value {} into slot {} for account {}",
+            value,
+            slot,
+            address
         );
-        let account = self.load_account(address)?;
-        account.storage.insert(slot, value);
+        if let Some(account) = self.accounts.get_mut(&address) {
+            account.storage.insert(slot, value);
+        }
         Ok(())
     }
 
-    // Update all account storage slots for an account
+    // Go through a block trace and update all relevant slots
     #[inline]
     pub fn update_all_slots(
         &mut self,
         address: Address,
         account_state: GethAccountState,
     ) -> Result<()> {
-        debug!(
-            "Updating all storage slots for address: {:?}, account_state: {:?}",
-            address, account_state
+        trace!(
+            "Update all slots: updating all storage slots for adddress {}",
+            address
         );
         let storage = account_state.storage;
         for (slot, value) in storage {
-            self.insert_account_storage(address, slot.into(), value.into())?
+            if let Some(account) = self.accounts.get_mut(&address) {
+                account.storage.insert(slot.into(), value.into());
+            }
         }
         Ok(())
     }
@@ -578,6 +589,3 @@ impl From<AccountInfo> for BlockStateDBAccount {
         }
     }
 }
-
-#[cfg(test)]
-mod BlockStateDB_TESTS {}

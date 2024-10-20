@@ -1,13 +1,13 @@
-use revm::database_interface::{Database, DatabaseRef};
+use alloy::network::Network;
 use alloy::primitives::{Address, U256};
-use pool_sync::{UniswapV2Pool, PoolType};
-use revm::state::AccountInfo;
-use zerocopy::IntoBytes;
-use lazy_static::lazy_static;
 use alloy::providers::Provider;
 use alloy::transports::Transport;
-use alloy::network::Network;
 use anyhow::Result;
+use lazy_static::lazy_static;
+use pool_sync::{PoolType, UniswapV2Pool};
+use revm::database_interface::{Database, DatabaseRef};
+use revm::state::AccountInfo;
+use zerocopy::IntoBytes;
 
 use super::BlockStateDB;
 use crate::bytecode::*;
@@ -17,11 +17,11 @@ lazy_static! {
 }
 
 /// uniswapv2 db read/write related methods
-impl <T, N, P> BlockStateDB<T, N, P> 
-where 
+impl<T, N, P> BlockStateDB<T, N, P>
+where
     T: Transport + Clone,
     N: Network,
-    P: Provider<T, N>
+    P: Provider<T, N>,
 {
     // insert a new uniswapv2 pool into the database
     pub fn insert_v2(&mut self, pool: UniswapV2Pool) -> Result<()> {
@@ -40,7 +40,8 @@ where
         };
         self.insert_account_info(address, account_info);
 
-        self.pools.insert(address);
+        // track the pool
+        self.add_pool(address, token0, token1, PoolType::UniswapV2);
 
         // insert storage values
         self.insert_reserves(address, reserve0, reserve1)?;
@@ -70,7 +71,6 @@ where
     // get token 0
     pub fn get_token0(&mut self, pool: Address) -> Result<Option<Address>> {
         let token0 = self.storage(pool, U256::from(6))?;
-        println!("Raw token0 value: {:?}", token0);
         if token0 == U256::ZERO {
             Ok(None)
         } else {
@@ -81,7 +81,6 @@ where
     // get token 1
     pub fn get_token1(&mut self, pool: Address) -> Result<Option<Address>> {
         let token1 = self.storage(pool, U256::from(7))?;
-        println!("Raw token1 value: {:?}", token1);
         if token1 == U256::ZERO {
             Ok(None)
         } else {
@@ -109,26 +108,23 @@ where
         bytes[12..].copy_from_slice(token.as_bytes());
         self.insert_account_storage(pool, U256::from(1), U256::from_be_bytes(bytes))
     }
-
 }
-
 
 #[cfg(test)]
 mod test_db_v2 {
     use super::*;
-    use log::LevelFilter;
-    use alloy::primitives::{U128, address};
-    use dotenv;
-    use alloy::providers::ProviderBuilder;
-    use revm::wiring::default::TransactTo;
-    use alloy::providers::RootProvider;
     use alloy::network::Ethereum;
-    use alloy::transports::http::{Http, Client};
-    use alloy::sol_types::SolCall;
-    use revm::wiring::EthereumWiring;
-    use std::time::Instant;
-    use revm::Evm;
+    use alloy::primitives::{address, U128};
+    use alloy::providers::ProviderBuilder;
+    use alloy::providers::RootProvider;
     use alloy::sol;
+    use alloy::sol_types::SolCall;
+    use alloy::transports::http::{Client, Http};
+    use log::LevelFilter;
+    use revm::wiring::default::TransactTo;
+    use revm::wiring::EthereumWiring;
+    use revm::Evm;
+    use std::time::Instant;
 
     #[test]
     pub fn test_insert_pool_and_retrieve() {
@@ -138,14 +134,14 @@ mod test_db_v2 {
         let mut db = BlockStateDB::new(provider).unwrap();
 
         let pool_addr = address!("B4e16d0168e52d35CaCD2c6185b44281Ec28C9Dc");
-        let token0 =  address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
-        let token1 =  address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
+        let token0 = address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
+        let token1 = address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
 
         // construct and insert pool
         let pool = UniswapV2Pool {
             address: pool_addr,
-            token0, 
-            token1, 
+            token0,
+            token1,
             token0_name: "USDC".to_string(),
             token1_name: "WETH".to_string(),
             token0_decimals: 6,
@@ -160,7 +156,10 @@ mod test_db_v2 {
         // asserts
         assert_eq!(db.get_token0(pool_addr).unwrap().unwrap(), token0);
         assert_eq!(db.get_token1(pool_addr).unwrap().unwrap(), token1);
-        assert_eq!(db.get_reserves(&pool_addr), (U256::from(1e18), U256::from(1e16)));
+        assert_eq!(
+            db.get_reserves(&pool_addr),
+            (U256::from(1e18), U256::from(1e16))
+        );
     }
 
     #[test]
@@ -180,20 +179,30 @@ mod test_db_v2 {
         // Fetch and assert token addresses
         let fetched_token1 = db.get_token1(pool_addr);
         let fetched_token0 = db.get_token0(pool_addr);
-        assert_eq!(fetched_token0.unwrap().unwrap(), expected_token0, "Token0 address mismatch");
-        assert_eq!(fetched_token1.unwrap().unwrap(), expected_token1, "Token1 address mismatch");
+        assert_eq!(
+            fetched_token0.unwrap().unwrap(),
+            expected_token0,
+            "Token0 address mismatch"
+        );
+        assert_eq!(
+            fetched_token1.unwrap().unwrap(),
+            expected_token1,
+            "Token1 address mismatch"
+        );
 
         // Fetch reserves
         let (reserve0, reserve1) = db.get_reserves(&pool_addr);
         assert!(reserve0 > U256::ZERO, "Reserve0 should be non-zero");
         assert!(reserve1 > U256::ZERO, "Reserve1 should be non-zero");
-        
-        println!("Fetched reserves: reserve0 = {}, reserve1 = {}", reserve0, reserve1);
+
+        println!(
+            "Fetched reserves: reserve0 = {}, reserve1 = {}",
+            reserve0, reserve1
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_get_amounts_out() {
-
         sol!(
             #[sol(rpc)]
             contract Uniswap {
@@ -214,21 +223,27 @@ mod test_db_v2 {
         let calldata = Uniswap::getAmountsOutCall {
             amountIn: amount_in,
             path: vec![token0, token1],
-        }.abi_encode();
+        }
+        .abi_encode();
 
         // Prepare calldata for getAmountsOut
 
         // Create EVM instance
-        let mut evm = Evm::<EthereumWiring<&mut BlockStateDB<Http<Client>, Ethereum, RootProvider<Http<Client>>>, ()>>::builder()
-            .with_db(&mut db)
-            .modify_tx_env(|tx| {
-                tx.caller = address!("0000000000000000000000000000000000000001");
-                tx.transact_to = TransactTo::Call(address!("7a250d5630B4cF539739dF2C5dAcb4c659F2488D"));
-                tx.data = calldata.into();
-                tx.value = U256::ZERO;
-            }).build();
+        let mut evm = Evm::<
+            EthereumWiring<
+                &mut BlockStateDB<Http<Client>, Ethereum, RootProvider<Http<Client>>>,
+                (),
+            >,
+        >::builder()
+        .with_db(&mut db)
+        .modify_tx_env(|tx| {
+            tx.caller = address!("0000000000000000000000000000000000000001");
+            tx.transact_to = TransactTo::Call(address!("7a250d5630B4cF539739dF2C5dAcb4c659F2488D"));
+            tx.data = calldata.into();
+            tx.value = U256::ZERO;
+        })
+        .build();
 
-        
         let start = Instant::now();
         let ref_tx = evm.transact().unwrap();
         println!("First Took {:?}", start.elapsed());
@@ -237,7 +252,7 @@ mod test_db_v2 {
         let ref_tx = evm.transact().unwrap();
         println!("Second Took {:?}", end.elapsed());
         //println!("{:?}", ref_tx);
-        //let result = ref_tx.result; 
+        //let result = ref_tx.result;
 
         //println!("{:?}", result);
     }

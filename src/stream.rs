@@ -2,8 +2,8 @@ use crate::events::Event;
 use alloy::providers::{Provider, ProviderBuilder, WsConnect};
 use futures::StreamExt;
 use log::{debug, warn};
-use std::sync::Arc;
 use std::sync::mpsc::Sender;
+use std::sync::Arc;
 
 // stream in new blocks
 pub async fn stream_new_blocks(block_sender: Sender<Event>) {

@@ -1,20 +1,20 @@
-use revm::database_interface::{Database, DatabaseRef};
-use alloy::primitives::{Address, U256, B256, keccak256, I256, Uint, Signed, U160};
-use pool_sync::{UniswapV2Pool, PoolType};
-use revm::state::AccountInfo;
+use alloy::primitives::{keccak256, Address, Signed, Uint, B256, I256, U160, U256};
 use alloy::sol;
+use pool_sync::{PoolType, UniswapV2Pool};
+use revm::database_interface::{Database, DatabaseRef};
+use revm::state::AccountInfo;
 
-use zerocopy::IntoBytes;
-use lazy_static::lazy_static;
-use alloy::providers::Provider;
-use alloy::transports::Transport;
-use alloy::network::Network;
-use log::info;
-use anyhow::Result;
-use std::time::Instant;
-use std::ops::{BitAnd, Shl, Shr};
 use super::BlockStateDB;
 use crate::bytecode::*;
+use alloy::network::Network;
+use alloy::providers::Provider;
+use alloy::transports::Transport;
+use anyhow::Result;
+use lazy_static::lazy_static;
+use log::info;
+use std::ops::{BitAnd, Shl, Shr};
+use std::time::Instant;
+use zerocopy::IntoBytes;
 
 lazy_static! {
     static ref U112_MASK: U256 = (U256::from(1) << 112) - U256::from(1);
@@ -44,11 +44,11 @@ sol!(
 );
 
 /// uniswapv3 db read/write related methods
-impl <T, N, P> BlockStateDB<T, N, P> 
-where 
+impl<T, N, P> BlockStateDB<T, N, P>
+where
     T: Transport + Clone,
     N: Network,
-    P: Provider<T, N>
+    P: Provider<T, N>,
 {
     pub fn fee_growth_global0_x128(&self, address: Address) -> Result<U256> {
         let value = self.storage_ref(address, U256::from(1))?;
@@ -73,7 +73,11 @@ where
 
     pub fn ticks_liquidity_net(&self, address: Address, tick: i32) -> Result<i128> {
         //i24
-        let cell = self.read_hashed_slot(&address, &U256::from(5), &U256::from_be_bytes(I256::try_from(tick)?.to_be_bytes::<32>()))?;
+        let cell = self.read_hashed_slot(
+            &address,
+            &U256::from(5),
+            &U256::from_be_bytes(I256::try_from(tick)?.to_be_bytes::<32>()),
+        )?;
         let unsigned_liqudity: Uint<128, 2> = cell.shr(U256::from(128)).to();
         let signed_liquidity: Signed<128, 2> = Signed::<128, 2>::from_raw(unsigned_liqudity);
         let lu128: u128 = unsigned_liqudity.to();
@@ -84,25 +88,29 @@ where
     }
     pub fn tick_bitmap(&self, address: Address, tick: i16) -> Result<U256> {
         //i16
-        let cell = self.read_hashed_slot( &address, &U256::from(6), &U256::from_be_bytes(I256::try_from(tick)?.to_be_bytes::<32>()))?;
+        let cell = self.read_hashed_slot(
+            &address,
+            &U256::from(6),
+            &U256::from_be_bytes(I256::try_from(tick)?.to_be_bytes::<32>()),
+        )?;
         info!("tickBitmap {address} {tick} {cell}");
         Ok(cell)
     }
 
-    pub fn position_info(&self,  address: Address, position: B256) -> Result<U256> {
+    pub fn position_info(&self, address: Address, position: B256) -> Result<U256> {
         //i16
         let position: U256 = position.into();
         let cell = self.read_hashed_slot(&address, &U256::from(7), &position)?;
         Ok(cell)
     }
 
-    pub fn observations(&self,  address: Address, idx: u32) -> Result<U256> {
+    pub fn observations(&self, address: Address, idx: u32) -> Result<U256> {
         //i16
         let cell = self.read_hashed_slot(&address, &U256::from(7), &U256::from(idx))?;
         Ok(cell)
     }
 
-    pub fn slot0(&self,  address: Address) -> Result<UniswapV3::slot0Return> {
+    pub fn slot0(&self, address: Address) -> Result<UniswapV3::slot0Return> {
         let cell = self.storage_ref(address, U256::from(0))?;
         let tick: Uint<24, 1> = ((Shr::<U256>::shr(cell, U256::from(160))) & *BITS24MASK).to();
         let tick: Signed<24, 1> = Signed::<24, 1>::from_raw(tick);
@@ -114,15 +122,23 @@ where
             sqrtPriceX96: sqrt_price_x96,
             tick: tick.try_into()?,
             observationIndex: ((Shr::<U256>::shr(cell, U256::from(160 + 24))) & *BITS16MASK).to(),
-            observationCardinality: ((Shr::<U256>::shr(cell, U256::from(160 + 24 + 16))) & *BITS16MASK).to(),
-            observationCardinalityNext: ((Shr::<U256>::shr(cell, U256::from(160 + 24 + 16 + 16))) & *BITS16MASK).to(),
-            feeProtocol: ((Shr::<U256>::shr(cell, U256::from(160 + 24 + 16 + 16 + 16))) & *BITS8MASK).to(),
-            unlocked: ((Shr::<U256>::shr(cell, U256::from(160 + 24 + 16 + 16 + 16 + 8))) & *BITS1MASK).to(),
+            observationCardinality: ((Shr::<U256>::shr(cell, U256::from(160 + 24 + 16)))
+                & *BITS16MASK)
+                .to(),
+            observationCardinalityNext: ((Shr::<U256>::shr(cell, U256::from(160 + 24 + 16 + 16)))
+                & *BITS16MASK)
+                .to(),
+            feeProtocol: ((Shr::<U256>::shr(cell, U256::from(160 + 24 + 16 + 16 + 16)))
+                & *BITS8MASK)
+                .to(),
+            unlocked: ((Shr::<U256>::shr(cell, U256::from(160 + 24 + 16 + 16 + 16 + 8)))
+                & *BITS1MASK)
+                .to(),
         })
     }
 
     fn read_hashed_slot(
-        &self, 
+        &self,
         account: &Address,
         hashmap_offset: &U256,
         item: &U256,
@@ -132,5 +148,4 @@ where
         let slot: U256 = keccak256(buf.as_slice()).into();
         Ok(self.storage_ref(*account, slot)?)
     }
-
 }

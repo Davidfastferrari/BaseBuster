@@ -1,5 +1,5 @@
 use alloy::primitives::U256;
-use log::{info, warn};
+use log::{debug, info, warn};
 use std::sync::mpsc::{Receiver, Sender};
 
 use crate::events::Event;
@@ -8,7 +8,7 @@ use crate::quoter::Quoter;
 
 // recieve a stream of potential arbitrage paths from the searcher and
 // simulate them against the contract to determine if they are actually viable
-pub async fn simulate_paths(tx_sender: Sender<Event>, mut arb_receiver: Receiver<Event>) {
+pub async fn simulate_paths(tx_sender: Sender<Event>, arb_receiver: Receiver<Event>) {
     // Construct a new quoter
     let mut quoter = Quoter::new().await;
 
@@ -18,7 +18,7 @@ pub async fn simulate_paths(tx_sender: Sender<Event>, mut arb_receiver: Receiver
     // recieve new paths from the searcher
     while let Ok(Event::ArbPath((arb_path, expected_out))) = arb_receiver.recv() {
         // convert from searcher format into quoter format
-        let converted_path: Vec<FlashQuoter::SwapStep> = arb_path.into();
+        let converted_path: Vec<FlashQuoter::SwapStep> = arb_path.clone().into();
 
         // get the quote for the path and handle it appropriately
         let amount_in = U256::from(1e16);
@@ -28,16 +28,21 @@ pub async fn simulate_paths(tx_sender: Sender<Event>, mut arb_receiver: Receiver
                     if quote == expected_out {
                         info!("Success.. Calculated {expected_out}, Quoted: {quote}");
                     } else {
-                        info!("Fail.. Calculated {expected_out}, Quoted: {quote}, Path: {:#?}", converted_path);
-
+                        info!(
+                            "Fail.. Calculated {expected_out}, Quoted: {quote}, Path: {:#?}",
+                            converted_path
+                        );
                     }
                 } else {
-                    todo!()
+                    let optimized_out = U256::ZERO;
+                    // send the optimize path to the tx sender
+                    match tx_sender.send(Event::ArbPath((arb_path, optimized_out))) {
+                        Ok(_) => debug!("Sent path"),
+                        Err(_) => warn!("Failed to send path"),
+                    }
                 }
-
             }
             Err(quote_err) => warn!("Failed to simulate quote for {}", quote_err),
         }
     }
 }
-

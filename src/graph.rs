@@ -6,10 +6,6 @@ use pool_sync::{BalancerV2Pool, CurveTriCryptoPool, Pool, PoolInfo};
 use std::collections::HashSet;
 use std::hash::Hash;
 use std::hash::{DefaultHasher, Hasher};
-use std::fs::{create_dir_all, File};
-use std::io::{BufReader, BufWriter};
-use std::path::Path;
-use std::str::FromStr;
 
 pub struct ArbGraph;
 impl ArbGraph {
@@ -225,10 +221,10 @@ impl ArbGraph {
                     let mut swap_path = Vec::new();
                     for (base, pool, quote) in new_path.iter() {
                         let swap = SwapStep {
-                            pool_address: pool.address().clone(),
-                            token_in: graph[*base].clone(),
-                            token_out: graph[*quote].clone(),
-                            protocol: pool.pool_type().clone(),
+                            pool_address: pool.address(),
+                            token_in: graph[*base],
+                            token_out: graph[*quote],
+                            protocol: pool.pool_type(),
                             fee: pool.fee(),
                         };
                         swap_path.push(swap);

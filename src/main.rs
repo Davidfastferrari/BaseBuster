@@ -16,6 +16,7 @@ mod stream;
 mod bytecode;
 mod cache;
 mod events;
+mod filter;
 mod gen;
 mod market_state;
 mod quoter;
@@ -23,7 +24,6 @@ mod searcher;
 mod state_db;
 mod swap;
 mod tracing;
-mod filter;
 
 // initial amount we are trying to arb over
 lazy_static! {
@@ -35,7 +35,7 @@ async fn main() -> Result<()> {
     // init dots and logger
     dotenv::dotenv().ok();
     env_logger::Builder::new()
-        .filter_module("BaseBuster", LevelFilter::Debug)
+        .filter_module("BaseBuster", LevelFilter::Trace)
         .init();
 
     // Load in all the pools

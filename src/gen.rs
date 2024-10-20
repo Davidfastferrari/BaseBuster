@@ -37,10 +37,9 @@ sol! {
     }
 }
 
-
 sol! {
     #[derive(Debug)]
-    
+
     contract DataEvent {
         event Sync(uint112 reserve0, uint112 reserve1);
         event Swap(
@@ -82,14 +81,12 @@ sol!(
     "src/abi/FlashSwap.json"
 );
 
-
 sol!(
     #[derive(Debug)]
     #[sol(rpc)]
     FlashQuoter,
     "src/abi/FlashQuoter.json"
 );
-
 
 // Abi Generation an ERC20 token
 sol!(

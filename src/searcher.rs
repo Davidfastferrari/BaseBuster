@@ -11,9 +11,8 @@ use std::time::Instant;
 
 use crate::calculation::Calculator;
 use crate::events::Event;
-use crate::gen::FlashQuoter;
 use crate::market_state::MarketState;
-use crate::swap::{SwapPath, SwapStep};
+use crate::swap::SwapPath;
 use crate::AMOUNT;
 
 // top level sercher struct
@@ -63,7 +62,7 @@ where
         }
     }
 
-    pub fn search_paths(&mut self, paths_tx: Sender<Event>, mut address_rx: Receiver<Event>) {
+    pub fn search_paths(&mut self, paths_tx: Sender<Event>, address_rx: Receiver<Event>) {
         let sim: bool = std::env::var("SIM").unwrap().parse().unwrap();
 
         // wait for a new single with the pools that have reserved updated
@@ -87,7 +86,7 @@ where
             let profitable_paths: Vec<(SwapPath, U256)> = affected_paths
                 .par_iter()
                 .filter_map(|path| {
-                    let output_amount = self.calculator.calculate_output(&path);
+                    let output_amount = self.calculator.calculate_output(path);
 
                     if sim {
                         // if this is a sim, we are concerened about correct amounts out
@@ -100,9 +99,6 @@ where
                             None
                         }
                     }
-
-
-
                 })
                 .collect();
 
@@ -112,7 +108,7 @@ where
             for path in profitable_paths {
                 match paths_tx.send(Event::ArbPath((path.0, path.1))) {
                     Ok(_) => debug!("Sent path"),
-                    Err(_) => warn!("Failed to send path")
+                    Err(_) => warn!("Failed to send path"),
                 }
             }
         }

@@ -77,4 +77,3 @@ impl Cache {
             .retain(|key, _| key.pool_address != pool_address);
     }
 }
-

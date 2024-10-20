@@ -1,8 +1,7 @@
+use crate::events::Event;
 use alloy::providers::{Provider, ProviderBuilder};
 use std::sync::RwLock;
 use tokio::sync::broadcast::Receiver;
-use crate::events::Event;
-
 
 pub struct Market {
     max_priority_fee_per_gas: RwLock<u128>,
@@ -23,14 +22,15 @@ impl Market {
         while let Ok(Event::NewBlock(_block)) = block_receiver.recv().await {
             let estimated_gas_fees = provider.estimate_eip1559_fees(None).await.unwrap();
             *self.max_fee_per_gas.write().unwrap() = estimated_gas_fees.max_fee_per_gas;
-            *self.max_priority_fee_per_gas.write().unwrap() = estimated_gas_fees.max_priority_fee_per_gas;
+            *self.max_priority_fee_per_gas.write().unwrap() =
+                estimated_gas_fees.max_priority_fee_per_gas;
         }
     }
 
     pub fn get_max_priority_fee(&self) -> u128 {
         *self.max_priority_fee_per_gas.read().unwrap()
     }
-    
+
     pub fn get_max_fee(&self) -> u128 {
         *self.max_fee_per_gas.read().unwrap()
     }

@@ -1,16 +1,16 @@
-use alloy::primitives::Address;
-use pool_sync::PoolType;
-use std::hash::Hash;
-use serde::{Serialize, Deserialize};
-use alloy::primitives::Uint;
-use std::convert::From;
 use crate::gen::FlashQuoter;
+use alloy::primitives::Address;
+use alloy::primitives::Uint;
+use pool_sync::PoolType;
+use serde::{Deserialize, Serialize};
+use std::convert::From;
+use std::hash::Hash;
 
 // A full representation of a path that we can swap along with its hash
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
-pub struct  SwapPath {
+pub struct SwapPath {
     pub steps: Vec<SwapStep>,
-    pub hash: u64
+    pub hash: u64,
 }
 
 // A step representing an individual swap
@@ -22,7 +22,6 @@ pub struct SwapStep {
     pub protocol: PoolType,
     pub fee: u32,
 }
-
 
 // conversions
 impl From<SwapPath> for Vec<FlashQuoter::SwapStep> {
@@ -38,7 +37,7 @@ impl From<SwapStep> for FlashQuoter::SwapStep {
             tokenIn: step.token_in,
             tokenOut: step.token_out,
             protocol: step.as_u8(),
-            fee: Uint::from(step.fee)
+            fee: Uint::from(step.fee),
         }
     }
 }
@@ -82,7 +81,7 @@ impl SwapStep {
             PoolType::MaverickV2 => 18,
             PoolType::CurveTwoCrypto => 19,
             PoolType::CurveTriCrypto => 20,
-            _ => 16
+            _ => 16,
         }
     }
 }

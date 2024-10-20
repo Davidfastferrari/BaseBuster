@@ -9,11 +9,8 @@ use crate::filter::filter_pools;
 use crate::graph::ArbGraph;
 use crate::market_state::MarketState;
 use crate::searcher::Searchoor;
-use crate::stream::stream_new_blocks;
-//use crate::market::Market;
 use crate::simulator::simulate_paths;
-//use crate::swap::SwapStep;
-//use crate::tx_sender::TransactionSender;
+use crate::stream::stream_new_blocks;
 
 /// Start all of the workers
 pub async fn start_workers(pools: Vec<Pool>, last_synced_block: u64) {
@@ -59,5 +56,4 @@ pub async fn start_workers(pools: Vec<Pool>, last_synced_block: u64) {
     info!("Starting arbitrage searcher...");
     let mut searcher = Searchoor::new(cycles, market_state.clone());
     thread::spawn(move || searcher.search_paths(paths_sender, address_receiver));
-
 }

@@ -1,37 +1,38 @@
+use alloy::eips::BlockId;
+use alloy::network::Ethereum;
 use alloy::primitives::{address, Address, U256};
 use alloy::providers::{ProviderBuilder, RootProvider};
-use alloy::network::Ethereum;
-use alloy::transports::http::{Http, Client};
-use anyhow::{anyhow, Result};
-use alloy::sol_types::SolCall;
 use alloy::sol;
+use alloy::sol_types::SolCall;
 use alloy::sol_types::SolValue;
-use alloy::eips::BlockId;
+use alloy::transports::http::{Client, Http};
+use anyhow::{anyhow, Result};
+use revm::database_interface::WrapDatabaseAsync;
+use revm::primitives::keccak256;
 use revm::state::{AccountInfo, Bytecode};
 use revm::wiring::default::TransactTo;
 use revm::wiring::result::ExecutionResult;
 use revm::wiring::EthereumWiring;
-use revm::primitives::keccak256;
 use revm::Evm;
-use revm::database_interface::WrapDatabaseAsync;
 use revm_database::{AlloyDB, CacheDB};
 
 use crate::gen::FlashQuoter;
 
 // Types to make our life easier
-type AlloyCacheDB = CacheDB<WrapDatabaseAsync<AlloyDB<Http<Client>, Ethereum, RootProvider<Http<Client>>>>>;
+type AlloyCacheDB =
+    CacheDB<WrapDatabaseAsync<AlloyDB<Http<Client>, Ethereum, RootProvider<Http<Client>>>>>;
 type QuoterEvm = Evm<'static, EthereumWiring<AlloyCacheDB, ()>>;
 
 // Quoter. This class is used to get a simulation quote before sending off a transaction.
 // This will confirm that our offchain calculations are reasonable and make sure we can swap the tokens
 pub struct Quoter {
-    evm: QuoterEvm
+    evm: QuoterEvm,
 }
 
 impl Quoter {
     // Setup quoter with account information and proper approvals
-    pub async fn new() -> Self{
-        // approval call for contract 
+    pub async fn new() -> Self {
+        // approval call for contract
         sol!(
             #[derive(Debug)]
             contract Approval {
@@ -69,7 +70,6 @@ impl Quoter {
         };
         cache_db.insert_account_info(quoter, quoter_acc_info);
 
-
         let mut evm = Evm::<EthereumWiring<AlloyCacheDB, ()>>::builder()
             .with_db(cache_db)
             .with_default_ext_ctx()
@@ -93,16 +93,21 @@ impl Quoter {
         evm.tx_mut().transact_to = TransactTo::Call(quoter);
 
         // we now have a database with an account with 1 weth, our quoter bytecode, and the quoter approved to spend 1 weth
-        Self {evm}
+        Self { evm }
     }
 
     // get a quote for the path
-    pub fn quote_path(&mut self, quote_path: Vec<FlashQuoter::SwapStep>, amount_in: U256) -> Result<U256> {
+    pub fn quote_path(
+        &mut self,
+        quote_path: Vec<FlashQuoter::SwapStep>,
+        amount_in: U256,
+    ) -> Result<U256> {
         // setup the calldata
         let quote_calldata = FlashQuoter::quoteArbitrageCall {
             steps: quote_path,
             amount: amount_in,
-        }.abi_encode();
+        }
+        .abi_encode();
         self.evm.tx_mut().data = quote_calldata.into();
 
         // transact
@@ -118,8 +123,7 @@ impl Quoter {
                 }
             }
             ExecutionResult::Revert { output, .. } => Err(anyhow!("Simulation reverted {output}")),
-            _ => Err(anyhow!("Failed to simulate"))
-
+            _ => Err(anyhow!("Failed to simulate")),
         }
     }
 }
