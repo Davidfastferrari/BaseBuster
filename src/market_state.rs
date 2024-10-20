@@ -87,6 +87,7 @@ where
             for block_num in last_synced_block..=current_block {
                 debug!("Processing block {block_num}");
                 let _ = self.update_state(http.clone(), block_num).await;
+                debug!("Processed block {block_num}");
             }
             last_synced_block = current_block;
             current_block = http.get_block_number().await.unwrap();
@@ -142,8 +143,8 @@ where
         // iterate over the updates
         for (address, account_state) in updates.iter().flat_map(|btree_map| btree_map.iter()) {
             if db.tracking_pool(address) {
-                db.update_all_slots(*address, account_state.clone())
-                    .unwrap();
+                debug!("Updating state for pool {address}");
+                db.update_all_slots(*address, account_state.clone()).unwrap();
                 updated_pools.insert(*address);
             }
         }

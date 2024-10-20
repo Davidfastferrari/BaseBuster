@@ -22,13 +22,13 @@ pub async fn simulate_paths(tx_sender: Sender<Event>, mut arb_receiver: Receiver
 
         // get the quote for the path and handle it appropriately
         let amount_in = U256::from(1e16);
-        match quoter.quote_path(converted_path, amount_in) {
+        match quoter.quote_path(converted_path.clone(), amount_in) {
             Ok(quote) => {
                 if sim {
                     if quote == expected_out {
                         info!("Success.. Calculated {expected_out}, Quoted: {quote}");
                     } else {
-                        info!("Fail.. Calculated {expected_out}, Quoted: {quote}");
+                        info!("Fail.. Calculated {expected_out}, Quoted: {quote}, Path: {:#?}", converted_path);
 
                     }
                 } else {

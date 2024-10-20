@@ -10,7 +10,7 @@ use alloy::rpc::types::trace::geth::AccountState as GethAccountState;
 use alloy::rpc::types::BlockId;
 use alloy::transports::{Transport, TransportError};
 use anyhow::Result;
-use log::{debug, error, info, warn};
+use log::{debug, error, info, trace, warn};
 use pool_sync::PoolType;
 use revm::{Database, DatabaseCommit, DatabaseRef};
 use std::collections::hash_map::Entry;
@@ -48,12 +48,21 @@ pub struct PoolInformation {
 
 #[derive(Debug)]
 pub struct BlockStateDB<T: Transport + Clone, N: Network, P: Provider<T, N>> {
+    // All of the accounts
     pub accounts: HashMap<Address, BlockStateDBAccount>,
+
+    // The contracts that this database holds
     pub contracts: HashMap<B256, Bytecode>,
+    // Logs??
     pub logs: Vec<Log>,
+    // Block hashs???
     pub block_hashes: HashMap<BlockNumber, B256>,
+
+    // The pools that are in our working set
     pub pools: HashSet<Address>,
+    //
     pub pool_info: HashMap<Address, PoolInformation>,
+    // provider for fetching information
     provider: P,
     runtime: HandleOrRuntime,
     _marker: std::marker::PhantomData<fn() -> (T, N)>,
@@ -67,6 +76,7 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> BlockStateDB<T, N, P> 
         contracts.insert(KECCAK_EMPTY, Bytecode::default());
         contracts.insert(B256::ZERO, Bytecode::default());
 
+        // get our runtime handle
         let rt = match Handle::try_current() {
             Ok(handle) => match handle.runtime_flavor() {
                 tokio::runtime::RuntimeFlavor::CurrentThread => return None,
@@ -86,25 +96,6 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> BlockStateDB<T, N, P> 
             runtime: rt,
             _marker: std::marker::PhantomData,
         })
-    }
-
-    // Track pool information for easy access
-    pub fn add_pool(
-        &mut self,
-        pool: Address,
-        token0: Address,
-        token1: Address,
-        pool_type: PoolType,
-    ) {
-        self.pools.insert(pool);
-        self.pool_info.insert(
-            pool,
-            PoolInformation {
-                token0,
-                token1,
-                pool_type,
-            },
-        );
     }
 
     // Insert a contract into the DB
@@ -195,112 +186,153 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> BlockStateDB<T, N, P> 
     }
 }
 
-// Implement required Database trait
+// Implement the database trait for the BlockStateDB
 impl<T: Transport + Clone, N: Network, P: Provider<T, N>> Database for BlockStateDB<T, N, P> {
     type Error = TransportError;
 
+    // Get basic account information
     fn basic(&mut self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
-        debug!("Fetching basic account info for address: {:?}", address);
+        trace!("Database Basic: Looking for account {}", address);
         // Look if we already have the account
         if let Some(account) = self.accounts.get(&address) {
-            debug!("Account found in cache for address: {:?}", address);
+            trace!("Database Basic: Account {} found in database", address);
             return Ok(account.info());
         }
 
         // Fetch the account data if we don't have the account and insert it into database
-        debug!(
-            "Account not found in cache, fetching from provider for address: {:?}",
+        trace!(
+            "Database Basic: Account {} not found in cache. Fetching info via basic_ref",
             address
         );
         let account_info = <Self as DatabaseRef>::basic_ref(self, address)?;
         let account = match account_info {
             Some(info) => {
-                debug!(
-                    "Fetched account info from provider for address: {:?}",
-                    address
-                );
+                trace!("Database Basic: Account {} fetched from basic_ref", address);
                 BlockStateDBAccount {
                     info,
                     ..Default::default()
                 }
             }
             None => {
-                debug!("No account info found for address: {:?}", address);
+                trace!(
+                    "Database Basic: Unable to fetch account {} from basic_ref",
+                    address
+                );
                 BlockStateDBAccount::new_not_existing()
             }
         };
         self.accounts.insert(address, account.clone());
+        trace!("Database Basic: Inserted account {} into database", address);
         Ok(account.info())
     }
 
+    // Get account code by its hash
     fn code_by_hash(&mut self, code_hash: B256) -> Result<Bytecode, Self::Error> {
-        debug!("Fetching code by hash: {:?}", code_hash);
+        trace!(
+            "Database Code By Hash: Fetching code for hash {}",
+            code_hash
+        );
+        // Look if we already have the code
         if let Some(code) = self.contracts.get(&code_hash) {
-            debug!("Code found in cache for hash: {:?}", code_hash);
+            trace!(
+                "Database Code By Hash: Code for hash {} found in database",
+                code_hash
+            );
             return Ok(code.clone());
         }
 
-        debug!(
-            "Code not found in cache, fetching from provider for hash: {:?}",
+        trace!("Database Code By Hash: Code for hash {} not found in cache. Fetching code via code_by_hash_ref", code_hash);
+        let bytecode = <Self as DatabaseRef>::code_by_hash_ref(self, code_hash);
+        let bytecode = match bytecode {
+            Ok(bytecode) => {
+                trace!(
+                    "Database Code By Hash: Code for hash {} fetched from code_by_hash_ref",
+                    code_hash
+                );
+                bytecode
+            }
+            Err(_) => {
+                trace!(
+                    "Database Code By Hash: Unable to fetch code for hash {} from code_by_hash_ref",
+                    code_hash
+                );
+                Bytecode::new()
+            }
+        };
+
+        self.contracts.insert(code_hash, bytecode.clone());
+        trace!(
+            "Database Code By Hash: Inserted code for hash {} into database",
             code_hash
         );
-        let bytecode = <Self as DatabaseRef>::code_by_hash_ref(self, code_hash)?;
-        self.contracts.insert(code_hash, bytecode.clone());
         Ok(bytecode)
     }
 
-    // Update all account storage slots for an account
-    #[inline]
+    // Get storage value of address at index
     fn storage(&mut self, address: Address, index: U256) -> Result<U256, Self::Error> {
-        debug!(
-            "Accessing storage for address: {:?}, index: {:?}",
-            address, index
+        trace!(
+            "Database Storage: Fetching storage for address {}, slot {}",
+            address,
+            index
         );
+
         // Check if the account exists
         if let Some(account) = self.accounts.get_mut(&address) {
             // Check if the storage slot exists
             if let Some(value) = account.storage.get(&index) {
-                debug!(
-                    "Storage slot found in cache for address: {:?}, index: {:?}",
-                    address, index
+                trace!(
+                    "Database Storage: Storage for address {}, slot {} found in database",
+                    address,
+                    index
                 );
                 return Ok(*value);
             }
 
-            // The account exists, but we do not have the slot
-            // Fetch, insert, return
-            debug!(
-                "Storage slot not found in cache, fetching from provider for address: {:?}, index: {:?}",
-                address, index
-            );
+            // The account exists, but the storage slot does not, fetch it
+            trace!("Database Storage: Account {} found, but slot {} missing. Fetching slot via storage_ref", address, index);
+            // todo!() make sure this is valid
             let value = <Self as DatabaseRef>::storage_ref(self, address, index)?;
+
+            trace!(
+                "Database Storage: Fetched slot {} for account {}. Inserting storage into database",
+                index,
+                address
+            );
+            // todo!() make sure to handle any error here, we are getting the account again, need
+            // to get rid of this
             self.insert_account_storage(address, index, value).unwrap(); // fix error
             return Ok(value);
         }
 
         // This is a brand new account, fetch the slots and make/insert a new account
-        debug!(
-            "Account not found in cache, fetching storage for new account: {:?}, index: {:?}",
-            address, index
+        trace!(
+            "Database Storage: Account {} not found in database. Fetching account and slot info",
+            address
         );
-        let slot_value = <Self as DatabaseRef>::storage_ref(self, address, index)?;
-        let new_account = BlockStateDBAccount::new_not_existing();
-        self.accounts.insert(address, new_account);
-        self.insert_account_storage(address, index, slot_value)
-            .unwrap();
 
-        // Handle the case where the account might have been removed in between
-        debug!(
-            "Fetched and inserted storage slot for address: {:?}, index: {:?}",
-            address, index
+        // insert account via basic(), retrieve account and fetch storage value, insert storage
+        // value
+        self.basic(address)?; // this will fetch/insert the account
+        let slot_value = <Self as DatabaseRef>::storage_ref(self, address, index)?;
+        let account = self.accounts.get_mut(&address).unwrap();
+        account.storage.insert(index, slot_value);
+        trace!(
+            "Database Storage: Inserted account {} and slot {} into database",
+            address,
+            index
         );
+
         Ok(slot_value)
     }
 
     fn block_hash(&mut self, number: BlockNumber) -> Result<B256, Self::Error> {
+        // todo!(), thisisnt really used but should make it better
         debug!("Fetching block hash for block number: {:?}", number);
         if let Some(hash) = self.block_hashes.get(&number) {
-            debug!("Block hash found in cache for block number: {:?}", number);
+            debug!(
+                "Block hash found in database for block number: {:?}",
+                number
+            );
             return Ok(*hash);
         }
 
@@ -314,122 +346,109 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> Database for BlockStat
     }
 }
 
-// Implement required DatabaseRef trait
+// Implement required DatabaseRef trait, read references to the database (fetch from provider)
 impl<T: Transport + Clone, N: Network, P: Provider<T, N>> DatabaseRef for BlockStateDB<T, N, P> {
     type Error = TransportError;
 
+    // Get basic account information
     fn basic_ref(&self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
-        debug!("Fetching basic_ref for address: {:?}", address);
-        match self.accounts.get(&address) {
-            Some(acc) => {
-                debug!("Account info found in cache for address: {:?}", address);
-                Ok(acc.info())
-            }
-            None => {
-                debug!(
-                    "Account info not found in cache, fetching from provider for address: {:?}",
+        trace!("Database BasicRef: Looking for account {}", address);
+
+        // look if we already have the account
+        if let Some(account) = self.accounts.get(&address) {
+            trace!("Database Basic: Account {} found in cache", address);
+            return Ok(account.info());
+        }
+
+        // we do not have the account, fetch from the provider
+        trace!(
+            "Database BasicRef: Account {} not found in cache. Fetching info from provider",
+            address
+        );
+        let f = async {
+            let nonce = self
+                .provider
+                .get_transaction_count(address)
+                .block_id(BlockId::latest());
+            let balance = self
+                .provider
+                .get_balance(address)
+                .block_id(BlockId::latest());
+            let code = self
+                .provider
+                .get_code_at(address)
+                .block_id(BlockId::latest());
+            tokio::join!(nonce, balance, code)
+        };
+        let (nonce, balance, code) = self.runtime.block_on(f);
+
+        match (nonce, balance, code) {
+            (Ok(nonce_val), Ok(balance_val), Ok(code_val)) => {
+                trace!(
+                    "Database BasicRef: Fetched account {} from provider",
                     address
                 );
-                let f = async {
-                    let nonce = self
-                        .provider
-                        .get_transaction_count(address)
-                        .block_id(BlockId::latest());
-                    let balance = self
-                        .provider
-                        .get_balance(address)
-                        .block_id(BlockId::latest());
-                    let code = self
-                        .provider
-                        .get_code_at(address)
-                        .block_id(BlockId::latest());
-                    tokio::join!(nonce, balance, code)
-                };
-                let (nonce, balance, code) = self.runtime.block_on(f);
-                match (nonce, balance, code) {
-                    (Ok(nonce_val), Ok(balance_val), Ok(code_val)) => {
-                        debug!(
-                            "Fetched from provider - nonce: {:?}, balance: {:?}, code: {:?}",
-                            nonce_val, balance_val, code_val
-                        );
-                        let balance = balance_val;
-                        let code = Bytecode::new_raw(code_val.0.into());
-                        let code_hash = code.hash_slow();
-                        let nonce = nonce_val;
+                let balance = balance_val;
+                let code = Bytecode::new_raw(code_val.0.into());
+                let code_hash = code.hash_slow();
+                let nonce = nonce_val;
 
-                        Ok(Some(AccountInfo::new(balance, nonce, code_hash, code)))
-                    }
-                    _ => {
-                        warn!(
-                            "Failed to fetch account info from provider for address: {:?}",
-                            address
-                        );
-                        Ok(None)
-                    }
-                }
+                Ok(Some(AccountInfo::new(balance, nonce, code_hash, code)))
+            }
+            _ => {
+                trace!(
+                    "Database BasicRef: Unable to fetch account {} from provider",
+                    address
+                );
+                Ok(None)
             }
         }
     }
 
+    // Get account code by its hash
     fn code_by_hash_ref(&self, code_hash: B256) -> Result<Bytecode, Self::Error> {
-        debug!("Fetching code_by_hash_ref for hash: {:?}", code_hash);
-        match self.contracts.get(&code_hash) {
-            Some(entry) => {
-                debug!("Code found in cache for hash: {:?}", code_hash);
-                Ok(entry.clone())
-            }
-            None => {
-                error!(
-                    "Code with hash {:?} not found in cache and cannot be fetched",
-                    code_hash
-                );
-                panic!("The code should already be loaded");
-            }
+        trace!(
+            "Database Code By Hash Ref: Fetching code for hash {}",
+            code_hash
+        );
+        // Look if we already have the code
+        if let Some(code) = self.contracts.get(&code_hash) {
+            trace!(
+                "Database Code By Hash Ref: Code for hash {} found in cache",
+                code_hash
+            );
+            return Ok(code.clone());
         }
+
+        // the code should already be loaded??
+        panic!("The code should already be loaded");
     }
 
+    // Get storage value of address at index
     fn storage_ref(&self, address: Address, index: U256) -> Result<U256, Self::Error> {
-        debug!(
-            "Fetching storage_ref for address: {:?}, index: {:?}",
-            address, index
+        trace!(
+            "Database Storage Ref: Fetching storage for address {}, slot {}",
+            address,
+            index
         );
-        match self.accounts.get(&address) {
-            Some(acc_entry) => match acc_entry.storage.get(&index) {
-                Some(entry) => {
-                    debug!(
-                        "Storage slot found in cache for address: {:?}, index: {:?}",
-                        address, index
-                    );
-                    Ok(*entry)
-                }
-                None => {
-                    debug!(
-                        "Storage slot not found in cache, fetching from provider for address: {:?}, index: {:?}",
-                        address, index
-                    );
-                    let f = self.provider.get_storage_at(address, index);
-                    let slot_val = self.runtime.block_on(f.into_future())?;
-                    debug!(
-                        "Fetched storage value from provider for address: {:?}, index: {:?}, value: {:?}",
-                        address, index, slot_val
-                    );
-                    Ok(slot_val)
-                }
-            },
-            None => {
-                debug!(
-                    "Account not found in cache, fetching storage from provider for address: {:?}, index: {:?}",
-                    address, index
+
+        if let Some(account) = self.accounts.get(&address) {
+            if let Some(value) = account.storage.get(&index) {
+                trace!(
+                    "Database Storage Ref: Storage for address {}, slot {} found in database",
+                    address,
+                    index
                 );
-                let f = self.provider.get_storage_at(address, index);
-                let slot_val = self.runtime.block_on(f.into_future())?;
-                debug!(
-                    "Fetched storage value from provider for address: {:?}, index: {:?}, value: {:?}",
-                    address, index, slot_val
-                );
-                Ok(slot_val)
+                return Ok(*value);
             }
         }
+        trace!(
+            "Database Storage Ref: Account {} not found. Fetching slot from provider",
+            address
+        );
+        let f = self.provider.get_storage_at(address, index);
+        let slot_val = self.runtime.block_on(f.into_future())?;
+        Ok(slot_val)
     }
 
     fn block_hash_ref(&self, number: BlockNumber) -> Result<B256, Self::Error> {

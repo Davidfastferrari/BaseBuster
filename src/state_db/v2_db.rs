@@ -40,8 +40,7 @@ where
         };
         self.insert_account_info(address, account_info);
 
-        // track the pool 
-        self.add_pool(address, token0, token1, PoolType::UniswapV2);
+        self.pools.insert(address);
 
         // insert storage values
         self.insert_reserves(address, reserve0, reserve1)?;
