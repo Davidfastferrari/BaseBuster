@@ -2,7 +2,6 @@ use alloy::primitives::{Address, BlockNumber, B256, U256};
 use revm::primitives::{Log, KECCAK_EMPTY};
 use revm::state::{Account, AccountInfo, Bytecode};
 use revm_database::AccountState;
-
 use alloy::network::{BlockResponse, HeaderResponse, Network};
 use alloy::providers::Provider;
 use alloy::rpc::types::trace::geth::AccountState as GethAccountState;
@@ -115,49 +114,32 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> BlockStateDB<T, N, P> 
         );
     }
 
-    // Insertion functions to insert state into the database
-
-    // insert a new account into the database
-    //
-
     // Insert a contract into the DB
     pub fn insert_contract(&mut self, account: &mut AccountInfo) {
-        debug!("Inserting contract for account: {:?}", account);
+        trace!("Inserting new contract");
         if let Some(code) = &account.code {
             if !code.is_empty() {
-                if account.code_hash == KECCAK_EMPTY {
-                    debug!("Updating code_hash for account: {:?}", account);
-                    account.code_hash = code.hash_slow();
-                }
-                if self
-                    .contracts
-                    .insert(account.code_hash, code.clone())
-                    .is_none()
-                {
-                    info!("Inserted new contract with hash: {:?}", account.code_hash);
+                account.code_hash = code.hash_slow();
+                if let Some(_) = self.contracts.insert(account.code_hash, code.clone()) {
+                    trace!("Updated existing contract with hash: {:?}", account.code_hash);
                 } else {
-                    debug!(
-                        "Contract with hash {:?} already exists, skipping insert",
-                        account.code_hash
-                    );
+                    trace!("Inserted new contract with hash: {:?}", account.code_hash);
                 }
+                return;
             }
         }
-        if account.code_hash.is_zero() {
-            debug!("Code hash is zero, setting to KECCAK_EMPTY");
-            account.code_hash = KECCAK_EMPTY;
-        }
+        
+        account.code_hash = KECCAK_EMPTY;
     }
 
     // Insert some account info into the DB
     pub fn insert_account_info(&mut self, address: Address, mut info: AccountInfo) {
-        debug!("Inserting account info for address: {:?}", address);
+        trace!("Insert account info: Inserting account info for account {}", address);
         self.insert_contract(&mut info);
         self.accounts.entry(address).or_default().info = info;
     }
 
-    /// Insert account storage without overriding account info
-    #[inline]
+    // insert new storage slot value into the account
     pub fn insert_account_storage(
         &mut self,
         address: Address,
@@ -177,7 +159,6 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> BlockStateDB<T, N, P> 
     }
 
     // Go through a block trace and update all relevant slots
-    #[inline]
     pub fn update_all_slots(
         &mut self,
         address: Address,
@@ -454,8 +435,9 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> DatabaseRef for BlockS
             }
         }
         trace!(
-            "Database Storage Ref: Account {} not found. Fetching slot from provider",
-            address
+            "Database Storage Ref: Account {} not found. Fetching slot {} from provider",
+            address,
+            index
         );
         let f = self.provider.get_storage_at(address, index);
         let slot_val = self.runtime.block_on(f.into_future())?;

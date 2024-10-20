@@ -95,6 +95,7 @@ where
             last_synced_block = current_block;
             current_block = http.get_block_number().await.unwrap();
         }
+        println!("waiting for a new block");
 
         // stream in new blocks
         while let Ok(Event::NewBlock(block)) = block_rx.recv() {

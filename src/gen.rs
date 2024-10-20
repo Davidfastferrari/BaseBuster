@@ -102,3 +102,50 @@ sol!(
         function transferFrom(address from, address to, uint256 amount) external returns (bool success);
     }
 );
+
+// swap function sigs
+sol!(
+    #[sol(rpc)]
+    contract V2Swap {
+        function swapExactTokensForTokens(
+            uint256 amountIn,
+            uint256 amountOutMin,
+            address[] calldata path,
+            address to,
+            uint256 deadline
+        ) external returns (uint256[] memory amounts);
+    }
+);
+
+sol!(
+    #[sol(rpc)]
+    contract V3Swap {
+        struct ExactInputSingleParams {
+            address tokenIn;
+            address tokenOut;
+            uint24 fee;
+            address recipient;
+            uint256 amountIn;
+            uint256 amountOutMinimum;
+            uint160 sqrtPriceLimitX96;
+        }
+        function exactInputSingle(ExactInputSingleParams calldata params) external returns (uint256 amountOut);
+    }
+);
+
+sol!(
+    #[sol(rpc)]
+    contract V3SwapDeadline {
+        struct ExactInputSingleParams {
+            address tokenIn;
+            address tokenOut;
+            uint24 fee;
+            address recipient;
+            uint256 deadline;
+            uint256 amountIn;
+            uint256 amountOutMinimum;
+            uint160 sqrtPriceLimitX96;
+        }
+        function exactInputSingle(ExactInputSingleParams calldata params) external returns (uint256 amountOut);
+    }
+);

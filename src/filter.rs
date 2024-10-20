@@ -1,6 +1,10 @@
+use crate::gen::ERC20Token::approveCall;
+use crate::gen::V2Swap;
+use crate::gen::V3Swap;
+use crate::gen::V3SwapDeadline;
 use alloy::eips::BlockId;
 use alloy::network::Ethereum;
-use alloy::primitives::{address, Address, U256};
+use alloy::primitives::{address, Address, U160, U256};
 use alloy::providers::{ProviderBuilder, RootProvider};
 use alloy::sol;
 use alloy::sol_types::{SolCall, SolValue};
@@ -40,6 +44,7 @@ lazy_static! {
         address!("2416092f143378750bb29b79eD961ab195CcEea5"),
         address!("50c5725949A6F0c72E6C4a641F24049A917DB0Cb"),
         address!("833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
+        address!("b56d0839998fd79efcd15c27cf966250aa58d6d3")
     ];
 }
 
@@ -62,27 +67,12 @@ struct Token {
     address: String,
 }
 
-// Abi to swap
-sol!(
-    #[sol(rpc)]
-    contract Uniswap {
-        function swapExactTokensForTokens(
-            uint256 amountIn,
-            uint256 amountOutMin,
-            address[] calldata path,
-            address to,
-            uint256 deadline
-        ) external returns (uint256[] memory amounts);
-    }
-);
-
-sol!(
-    #[derive(Debug)]
-    contract Approval {
-        function approve(address spender, uint256 amount) external returns (bool);
-        function deposit(uint256 amount) external;
-    }
-);
+// enum for swap dispatch
+enum SwapType {
+    V2Basic,    // standard univ2 swap
+    V3Basic,    // univ3 swap w/o deadline
+    V3Deadline, // univ3 swap w/ deadline
+}
 
 // Given a set of pools, filter them down to a proper working set
 pub async fn filter_pools(pools: Vec<Pool>, num_results: usize, chain: Chain) -> Vec<Pool> {
@@ -100,7 +90,10 @@ pub async fn filter_pools(pools: Vec<Pool>, num_results: usize, chain: Chain) ->
         .filter(|pool| {
             let token0 = pool.token0_address();
             let token1 = pool.token1_address();
-            top_volume_tokens.contains(&token0) && top_volume_tokens.contains(&token1)
+            top_volume_tokens.contains(&token0)
+                && top_volume_tokens.contains(&token1)
+                && !BLACKLIST.contains(&token0)
+                && !BLACKLIST.contains(&token1)
         })
         .collect();
 
@@ -227,14 +220,63 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
     // go through all the pools and try a swap on each one
     for pool in pools {
         // get the router address
-        let address = match pool.pool_type() {
-            PoolType::UniswapV2 => address!("4752ba5dbc23f44d87826276bf6fd6b1c372ad24"),
-            PoolType::SushiSwapV2 => address!("6BDED42c6DA8FBf0d2bA55B2fa120C5e0c8D7891"),
-            PoolType::PancakeSwapV2 => address!("8cFe327CEc66d1C090Dd72bd0FF11d690C33a2Eb"),
-            PoolType::BaseSwapV2 => address!("327Df1E6de05895d2ab08513aaDD9313Fe505d86"),
-            PoolType::SwapBasedV2 => address!("aaa3b1F1bd7BCc97fD1917c18ADE665C5D31F066"),
-            PoolType::DackieSwapV2 => address!("Ca4EAa32E7081b0c4Ba47e2bDF9B7163907Fe56f"),
-            PoolType::AlienBaseV2 => address!("8c1A3cF8f83074169FE5D7aD50B978e1cD6b37c7"),
+        let (address, swap_type) = match pool.pool_type() {
+            PoolType::UniswapV2 => (
+                address!("4752ba5dbc23f44d87826276bf6fd6b1c372ad24"),
+                SwapType::V2Basic,
+            ),
+            PoolType::SushiSwapV2 => (
+                address!("6BDED42c6DA8FBf0d2bA55B2fa120C5e0c8D7891"),
+                SwapType::V2Basic,
+            ),
+            PoolType::PancakeSwapV2 => (
+                address!("8cFe327CEc66d1C090Dd72bd0FF11d690C33a2Eb"),
+                SwapType::V2Basic,
+            ),
+            PoolType::BaseSwapV2 => (
+                address!("327Df1E6de05895d2ab08513aaDD9313Fe505d86"),
+                SwapType::V2Basic,
+            ),
+            PoolType::SwapBasedV2 => (
+                address!("aaa3b1F1bd7BCc97fD1917c18ADE665C5D31F066"),
+                SwapType::V2Basic,
+            ),
+            PoolType::DackieSwapV2 => (
+                address!("Ca4EAa32E7081b0c4Ba47e2bDF9B7163907Fe56f"),
+                SwapType::V2Basic,
+            ),
+            PoolType::AlienBaseV2 => (
+                address!("8c1A3cF8f83074169FE5D7aD50B978e1cD6b37c7"),
+                SwapType::V2Basic,
+            ),
+            PoolType::UniswapV3 => (
+                address!("2626664c2603336E57B271c5C0b26F421741e481"),
+                SwapType::V3Basic,
+            ),
+            PoolType::AlienBaseV3 => (
+                address!("B20C411FC84FBB27e78608C24d0056D974ea9411"),
+                SwapType::V3Basic,
+            ),
+            PoolType::DackieSwapV3 => (
+                address!("195FBc5B8Fbd5Ac739C1BA57D4Ef6D5a704F34f7"),
+                SwapType::V3Basic,
+            ),
+            PoolType::PancakeSwapV3 => (
+                address!("678Aa4bF4E210cf2166753e054d5b7c31cc7fa86"),
+                SwapType::V3Basic,
+            ),
+            PoolType::SushiSwapV3 => (
+                address!("FB7eF66a7e61224DD6FcD0D7d9C3be5C8B049b9f"),
+                SwapType::V3Deadline,
+            ),
+            PoolType::SwapBasedV3 => (
+                address!("756C6BbDd915202adac7beBB1c6C89aC0886503f"),
+                SwapType::V3Deadline,
+            ),
+            PoolType::BaseSwapV3 => (
+                address!("1B8eea9315bE495187D873DA7773a874545D9D48"),
+                SwapType::V3Deadline,
+            ),
             _ => panic!("will not reach here"),
         };
 
@@ -257,7 +299,7 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
             .build();
 
         // setup approval call and transact
-        let approve_calldata = Approval::approveCall {
+        let approve_calldata = approveCall {
             spender: address,
             amount: ten_units,
         }
@@ -268,14 +310,45 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
 
         // we now have some of the input token and we have approved the router to spend it
         // try a swap to see if if it is valid
-        let calldata = Uniswap::swapExactTokensForTokensCall {
-            amountIn: U256::from(1e16),
-            amountOutMin: U256::ZERO,
-            path: vec![pool.token0_address(), pool.token1_address()],
-            to: account,
-            deadline: U256::MAX,
-        }
-        .abi_encode();
+
+        // setup calldata based on the swap type
+        let calldata = match swap_type {
+            SwapType::V2Basic => V2Swap::swapExactTokensForTokensCall {
+                amountIn: U256::from(1e16),
+                amountOutMin: U256::ZERO,
+                path: vec![pool.token0_address(), pool.token1_address()],
+                to: account,
+                deadline: U256::MAX,
+            }
+            .abi_encode(),
+            SwapType::V3Basic => {
+                let swap_fee = pool.get_v3().unwrap().fee;
+                let params = V3Swap::ExactInputSingleParams {
+                    tokenIn: pool.token0_address(),
+                    tokenOut: pool.token1_address(),
+                    fee: swap_fee.try_into().unwrap(),
+                    recipient: account,
+                    amountIn: U256::from(1e16),
+                    amountOutMinimum: U256::ZERO,
+                    sqrtPriceLimitX96: U160::ZERO,
+                };
+                V3Swap::exactInputSingleCall { params }.abi_encode()
+            }
+            SwapType::V3Deadline => {
+                let swap_fee = pool.get_v3().unwrap().fee;
+                let params = V3SwapDeadline::ExactInputSingleParams {
+                    tokenIn: pool.token0_address(),
+                    tokenOut: pool.token1_address(),
+                    fee: swap_fee.try_into().unwrap(),
+                    recipient: account,
+                    amountIn: U256::from(1e16),
+                    deadline: U256::MAX,
+                    amountOutMinimum: U256::ZERO,
+                    sqrtPriceLimitX96: U160::ZERO,
+                };
+                V3SwapDeadline::exactInputSingleCall { params }.abi_encode()
+            }
+        };
 
         // set call to the router
         evm.tx_mut().transact_to = TransactTo::Call(address);

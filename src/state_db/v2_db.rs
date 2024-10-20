@@ -6,11 +6,8 @@ use anyhow::Result;
 use lazy_static::lazy_static;
 use pool_sync::{PoolType, UniswapV2Pool};
 use revm::database_interface::{Database, DatabaseRef};
-use revm::state::AccountInfo;
 use zerocopy::IntoBytes;
-
 use super::BlockStateDB;
-use crate::bytecode::*;
 
 lazy_static! {
     static ref U112_MASK: U256 = (U256::from(1) << 112) - U256::from(1);
@@ -30,15 +27,6 @@ where
         let token1 = pool.token1;
         let reserve0 = U256::from(pool.token0_reserves);
         let reserve1 = U256::from(pool.token1_reserves);
-
-        // add the pool account
-        let account_info = AccountInfo {
-            balance: U256::ZERO,
-            nonce: 1,
-            code_hash: *UNISWAP_V2_CODE_HASH,
-            code: Some(UNISWAP_V2_BYTECODE.clone()), // insert this into contracts and set to none
-        };
-        self.insert_account_info(address, account_info);
 
         // track the pool
         self.add_pool(address, token0, token1, PoolType::UniswapV2);

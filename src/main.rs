@@ -35,7 +35,7 @@ async fn main() -> Result<()> {
     // init dots and logger
     dotenv::dotenv().ok();
     env_logger::Builder::new()
-        .filter_module("BaseBuster", LevelFilter::Trace)
+        .filter_module("BaseBuster", LevelFilter::Debug)
         .init();
 
     // Load in all the pools
@@ -43,8 +43,13 @@ async fn main() -> Result<()> {
     let pool_sync = PoolSync::builder()
         .add_pools(&[
             PoolType::UniswapV2,
-            PoolType::SushiSwapV2,
-            PoolType::PancakeSwapV2,
+            //PoolType::SushiSwapV2,
+            //PoolType::PancakeSwapV2,
+            //PoolType::AlienBaseV2,
+            //PoolType::BaseSwapV2,
+            //PoolType::DackieSwapV2,
+            //PoolType::SwapBasedV2,
+            PoolType::UniswapV3,
         ])
         .chain(Chain::Base)
         .rate_limit(1000)
