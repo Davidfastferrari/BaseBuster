@@ -1,0 +1,1118 @@
+2024-10-22T22:39:25Z TRACE BaseBuster::state_db::v2_db] V2 Database: Inserting token 0 for 0xDBcEA24d7B83571AECB8B072A295c675D6B1Ca21
+[2024-10-22T22:39:25Z TRACE BaseBuster::state_db::v2_db] V2 Database: Inserting token 1 for 0xDBcEA24d7B83571AECB8B072A295c675D6B1Ca21
+[2024-10-22T22:39:25Z INFO  BaseBuster::ignition] Generating cycles...
+[2024-10-22T22:39:25Z INFO  BaseBuster::ignition] Generated 4524 cycles
+[2024-10-22T22:39:25Z INFO  BaseBuster::ignition] Starting the simulator...
+[2024-10-22T22:39:25Z INFO  BaseBuster::ignition] Starting arbitrage searcher...
+[2024-10-22T22:39:26Z DEBUG BaseBuster::market_state] Processing block 21423709
+[2024-10-22T22:39:27Z DEBUG BaseBuster::market_state] Updating state for pool 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:39:27Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:39:27Z DEBUG BaseBuster::market_state] Updating state for pool 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:39:27Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:39:27Z DEBUG BaseBuster::market_state] Updating state for pool 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:39:27Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:39:27Z DEBUG BaseBuster::market_state] Updating state for pool 0x51831D9357252FD2678cF44E2c9ED1ad2F5a0b01
+[2024-10-22T22:39:27Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x51831D9357252FD2678cF44E2c9ED1ad2F5a0b01
+[2024-10-22T22:39:27Z INFO  BaseBuster::market_state] Got 2 updates in block 21423709
+[2024-10-22T22:39:27Z INFO  BaseBuster::searcher] Searching for arbs...
+[2024-10-22T22:39:27Z INFO  BaseBuster::searcher] 0 touched paths
+[2024-10-22T22:39:27Z INFO  BaseBuster::searcher] 803.746µs elapsed
+[2024-10-22T22:39:27Z INFO  BaseBuster::searcher] 0 profitable paths
+[2024-10-22T22:39:28Z DEBUG BaseBuster::market_state] Processing block 21423710
+[2024-10-22T22:39:28Z DEBUG BaseBuster::market_state] Updating state for pool 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:39:28Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:39:28Z DEBUG BaseBuster::market_state] Updating state for pool 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:39:28Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:39:28Z INFO  BaseBuster::market_state] Got 1 updates in block 21423710
+[2024-10-22T22:39:28Z INFO  BaseBuster::searcher] Searching for arbs...
+[2024-10-22T22:39:28Z INFO  BaseBuster::searcher] 0 touched paths
+[2024-10-22T22:39:28Z INFO  BaseBuster::searcher] 6.41µs elapsed
+[2024-10-22T22:39:28Z INFO  BaseBuster::searcher] 0 profitable paths
+[2024-10-22T22:39:30Z DEBUG BaseBuster::market_state] Processing block 21423711
+[2024-10-22T22:39:30Z DEBUG BaseBuster::market_state] Updating state for pool 0x51831D9357252FD2678cF44E2c9ED1ad2F5a0b01
+[2024-10-22T22:39:30Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x51831D9357252FD2678cF44E2c9ED1ad2F5a0b01
+[2024-10-22T22:39:30Z INFO  BaseBuster::market_state] Got 1 updates in block 21423711
+[2024-10-22T22:39:30Z INFO  BaseBuster::searcher] Searching for arbs...
+[2024-10-22T22:39:30Z INFO  BaseBuster::searcher] 0 touched paths
+[2024-10-22T22:39:30Z INFO  BaseBuster::searcher] 10.31µs elapsed
+[2024-10-22T22:39:30Z INFO  BaseBuster::searcher] 0 profitable paths
+[2024-10-22T22:39:34Z DEBUG BaseBuster::market_state] Processing block 21423712
+[2024-10-22T22:39:34Z DEBUG BaseBuster::market_state] Updating state for pool 0xF4D030e2788BA4E0E10ccEE27D2d24D4660685D2
+[2024-10-22T22:39:34Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xF4D030e2788BA4E0E10ccEE27D2d24D4660685D2
+[2024-10-22T22:39:34Z INFO  BaseBuster::market_state] Got 1 updates in block 21423712
+[2024-10-22T22:39:34Z INFO  BaseBuster::searcher] Searching for arbs...
+[2024-10-22T22:39:34Z INFO  BaseBuster::searcher] 0 touched paths
+[2024-10-22T22:39:34Z INFO  BaseBuster::searcher] 8.52µs elapsed
+[2024-10-22T22:39:34Z INFO  BaseBuster::searcher] 0 profitable paths
+[2024-10-22T22:39:35Z DEBUG BaseBuster::market_state] Processing block 21423713
+[2024-10-22T22:39:35Z DEBUG BaseBuster::market_state] Updating state for pool 0x0B82D37adE6f098D3f2E1134aC2F1D1c1a00f816
+[2024-10-22T22:39:35Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x0B82D37adE6f098D3f2E1134aC2F1D1c1a00f816
+[2024-10-22T22:39:35Z DEBUG BaseBuster::market_state] Updating state for pool 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:39:35Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:39:35Z DEBUG BaseBuster::market_state] Updating state for pool 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:39:35Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:39:35Z DEBUG BaseBuster::market_state] Updating state for pool 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:39:35Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:39:35Z DEBUG BaseBuster::market_state] Updating state for pool 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:39:35Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:39:35Z DEBUG BaseBuster::market_state] Updating state for pool 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:39:35Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:39:35Z DEBUG BaseBuster::market_state] Updating state for pool 0xAF8Ae07e20458E89883FC6659f6D1E1d52872C96
+[2024-10-22T22:39:35Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xAF8Ae07e20458E89883FC6659f6D1E1d52872C96
+[2024-10-22T22:39:35Z DEBUG BaseBuster::market_state] Updating state for pool 0x3F413FcCAEa59b8053d605AEa7ae847C02ed5D95
+[2024-10-22T22:39:35Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x3F413FcCAEa59b8053d605AEa7ae847C02ed5D95
+[2024-10-22T22:39:35Z DEBUG BaseBuster::market_state] Updating state for pool 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:39:35Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:39:35Z DEBUG BaseBuster::market_state] Updating state for pool 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:39:35Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:39:35Z DEBUG BaseBuster::market_state] Updating state for pool 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:39:35Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:39:35Z DEBUG BaseBuster::market_state] Updating state for pool 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:39:35Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:39:35Z DEBUG BaseBuster::market_state] Updating state for pool 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:39:35Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:39:35Z DEBUG BaseBuster::market_state] Updating state for pool 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:39:35Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:39:35Z DEBUG BaseBuster::market_state] Updating state for pool 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:39:35Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:39:35Z DEBUG BaseBuster::market_state] Updating state for pool 0x51831D9357252FD2678cF44E2c9ED1ad2F5a0b01
+[2024-10-22T22:39:35Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x51831D9357252FD2678cF44E2c9ED1ad2F5a0b01
+[2024-10-22T22:39:35Z DEBUG BaseBuster::market_state] Updating state for pool 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:39:35Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:39:35Z DEBUG BaseBuster::market_state] Updating state for pool 0x51831D9357252FD2678cF44E2c9ED1ad2F5a0b01
+[2024-10-22T22:39:35Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x51831D9357252FD2678cF44E2c9ED1ad2F5a0b01
+[2024-10-22T22:39:35Z DEBUG BaseBuster::market_state] Updating state for pool 0xF4D030e2788BA4E0E10ccEE27D2d24D4660685D2
+[2024-10-22T22:39:35Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xF4D030e2788BA4E0E10ccEE27D2d24D4660685D2
+[2024-10-22T22:39:35Z DEBUG BaseBuster::market_state] Updating state for pool 0x7274e7ba268EC1349338a2D6083a7f03d410E8E8
+[2024-10-22T22:39:35Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x7274e7ba268EC1349338a2D6083a7f03d410E8E8
+[2024-10-22T22:39:35Z INFO  BaseBuster::market_state] Got 8 updates in block 21423713
+[2024-10-22T22:39:35Z INFO  BaseBuster::searcher] Searching for arbs...
+[2024-10-22T22:39:35Z INFO  BaseBuster::searcher] 12 touched paths
+[2024-10-22T22:39:35Z INFO  BaseBuster::searcher] 194.009µs elapsed
+[2024-10-22T22:39:35Z INFO  BaseBuster::searcher] 12 profitable paths
+[2024-10-22T22:39:35Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:39:35Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:39:35Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:39:35Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:39:35Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:39:35Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:39:35Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:39:35Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:39:35Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:39:35Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:39:35Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:39:35Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:39:35Z INFO  BaseBuster::simulator] Success.. Calculated 85214728437932, Quoted: 85214728437932, Path Hash 12452196574750986814
+[2024-10-22T22:39:35Z INFO  BaseBuster::simulator] Success.. Calculated 90361403077751, Quoted: 90361403077751, Path Hash 1709426076274562026
+[2024-10-22T22:39:35Z INFO  BaseBuster::simulator] Success.. Calculated 35138179203259, Quoted: 35138179203259, Path Hash 2213450546375085357
+[2024-10-22T22:39:35Z INFO  BaseBuster::simulator] Success.. Calculated 172526755334, Quoted: 172526755334, Path Hash 11731969152268185275
+[2024-10-22T22:39:35Z INFO  BaseBuster::simulator] Success.. Calculated 120523817824, Quoted: 120523817824, Path Hash 13485418840462343437
+[2024-10-22T22:39:35Z INFO  BaseBuster::simulator] Success.. Calculated 124400886459, Quoted: 124400886459, Path Hash 12587989454922368917
+[2024-10-22T22:39:35Z INFO  BaseBuster::simulator] Success.. Calculated 33105046102398, Quoted: 33105046102398, Path Hash 14387490493214553116
+[2024-10-22T22:39:35Z INFO  BaseBuster::simulator] Success.. Calculated 85340946941310, Quoted: 85340946941310, Path Hash 7725255597217720747
+[2024-10-22T22:39:35Z INFO  BaseBuster::simulator] Success.. Calculated 439630890976492, Quoted: 439630890976492, Path Hash 13065173868396177635
+[2024-10-22T22:39:35Z INFO  BaseBuster::simulator] Success.. Calculated 83860206028595, Quoted: 83860206028595, Path Hash 6695206162922855251
+[2024-10-22T22:39:35Z INFO  BaseBuster::simulator] Success.. Calculated 185545742746, Quoted: 185545742746, Path Hash 8081567528661577365
+[2024-10-22T22:39:35Z INFO  BaseBuster::simulator] Success.. Calculated 448261935357818, Quoted: 448261935357818, Path Hash 3423503676211995964
+[2024-10-22T22:39:36Z DEBUG BaseBuster::market_state] Processing block 21423714
+[2024-10-22T22:39:36Z DEBUG BaseBuster::market_state] Updating state for pool 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:39:36Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:39:36Z DEBUG BaseBuster::market_state] Updating state for pool 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:39:36Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:39:36Z DEBUG BaseBuster::market_state] Updating state for pool 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:39:36Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:39:36Z DEBUG BaseBuster::market_state] Updating state for pool 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:39:36Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:39:36Z DEBUG BaseBuster::market_state] Updating state for pool 0xF4D030e2788BA4E0E10ccEE27D2d24D4660685D2
+[2024-10-22T22:39:36Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xF4D030e2788BA4E0E10ccEE27D2d24D4660685D2
+[2024-10-22T22:39:36Z DEBUG BaseBuster::market_state] Updating state for pool 0x51831D9357252FD2678cF44E2c9ED1ad2F5a0b01
+[2024-10-22T22:39:36Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x51831D9357252FD2678cF44E2c9ED1ad2F5a0b01
+[2024-10-22T22:39:36Z INFO  BaseBuster::market_state] Got 3 updates in block 21423714
+[2024-10-22T22:39:36Z INFO  BaseBuster::searcher] Searching for arbs...
+[2024-10-22T22:39:36Z INFO  BaseBuster::searcher] 0 touched paths
+[2024-10-22T22:39:36Z INFO  BaseBuster::searcher] 20.379µs elapsed
+[2024-10-22T22:39:36Z INFO  BaseBuster::searcher] 0 profitable paths
+[2024-10-22T22:39:38Z DEBUG BaseBuster::market_state] Processing block 21423715
+[2024-10-22T22:39:38Z DEBUG BaseBuster::market_state] Updating state for pool 0x1d90ad3DCD0d3cF2EE1c51C362F688D25E6b3260
+[2024-10-22T22:39:38Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x1d90ad3DCD0d3cF2EE1c51C362F688D25E6b3260
+[2024-10-22T22:39:38Z DEBUG BaseBuster::market_state] Updating state for pool 0x7274e7ba268EC1349338a2D6083a7f03d410E8E8
+[2024-10-22T22:39:38Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x7274e7ba268EC1349338a2D6083a7f03d410E8E8
+[2024-10-22T22:39:38Z DEBUG BaseBuster::market_state] Updating state for pool 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:39:38Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:39:38Z INFO  BaseBuster::market_state] Got 3 updates in block 21423715
+[2024-10-22T22:39:38Z INFO  BaseBuster::searcher] Searching for arbs...
+[2024-10-22T22:39:38Z INFO  BaseBuster::searcher] 2 touched paths
+[2024-10-22T22:39:38Z INFO  BaseBuster::searcher] 49.47µs elapsed
+[2024-10-22T22:39:38Z INFO  BaseBuster::searcher] 2 profitable paths
+[2024-10-22T22:39:38Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:39:38Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:39:38Z INFO  BaseBuster::simulator] Success.. Calculated 83867950260347, Quoted: 83867950260347, Path Hash 6695206162922855251
+[2024-10-22T22:39:38Z INFO  BaseBuster::simulator] Success.. Calculated 85340880254533, Quoted: 85340880254533, Path Hash 7725255597217720747
+[2024-10-22T22:39:40Z DEBUG BaseBuster::market_state] Processing block 21423716
+[2024-10-22T22:39:40Z DEBUG BaseBuster::market_state] Updating state for pool 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:39:40Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:39:40Z DEBUG BaseBuster::market_state] Updating state for pool 0x51831D9357252FD2678cF44E2c9ED1ad2F5a0b01
+[2024-10-22T22:39:40Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x51831D9357252FD2678cF44E2c9ED1ad2F5a0b01
+[2024-10-22T22:39:40Z DEBUG BaseBuster::market_state] Updating state for pool 0xF4D030e2788BA4E0E10ccEE27D2d24D4660685D2
+[2024-10-22T22:39:40Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xF4D030e2788BA4E0E10ccEE27D2d24D4660685D2
+[2024-10-22T22:39:40Z INFO  BaseBuster::market_state] Got 3 updates in block 21423716
+[2024-10-22T22:39:40Z INFO  BaseBuster::searcher] Searching for arbs...
+[2024-10-22T22:39:40Z INFO  BaseBuster::searcher] 0 touched paths
+[2024-10-22T22:39:40Z INFO  BaseBuster::searcher] 18µs elapsed
+[2024-10-22T22:39:40Z INFO  BaseBuster::searcher] 0 profitable paths
+[2024-10-22T22:39:42Z DEBUG BaseBuster::market_state] Processing block 21423717
+[2024-10-22T22:39:42Z DEBUG BaseBuster::market_state] Updating state for pool 0x7274e7ba268EC1349338a2D6083a7f03d410E8E8
+[2024-10-22T22:39:42Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x7274e7ba268EC1349338a2D6083a7f03d410E8E8
+[2024-10-22T22:39:42Z INFO  BaseBuster::market_state] Got 1 updates in block 21423717
+[2024-10-22T22:39:42Z INFO  BaseBuster::searcher] Searching for arbs...
+[2024-10-22T22:39:42Z INFO  BaseBuster::searcher] 2 touched paths
+[2024-10-22T22:39:42Z INFO  BaseBuster::searcher] 58.449µs elapsed
+[2024-10-22T22:39:42Z INFO  BaseBuster::searcher] 2 profitable paths
+[2024-10-22T22:39:42Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:39:42Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:39:42Z INFO  BaseBuster::simulator] Success.. Calculated 85340767407279, Quoted: 85340767407279, Path Hash 7725255597217720747
+[2024-10-22T22:39:42Z INFO  BaseBuster::simulator] Success.. Calculated 83881055064446, Quoted: 83881055064446, Path Hash 6695206162922855251
+[2024-10-22T22:39:44Z DEBUG BaseBuster::market_state] Processing block 21423718
+[2024-10-22T22:39:44Z DEBUG BaseBuster::market_state] Updating state for pool 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:39:44Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:39:44Z DEBUG BaseBuster::market_state] Updating state for pool 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:39:44Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:39:44Z DEBUG BaseBuster::market_state] Updating state for pool 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:39:44Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:39:44Z DEBUG BaseBuster::market_state] Updating state for pool 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:39:44Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:39:44Z DEBUG BaseBuster::market_state] Updating state for pool 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:39:44Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:39:44Z DEBUG BaseBuster::market_state] Updating state for pool 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:39:44Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:39:44Z DEBUG BaseBuster::market_state] Updating state for pool 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:39:44Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:39:44Z DEBUG BaseBuster::market_state] Updating state for pool 0xF4D030e2788BA4E0E10ccEE27D2d24D4660685D2
+[2024-10-22T22:39:44Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xF4D030e2788BA4E0E10ccEE27D2d24D4660685D2
+[2024-10-22T22:39:44Z DEBUG BaseBuster::market_state] Updating state for pool 0xAF8Ae07e20458E89883FC6659f6D1E1d52872C96
+[2024-10-22T22:39:44Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xAF8Ae07e20458E89883FC6659f6D1E1d52872C96
+[2024-10-22T22:39:44Z DEBUG BaseBuster::market_state] Updating state for pool 0xAF8Ae07e20458E89883FC6659f6D1E1d52872C96
+[2024-10-22T22:39:44Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xAF8Ae07e20458E89883FC6659f6D1E1d52872C96
+[2024-10-22T22:39:44Z DEBUG BaseBuster::market_state] Updating state for pool 0x51831D9357252FD2678cF44E2c9ED1ad2F5a0b01
+[2024-10-22T22:39:44Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x51831D9357252FD2678cF44E2c9ED1ad2F5a0b01
+[2024-10-22T22:39:44Z DEBUG BaseBuster::market_state] Updating state for pool 0xAF8Ae07e20458E89883FC6659f6D1E1d52872C96
+[2024-10-22T22:39:44Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xAF8Ae07e20458E89883FC6659f6D1E1d52872C96
+[2024-10-22T22:39:44Z INFO  BaseBuster::market_state] Got 5 updates in block 21423718
+[2024-10-22T22:39:44Z INFO  BaseBuster::searcher] Searching for arbs...
+[2024-10-22T22:39:44Z INFO  BaseBuster::searcher] 8 touched paths
+[2024-10-22T22:39:44Z INFO  BaseBuster::searcher] 95.47µs elapsed
+[2024-10-22T22:39:44Z INFO  BaseBuster::searcher] 8 profitable paths
+[2024-10-22T22:39:44Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:39:44Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:39:44Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:39:44Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:39:44Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:39:44Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:39:44Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:39:44Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:39:44Z INFO  BaseBuster::simulator] Success.. Calculated 172526755345, Quoted: 172526755345, Path Hash 11731969152268185275
+[2024-10-22T22:39:44Z INFO  BaseBuster::simulator] Success.. Calculated 124400886459, Quoted: 124400886459, Path Hash 12587989454922368917
+[2024-10-22T22:39:44Z INFO  BaseBuster::simulator] Success.. Calculated 35138179203252, Quoted: 35138179203252, Path Hash 2213450546375085357
+[2024-10-22T22:39:44Z INFO  BaseBuster::simulator] Success.. Calculated 185545742758, Quoted: 185545742758, Path Hash 8081567528661577365
+[2024-10-22T22:39:44Z INFO  BaseBuster::simulator] Success.. Calculated 90361403077701, Quoted: 90361403077701, Path Hash 1709426076274562026
+[2024-10-22T22:39:44Z INFO  BaseBuster::simulator] Success.. Calculated 120523817824, Quoted: 120523817824, Path Hash 13485418840462343437
+[2024-10-22T22:39:44Z INFO  BaseBuster::simulator] Success.. Calculated 85214728443461, Quoted: 85214728443461, Path Hash 12452196574750986814
+[2024-10-22T22:39:44Z INFO  BaseBuster::simulator] Success.. Calculated 33105046104546, Quoted: 33105046104546, Path Hash 14387490493214553116
+[2024-10-22T22:39:46Z DEBUG BaseBuster::market_state] Processing block 21423719
+[2024-10-22T22:39:46Z DEBUG BaseBuster::market_state] Updating state for pool 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:39:46Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:39:46Z DEBUG BaseBuster::market_state] Updating state for pool 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:39:46Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:39:46Z DEBUG BaseBuster::market_state] Updating state for pool 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:39:46Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:39:46Z DEBUG BaseBuster::market_state] Updating state for pool 0xD0d336D96e91CBF04c2b0C7A52622F560c2f8438
+[2024-10-22T22:39:46Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xD0d336D96e91CBF04c2b0C7A52622F560c2f8438
+[2024-10-22T22:39:46Z INFO  BaseBuster::market_state] Got 2 updates in block 21423719
+[2024-10-22T22:39:46Z INFO  BaseBuster::searcher] Searching for arbs...
+[2024-10-22T22:39:46Z INFO  BaseBuster::searcher] 0 touched paths
+[2024-10-22T22:39:46Z INFO  BaseBuster::searcher] 17.08µs elapsed
+[2024-10-22T22:39:46Z INFO  BaseBuster::searcher] 0 profitable paths
+[2024-10-22T22:39:48Z DEBUG BaseBuster::market_state] Processing block 21423720
+[2024-10-22T22:39:48Z DEBUG BaseBuster::market_state] Updating state for pool 0x600f089fa81419C4D53e5DaC55Da680353ba2C86
+[2024-10-22T22:39:48Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x600f089fa81419C4D53e5DaC55Da680353ba2C86
+[2024-10-22T22:39:48Z DEBUG BaseBuster::market_state] Updating state for pool 0x51831D9357252FD2678cF44E2c9ED1ad2F5a0b01
+[2024-10-22T22:39:48Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x51831D9357252FD2678cF44E2c9ED1ad2F5a0b01
+[2024-10-22T22:39:48Z DEBUG BaseBuster::market_state] Updating state for pool 0x51831D9357252FD2678cF44E2c9ED1ad2F5a0b01
+[2024-10-22T22:39:48Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x51831D9357252FD2678cF44E2c9ED1ad2F5a0b01
+[2024-10-22T22:39:48Z DEBUG BaseBuster::market_state] Updating state for pool 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:39:48Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:39:48Z DEBUG BaseBuster::market_state] Updating state for pool 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:39:48Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:39:48Z DEBUG BaseBuster::market_state] Updating state for pool 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:39:48Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:39:48Z INFO  BaseBuster::market_state] Got 3 updates in block 21423720
+[2024-10-22T22:39:48Z INFO  BaseBuster::searcher] Searching for arbs...
+[2024-10-22T22:39:48Z INFO  BaseBuster::searcher] 0 touched paths
+[2024-10-22T22:39:48Z INFO  BaseBuster::searcher] 16.74µs elapsed
+[2024-10-22T22:39:48Z INFO  BaseBuster::searcher] 0 profitable paths
+[2024-10-22T22:39:50Z DEBUG BaseBuster::market_state] Processing block 21423721
+[2024-10-22T22:39:50Z DEBUG BaseBuster::market_state] Updating state for pool 0x51831D9357252FD2678cF44E2c9ED1ad2F5a0b01
+[2024-10-22T22:39:50Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x51831D9357252FD2678cF44E2c9ED1ad2F5a0b01
+[2024-10-22T22:39:50Z DEBUG BaseBuster::market_state] Updating state for pool 0xAF8Ae07e20458E89883FC6659f6D1E1d52872C96
+[2024-10-22T22:39:50Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xAF8Ae07e20458E89883FC6659f6D1E1d52872C96
+[2024-10-22T22:39:50Z DEBUG BaseBuster::market_state] Updating state for pool 0x76Fc8DbF2022EE75612cb74ec80caF6b3ccFfb23
+[2024-10-22T22:39:50Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x76Fc8DbF2022EE75612cb74ec80caF6b3ccFfb23
+[2024-10-22T22:39:50Z INFO  BaseBuster::market_state] Got 3 updates in block 21423721
+[2024-10-22T22:39:50Z INFO  BaseBuster::searcher] Searching for arbs...
+[2024-10-22T22:39:50Z INFO  BaseBuster::searcher] 0 touched paths
+[2024-10-22T22:39:50Z INFO  BaseBuster::searcher] 18.72µs elapsed
+[2024-10-22T22:39:50Z INFO  BaseBuster::searcher] 0 profitable paths
+[2024-10-22T22:39:52Z DEBUG BaseBuster::market_state] Processing block 21423722
+[2024-10-22T22:39:52Z DEBUG BaseBuster::market_state] Updating state for pool 0x7e6c090c960f78617A52c99D3E50971063d10BfC
+[2024-10-22T22:39:52Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x7e6c090c960f78617A52c99D3E50971063d10BfC
+[2024-10-22T22:39:52Z DEBUG BaseBuster::market_state] Updating state for pool 0x7e6c090c960f78617A52c99D3E50971063d10BfC
+[2024-10-22T22:39:52Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x7e6c090c960f78617A52c99D3E50971063d10BfC
+[2024-10-22T22:39:52Z DEBUG BaseBuster::market_state] Updating state for pool 0x7e6c090c960f78617A52c99D3E50971063d10BfC
+[2024-10-22T22:39:52Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x7e6c090c960f78617A52c99D3E50971063d10BfC
+[2024-10-22T22:39:52Z DEBUG BaseBuster::market_state] Updating state for pool 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:39:52Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:39:52Z DEBUG BaseBuster::market_state] Updating state for pool 0xF4D030e2788BA4E0E10ccEE27D2d24D4660685D2
+[2024-10-22T22:39:52Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xF4D030e2788BA4E0E10ccEE27D2d24D4660685D2
+[2024-10-22T22:39:52Z INFO  BaseBuster::market_state] Got 3 updates in block 21423722
+[2024-10-22T22:39:52Z INFO  BaseBuster::searcher] Searching for arbs...
+[2024-10-22T22:39:52Z INFO  BaseBuster::searcher] 0 touched paths
+[2024-10-22T22:39:52Z INFO  BaseBuster::searcher] 17.46µs elapsed
+[2024-10-22T22:39:52Z INFO  BaseBuster::searcher] 0 profitable paths
+[2024-10-22T22:39:54Z DEBUG BaseBuster::market_state] Processing block 21423723
+[2024-10-22T22:39:54Z DEBUG BaseBuster::market_state] Updating state for pool 0x7274e7ba268EC1349338a2D6083a7f03d410E8E8
+[2024-10-22T22:39:54Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x7274e7ba268EC1349338a2D6083a7f03d410E8E8
+[2024-10-22T22:39:54Z DEBUG BaseBuster::market_state] Updating state for pool 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:39:54Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:39:54Z DEBUG BaseBuster::market_state] Updating state for pool 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:39:54Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:39:54Z DEBUG BaseBuster::market_state] Updating state for pool 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:39:54Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:39:54Z DEBUG BaseBuster::market_state] Updating state for pool 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:39:54Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:39:54Z DEBUG BaseBuster::market_state] Updating state for pool 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:39:54Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:39:54Z DEBUG BaseBuster::market_state] Updating state for pool 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:39:54Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:39:54Z DEBUG BaseBuster::market_state] Updating state for pool 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:39:54Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:39:54Z DEBUG BaseBuster::market_state] Updating state for pool 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:39:54Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:39:54Z DEBUG BaseBuster::market_state] Updating state for pool 0xF4D030e2788BA4E0E10ccEE27D2d24D4660685D2
+[2024-10-22T22:39:54Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xF4D030e2788BA4E0E10ccEE27D2d24D4660685D2
+[2024-10-22T22:39:54Z INFO  BaseBuster::market_state] Got 4 updates in block 21423723
+[2024-10-22T22:39:54Z INFO  BaseBuster::searcher] Searching for arbs...
+[2024-10-22T22:39:54Z INFO  BaseBuster::searcher] 10 touched paths
+[2024-10-22T22:39:54Z INFO  BaseBuster::searcher] 98.86µs elapsed
+[2024-10-22T22:39:54Z INFO  BaseBuster::searcher] 10 profitable paths
+[2024-10-22T22:39:54Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:39:54Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:39:54Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:39:54Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:39:54Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:39:54Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:39:54Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:39:54Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:39:54Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:39:54Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:39:54Z INFO  BaseBuster::simulator] Success.. Calculated 35138179203244, Quoted: 35138179203244, Path Hash 2213450546375085357
+[2024-10-22T22:39:54Z INFO  BaseBuster::simulator] Success.. Calculated 90361403077650, Quoted: 90361403077650, Path Hash 1709426076274562026
+[2024-10-22T22:39:54Z INFO  BaseBuster::simulator] Success.. Calculated 83860846707950, Quoted: 83860846707950, Path Hash 6695206162922855251
+[2024-10-22T22:39:54Z INFO  BaseBuster::simulator] Success.. Calculated 85214728448989, Quoted: 85214728448989, Path Hash 12452196574750986814
+[2024-10-22T22:39:54Z INFO  BaseBuster::simulator] Success.. Calculated 185545742770, Quoted: 185545742770, Path Hash 8081567528661577365
+[2024-10-22T22:39:54Z INFO  BaseBuster::simulator] Success.. Calculated 124400886459, Quoted: 124400886459, Path Hash 12587989454922368917
+[2024-10-22T22:39:54Z INFO  BaseBuster::simulator] Success.. Calculated 120523817824, Quoted: 120523817824, Path Hash 13485418840462343437
+[2024-10-22T22:39:54Z INFO  BaseBuster::simulator] Success.. Calculated 33105046106694, Quoted: 33105046106694, Path Hash 14387490493214553116
+[2024-10-22T22:39:54Z INFO  BaseBuster::simulator] Success.. Calculated 85340941424517, Quoted: 85340941424517, Path Hash 7725255597217720747
+[2024-10-22T22:39:54Z INFO  BaseBuster::simulator] Success.. Calculated 172526755356, Quoted: 172526755356, Path Hash 11731969152268185275
+[2024-10-22T22:39:56Z DEBUG BaseBuster::market_state] Processing block 21423724
+[2024-10-22T22:39:56Z DEBUG BaseBuster::market_state] Updating state for pool 0x7274e7ba268EC1349338a2D6083a7f03d410E8E8
+[2024-10-22T22:39:56Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x7274e7ba268EC1349338a2D6083a7f03d410E8E8
+[2024-10-22T22:39:56Z DEBUG BaseBuster::market_state] Updating state for pool 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:39:56Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:39:56Z INFO  BaseBuster::market_state] Got 2 updates in block 21423724
+[2024-10-22T22:39:56Z INFO  BaseBuster::searcher] Searching for arbs...
+[2024-10-22T22:39:56Z INFO  BaseBuster::searcher] 2 touched paths
+[2024-10-22T22:39:56Z INFO  BaseBuster::searcher] 73.18µs elapsed
+[2024-10-22T22:39:56Z INFO  BaseBuster::searcher] 2 profitable paths
+[2024-10-22T22:39:56Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:39:56Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:39:56Z INFO  BaseBuster::simulator] Success.. Calculated 85341181041342, Quoted: 85341181041342, Path Hash 7725255597217720747
+[2024-10-22T22:39:56Z INFO  BaseBuster::simulator] Success.. Calculated 83833020507721, Quoted: 83833020507721, Path Hash 6695206162922855251
+[2024-10-22T22:39:58Z DEBUG BaseBuster::market_state] Processing block 21423725
+[2024-10-22T22:39:58Z DEBUG BaseBuster::market_state] Updating state for pool 0xF4D030e2788BA4E0E10ccEE27D2d24D4660685D2
+[2024-10-22T22:39:58Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xF4D030e2788BA4E0E10ccEE27D2d24D4660685D2
+[2024-10-22T22:39:58Z DEBUG BaseBuster::market_state] Updating state for pool 0x51831D9357252FD2678cF44E2c9ED1ad2F5a0b01
+[2024-10-22T22:39:58Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x51831D9357252FD2678cF44E2c9ED1ad2F5a0b01
+[2024-10-22T22:39:58Z DEBUG BaseBuster::market_state] Updating state for pool 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:39:58Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:39:58Z DEBUG BaseBuster::market_state] Updating state for pool 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:39:58Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:39:58Z DEBUG BaseBuster::market_state] Updating state for pool 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:39:58Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:39:58Z DEBUG BaseBuster::market_state] Updating state for pool 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:39:58Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:39:58Z DEBUG BaseBuster::market_state] Updating state for pool 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:39:58Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:39:58Z INFO  BaseBuster::market_state] Got 3 updates in block 21423725
+[2024-10-22T22:39:58Z INFO  BaseBuster::searcher] Searching for arbs...
+[2024-10-22T22:39:58Z INFO  BaseBuster::searcher] 0 touched paths
+[2024-10-22T22:39:58Z INFO  BaseBuster::searcher] 21.93µs elapsed
+[2024-10-22T22:39:58Z INFO  BaseBuster::searcher] 0 profitable paths
+[2024-10-22T22:40:00Z DEBUG BaseBuster::market_state] Processing block 21423726
+[2024-10-22T22:40:00Z DEBUG BaseBuster::market_state] Updating state for pool 0x7274e7ba268EC1349338a2D6083a7f03d410E8E8
+[2024-10-22T22:40:00Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x7274e7ba268EC1349338a2D6083a7f03d410E8E8
+[2024-10-22T22:40:00Z DEBUG BaseBuster::market_state] Updating state for pool 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:40:00Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:40:00Z INFO  BaseBuster::market_state] Got 2 updates in block 21423726
+[2024-10-22T22:40:00Z INFO  BaseBuster::searcher] Searching for arbs...
+[2024-10-22T22:40:00Z INFO  BaseBuster::searcher] 2 touched paths
+[2024-10-22T22:40:00Z INFO  BaseBuster::searcher] 52.659µs elapsed
+[2024-10-22T22:40:00Z INFO  BaseBuster::searcher] 2 profitable paths
+[2024-10-22T22:40:00Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:00Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:00Z INFO  BaseBuster::simulator] Success.. Calculated 85341154558691, Quoted: 85341154558691, Path Hash 7725255597217720747
+[2024-10-22T22:40:00Z INFO  BaseBuster::simulator] Success.. Calculated 83836095878306, Quoted: 83836095878306, Path Hash 6695206162922855251
+[2024-10-22T22:40:02Z DEBUG BaseBuster::market_state] Processing block 21423727
+[2024-10-22T22:40:02Z DEBUG BaseBuster::market_state] Updating state for pool 0x9a8Cd658EaEB87d6647f67096F1dF57B5D1f87CB
+[2024-10-22T22:40:02Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x9a8Cd658EaEB87d6647f67096F1dF57B5D1f87CB
+[2024-10-22T22:40:02Z DEBUG BaseBuster::market_state] Updating state for pool 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:40:02Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:40:02Z DEBUG BaseBuster::market_state] Updating state for pool 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:40:02Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:40:02Z DEBUG BaseBuster::market_state] Updating state for pool 0x51831D9357252FD2678cF44E2c9ED1ad2F5a0b01
+[2024-10-22T22:40:02Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x51831D9357252FD2678cF44E2c9ED1ad2F5a0b01
+[2024-10-22T22:40:02Z INFO  BaseBuster::market_state] Got 3 updates in block 21423727
+[2024-10-22T22:40:02Z INFO  BaseBuster::searcher] Searching for arbs...
+[2024-10-22T22:40:02Z INFO  BaseBuster::searcher] 0 touched paths
+[2024-10-22T22:40:02Z INFO  BaseBuster::searcher] 15.81µs elapsed
+[2024-10-22T22:40:02Z INFO  BaseBuster::searcher] 0 profitable paths
+[2024-10-22T22:40:03Z DEBUG BaseBuster::market_state] Processing block 21423728
+[2024-10-22T22:40:03Z DEBUG BaseBuster::market_state] Updating state for pool 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:40:03Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:40:03Z DEBUG BaseBuster::market_state] Updating state for pool 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:40:03Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:40:03Z DEBUG BaseBuster::market_state] Updating state for pool 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:40:03Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:40:03Z DEBUG BaseBuster::market_state] Updating state for pool 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:40:03Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:40:03Z DEBUG BaseBuster::market_state] Updating state for pool 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:40:03Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:40:03Z DEBUG BaseBuster::market_state] Updating state for pool 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:40:03Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:40:03Z DEBUG BaseBuster::market_state] Updating state for pool 0x7274e7ba268EC1349338a2D6083a7f03d410E8E8
+[2024-10-22T22:40:03Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x7274e7ba268EC1349338a2D6083a7f03d410E8E8
+[2024-10-22T22:40:03Z DEBUG BaseBuster::market_state] Updating state for pool 0xF4D030e2788BA4E0E10ccEE27D2d24D4660685D2
+[2024-10-22T22:40:03Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xF4D030e2788BA4E0E10ccEE27D2d24D4660685D2
+[2024-10-22T22:40:03Z DEBUG BaseBuster::market_state] Updating state for pool 0xAF8Ae07e20458E89883FC6659f6D1E1d52872C96
+[2024-10-22T22:40:03Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xAF8Ae07e20458E89883FC6659f6D1E1d52872C96
+[2024-10-22T22:40:03Z INFO  BaseBuster::market_state] Got 5 updates in block 21423728
+[2024-10-22T22:40:03Z INFO  BaseBuster::searcher] Searching for arbs...
+[2024-10-22T22:40:03Z INFO  BaseBuster::searcher] 10 touched paths
+[2024-10-22T22:40:03Z INFO  BaseBuster::searcher] 130.239µs elapsed
+[2024-10-22T22:40:03Z INFO  BaseBuster::searcher] 10 profitable paths
+[2024-10-22T22:40:03Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:03Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:03Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:03Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:03Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:03Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:03Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:03Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:03Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:03Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:03Z INFO  BaseBuster::simulator] Success.. Calculated 85341076756533, Quoted: 85341076756533, Path Hash 7725255597217720747
+[2024-10-22T22:40:03Z INFO  BaseBuster::simulator] Success.. Calculated 33105046108412, Quoted: 33105046108412, Path Hash 14387490493214553116
+[2024-10-22T22:40:03Z INFO  BaseBuster::simulator] Success.. Calculated 90361403077610, Quoted: 90361403077610, Path Hash 1709426076274562026
+[2024-10-22T22:40:03Z INFO  BaseBuster::simulator] Success.. Calculated 35138179203238, Quoted: 35138179203238, Path Hash 2213450546375085357
+[2024-10-22T22:40:03Z INFO  BaseBuster::simulator] Success.. Calculated 185545742779, Quoted: 185545742779, Path Hash 8081567528661577365
+[2024-10-22T22:40:03Z INFO  BaseBuster::simulator] Success.. Calculated 83845130878712, Quoted: 83845130878712, Path Hash 6695206162922855251
+[2024-10-22T22:40:03Z INFO  BaseBuster::simulator] Success.. Calculated 120523817824, Quoted: 120523817824, Path Hash 13485418840462343437
+[2024-10-22T22:40:03Z INFO  BaseBuster::simulator] Success.. Calculated 124400886459, Quoted: 124400886459, Path Hash 12587989454922368917
+[2024-10-22T22:40:03Z INFO  BaseBuster::simulator] Success.. Calculated 172526755365, Quoted: 172526755365, Path Hash 11731969152268185275
+[2024-10-22T22:40:03Z INFO  BaseBuster::simulator] Success.. Calculated 85214728453412, Quoted: 85214728453412, Path Hash 12452196574750986814
+[2024-10-22T22:40:06Z DEBUG BaseBuster::market_state] Processing block 21423729
+[2024-10-22T22:40:06Z DEBUG BaseBuster::market_state] Updating state for pool 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:40:06Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:40:06Z DEBUG BaseBuster::market_state] Updating state for pool 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:40:06Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:40:06Z DEBUG BaseBuster::market_state] Updating state for pool 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:40:06Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:40:06Z INFO  BaseBuster::market_state] Got 2 updates in block 21423729
+[2024-10-22T22:40:06Z INFO  BaseBuster::searcher] Searching for arbs...
+[2024-10-22T22:40:06Z INFO  BaseBuster::searcher] 0 touched paths
+[2024-10-22T22:40:06Z INFO  BaseBuster::searcher] 16.82µs elapsed
+[2024-10-22T22:40:06Z INFO  BaseBuster::searcher] 0 profitable paths
+[2024-10-22T22:40:08Z DEBUG BaseBuster::market_state] Processing block 21423730
+[2024-10-22T22:40:08Z DEBUG BaseBuster::market_state] Updating state for pool 0xF4D030e2788BA4E0E10ccEE27D2d24D4660685D2
+[2024-10-22T22:40:08Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xF4D030e2788BA4E0E10ccEE27D2d24D4660685D2
+[2024-10-22T22:40:08Z INFO  BaseBuster::market_state] Got 1 updates in block 21423730
+[2024-10-22T22:40:08Z INFO  BaseBuster::searcher] Searching for arbs...
+[2024-10-22T22:40:08Z INFO  BaseBuster::searcher] 0 touched paths
+[2024-10-22T22:40:08Z INFO  BaseBuster::searcher] 18.13µs elapsed
+[2024-10-22T22:40:08Z INFO  BaseBuster::searcher] 0 profitable paths
+[2024-10-22T22:40:10Z DEBUG BaseBuster::market_state] Processing block 21423731
+[2024-10-22T22:40:10Z DEBUG BaseBuster::market_state] Updating state for pool 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:40:10Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:40:10Z DEBUG BaseBuster::market_state] Updating state for pool 0x51831D9357252FD2678cF44E2c9ED1ad2F5a0b01
+[2024-10-22T22:40:10Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x51831D9357252FD2678cF44E2c9ED1ad2F5a0b01
+[2024-10-22T22:40:10Z DEBUG BaseBuster::market_state] Updating state for pool 0x7274e7ba268EC1349338a2D6083a7f03d410E8E8
+[2024-10-22T22:40:10Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x7274e7ba268EC1349338a2D6083a7f03d410E8E8
+[2024-10-22T22:40:10Z DEBUG BaseBuster::market_state] Updating state for pool 0x51831D9357252FD2678cF44E2c9ED1ad2F5a0b01
+[2024-10-22T22:40:10Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x51831D9357252FD2678cF44E2c9ED1ad2F5a0b01
+[2024-10-22T22:40:10Z INFO  BaseBuster::market_state] Got 3 updates in block 21423731
+[2024-10-22T22:40:10Z INFO  BaseBuster::searcher] Searching for arbs...
+[2024-10-22T22:40:10Z INFO  BaseBuster::searcher] 10 touched paths
+[2024-10-22T22:40:10Z INFO  BaseBuster::searcher] 100.09µs elapsed
+[2024-10-22T22:40:10Z INFO  BaseBuster::searcher] 10 profitable paths
+[2024-10-22T22:40:10Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:10Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:10Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:10Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:10Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:10Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:10Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:10Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:10Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:10Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:10Z INFO  BaseBuster::simulator] Success.. Calculated 124400886459, Quoted: 124400886459, Path Hash 12587989454922368917
+[2024-10-22T22:40:10Z INFO  BaseBuster::simulator] Success.. Calculated 120523817824, Quoted: 120523817824, Path Hash 13485418840462343437
+[2024-10-22T22:40:10Z INFO  BaseBuster::simulator] Success.. Calculated 172526755368, Quoted: 172526755368, Path Hash 11731969152268185275
+[2024-10-22T22:40:10Z INFO  BaseBuster::simulator] Success.. Calculated 35138179203236, Quoted: 35138179203236, Path Hash 2213450546375085357
+[2024-10-22T22:40:10Z INFO  BaseBuster::simulator] Success.. Calculated 83845693822483, Quoted: 83845693822483, Path Hash 6695206162922855251
+[2024-10-22T22:40:10Z INFO  BaseBuster::simulator] Success.. Calculated 185545742782, Quoted: 185545742782, Path Hash 8081567528661577365
+[2024-10-22T22:40:10Z INFO  BaseBuster::simulator] Success.. Calculated 85214728454518, Quoted: 85214728454518, Path Hash 12452196574750986814
+[2024-10-22T22:40:10Z INFO  BaseBuster::simulator] Success.. Calculated 33105046108842, Quoted: 33105046108842, Path Hash 14387490493214553116
+[2024-10-22T22:40:10Z INFO  BaseBuster::simulator] Success.. Calculated 90361403077600, Quoted: 90361403077600, Path Hash 1709426076274562026
+[2024-10-22T22:40:10Z INFO  BaseBuster::simulator] Success.. Calculated 85341071908919, Quoted: 85341071908919, Path Hash 7725255597217720747
+[2024-10-22T22:40:12Z DEBUG BaseBuster::market_state] Processing block 21423732
+[2024-10-22T22:40:12Z DEBUG BaseBuster::market_state] Updating state for pool 0x7e6c090c960f78617A52c99D3E50971063d10BfC
+[2024-10-22T22:40:12Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x7e6c090c960f78617A52c99D3E50971063d10BfC
+[2024-10-22T22:40:12Z DEBUG BaseBuster::market_state] Updating state for pool 0x0237E4D80070a347529CaF4972EdBd60F5c81811
+[2024-10-22T22:40:12Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x0237E4D80070a347529CaF4972EdBd60F5c81811
+[2024-10-22T22:40:12Z DEBUG BaseBuster::market_state] Updating state for pool 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:40:12Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:40:12Z DEBUG BaseBuster::market_state] Updating state for pool 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:40:12Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:40:12Z DEBUG BaseBuster::market_state] Updating state for pool 0xD0d336D96e91CBF04c2b0C7A52622F560c2f8438
+[2024-10-22T22:40:12Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xD0d336D96e91CBF04c2b0C7A52622F560c2f8438
+[2024-10-22T22:40:12Z INFO  BaseBuster::market_state] Got 4 updates in block 21423732
+[2024-10-22T22:40:12Z INFO  BaseBuster::searcher] Searching for arbs...
+[2024-10-22T22:40:12Z INFO  BaseBuster::searcher] 0 touched paths
+[2024-10-22T22:40:12Z INFO  BaseBuster::searcher] 23.97µs elapsed
+[2024-10-22T22:40:12Z INFO  BaseBuster::searcher] 0 profitable paths
+[2024-10-22T22:40:14Z DEBUG BaseBuster::market_state] Processing block 21423733
+[2024-10-22T22:40:14Z DEBUG BaseBuster::market_state] Updating state for pool 0x9a8Cd658EaEB87d6647f67096F1dF57B5D1f87CB
+[2024-10-22T22:40:14Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x9a8Cd658EaEB87d6647f67096F1dF57B5D1f87CB
+[2024-10-22T22:40:14Z DEBUG BaseBuster::market_state] Updating state for pool 0x17A3Ad8c74c4947005aFEDa9965305ae2EB2518a
+[2024-10-22T22:40:14Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x17A3Ad8c74c4947005aFEDa9965305ae2EB2518a
+[2024-10-22T22:40:14Z DEBUG BaseBuster::market_state] Updating state for pool 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:40:14Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:40:14Z DEBUG BaseBuster::market_state] Updating state for pool 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:40:14Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:40:14Z DEBUG BaseBuster::market_state] Updating state for pool 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:40:14Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:40:14Z DEBUG BaseBuster::market_state] Updating state for pool 0x51831D9357252FD2678cF44E2c9ED1ad2F5a0b01
+[2024-10-22T22:40:14Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x51831D9357252FD2678cF44E2c9ED1ad2F5a0b01
+[2024-10-22T22:40:14Z DEBUG BaseBuster::market_state] Updating state for pool 0xAF8Ae07e20458E89883FC6659f6D1E1d52872C96
+[2024-10-22T22:40:14Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xAF8Ae07e20458E89883FC6659f6D1E1d52872C96
+[2024-10-22T22:40:14Z DEBUG BaseBuster::market_state] Updating state for pool 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:40:14Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:40:14Z DEBUG BaseBuster::market_state] Updating state for pool 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:40:14Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x03623367F4a833f23E8C917b3448DD31805E3D07
+[2024-10-22T22:40:14Z DEBUG BaseBuster::market_state] Updating state for pool 0xF4D030e2788BA4E0E10ccEE27D2d24D4660685D2
+[2024-10-22T22:40:14Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xF4D030e2788BA4E0E10ccEE27D2d24D4660685D2
+[2024-10-22T22:40:14Z DEBUG BaseBuster::market_state] Updating state for pool 0x7274e7ba268EC1349338a2D6083a7f03d410E8E8
+[2024-10-22T22:40:14Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x7274e7ba268EC1349338a2D6083a7f03d410E8E8
+[2024-10-22T22:40:14Z INFO  BaseBuster::market_state] Got 8 updates in block 21423733
+[2024-10-22T22:40:14Z INFO  BaseBuster::searcher] Searching for arbs...
+[2024-10-22T22:40:14Z INFO  BaseBuster::searcher] 6 touched paths
+[2024-10-22T22:40:14Z INFO  BaseBuster::searcher] 85.06µs elapsed
+[2024-10-22T22:40:14Z INFO  BaseBuster::searcher] 6 profitable paths
+[2024-10-22T22:40:14Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:14Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:14Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:14Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:14Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:14Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:14Z INFO  BaseBuster::simulator] Success.. Calculated 85340914561378, Quoted: 85340914561378, Path Hash 7725255597217720747
+[2024-10-22T22:40:14Z INFO  BaseBuster::simulator] Success.. Calculated 83863966313338, Quoted: 83863966313338, Path Hash 6695206162922855251
+[2024-10-22T22:40:14Z INFO  BaseBuster::simulator] Success.. Calculated 761613548014, Quoted: 761613548014, Path Hash 15316245350030664121
+[2024-10-22T22:40:14Z INFO  BaseBuster::simulator] Success.. Calculated 80343977774894, Quoted: 80343977774894, Path Hash 9452815157739999810
+[2024-10-22T22:40:14Z INFO  BaseBuster::simulator] Success.. Calculated 563786516038, Quoted: 563786516038, Path Hash 601686894152663098
+[2024-10-22T22:40:14Z INFO  BaseBuster::simulator] Success.. Calculated 80512367568252, Quoted: 80512367568252, Path Hash 8284077582716758856
+[2024-10-22T22:40:16Z DEBUG BaseBuster::market_state] Processing block 21423734
+[2024-10-22T22:40:16Z DEBUG BaseBuster::market_state] Updating state for pool 0x17A3Ad8c74c4947005aFEDa9965305ae2EB2518a
+[2024-10-22T22:40:16Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x17A3Ad8c74c4947005aFEDa9965305ae2EB2518a
+[2024-10-22T22:40:16Z DEBUG BaseBuster::market_state] Updating state for pool 0x7274e7ba268EC1349338a2D6083a7f03d410E8E8
+[2024-10-22T22:40:16Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x7274e7ba268EC1349338a2D6083a7f03d410E8E8
+[2024-10-22T22:40:16Z DEBUG BaseBuster::market_state] Updating state for pool 0xF4D030e2788BA4E0E10ccEE27D2d24D4660685D2
+[2024-10-22T22:40:16Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xF4D030e2788BA4E0E10ccEE27D2d24D4660685D2
+[2024-10-22T22:40:16Z DEBUG BaseBuster::market_state] Updating state for pool 0xAF8Ae07e20458E89883FC6659f6D1E1d52872C96
+[2024-10-22T22:40:16Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xAF8Ae07e20458E89883FC6659f6D1E1d52872C96
+[2024-10-22T22:40:16Z DEBUG BaseBuster::market_state] Updating state for pool 0xF4D030e2788BA4E0E10ccEE27D2d24D4660685D2
+[2024-10-22T22:40:16Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xF4D030e2788BA4E0E10ccEE27D2d24D4660685D2
+[2024-10-22T22:40:16Z INFO  BaseBuster::market_state] Got 4 updates in block 21423734
+[2024-10-22T22:40:16Z INFO  BaseBuster::searcher] Searching for arbs...
+[2024-10-22T22:40:16Z INFO  BaseBuster::searcher] 6 touched paths
+[2024-10-22T22:40:16Z INFO  BaseBuster::searcher] 116.529µs elapsed
+[2024-10-22T22:40:16Z INFO  BaseBuster::searcher] 6 profitable paths
+[2024-10-22T22:40:16Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:16Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:16Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:16Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:16Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:16Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:16Z INFO  BaseBuster::simulator] Success.. Calculated 85341053625101, Quoted: 85341053625101, Path Hash 7725255597217720747
+[2024-10-22T22:40:16Z INFO  BaseBuster::simulator] Success.. Calculated 83847817104784, Quoted: 83847817104784, Path Hash 6695206162922855251
+[2024-10-22T22:40:16Z INFO  BaseBuster::simulator] Success.. Calculated 80513716829581, Quoted: 80513716829581, Path Hash 8284077582716758856
+[2024-10-22T22:40:16Z INFO  BaseBuster::simulator] Success.. Calculated 80343966842045, Quoted: 80343966842045, Path Hash 9452815157739999810
+[2024-10-22T22:40:16Z INFO  BaseBuster::simulator] Success.. Calculated 761613547288, Quoted: 761613547288, Path Hash 15316245350030664121
+[2024-10-22T22:40:16Z INFO  BaseBuster::simulator] Success.. Calculated 563795964221, Quoted: 563795964221, Path Hash 601686894152663098
+[2024-10-22T22:40:18Z DEBUG BaseBuster::market_state] Processing block 21423735
+[2024-10-22T22:40:18Z DEBUG BaseBuster::market_state] Updating state for pool 0x51831D9357252FD2678cF44E2c9ED1ad2F5a0b01
+[2024-10-22T22:40:18Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x51831D9357252FD2678cF44E2c9ED1ad2F5a0b01
+[2024-10-22T22:40:18Z DEBUG BaseBuster::market_state] Updating state for pool 0xb7D9B6d4A22346203B62081780DA9C79ccD28EdF
+[2024-10-22T22:40:18Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xb7D9B6d4A22346203B62081780DA9C79ccD28EdF
+[2024-10-22T22:40:18Z INFO  BaseBuster::market_state] Got 2 updates in block 21423735
+[2024-10-22T22:40:18Z INFO  BaseBuster::searcher] Searching for arbs...
+[2024-10-22T22:40:18Z INFO  BaseBuster::searcher] 0 touched paths
+[2024-10-22T22:40:18Z INFO  BaseBuster::searcher] 22.48µs elapsed
+[2024-10-22T22:40:18Z INFO  BaseBuster::searcher] 0 profitable paths
+[2024-10-22T22:40:20Z DEBUG BaseBuster::market_state] Processing block 21423736
+[2024-10-22T22:40:20Z DEBUG BaseBuster::market_state] Updating state for pool 0xCbEB7199BCC5c836Cb7DE1eA200561D837f5D097
+[2024-10-22T22:40:20Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xCbEB7199BCC5c836Cb7DE1eA200561D837f5D097
+[2024-10-22T22:40:20Z INFO  BaseBuster::market_state] Got 1 updates in block 21423736
+[2024-10-22T22:40:20Z INFO  BaseBuster::searcher] Searching for arbs...
+[2024-10-22T22:40:20Z INFO  BaseBuster::searcher] 0 touched paths
+[2024-10-22T22:40:20Z INFO  BaseBuster::searcher] 24.789µs elapsed
+[2024-10-22T22:40:20Z INFO  BaseBuster::searcher] 0 profitable paths
+[2024-10-22T22:40:22Z DEBUG BaseBuster::market_state] Processing block 21423737
+[2024-10-22T22:40:22Z DEBUG BaseBuster::market_state] Updating state for pool 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:40:22Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:40:22Z DEBUG BaseBuster::market_state] Updating state for pool 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:40:22Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:40:22Z DEBUG BaseBuster::market_state] Updating state for pool 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:40:22Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:40:22Z DEBUG BaseBuster::market_state] Updating state for pool 0xF4D030e2788BA4E0E10ccEE27D2d24D4660685D2
+[2024-10-22T22:40:22Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xF4D030e2788BA4E0E10ccEE27D2d24D4660685D2
+[2024-10-22T22:40:22Z INFO  BaseBuster::market_state] Got 2 updates in block 21423737
+[2024-10-22T22:40:22Z INFO  BaseBuster::searcher] Searching for arbs...
+[2024-10-22T22:40:22Z INFO  BaseBuster::searcher] 0 touched paths
+[2024-10-22T22:40:22Z INFO  BaseBuster::searcher] 22.14µs elapsed
+[2024-10-22T22:40:22Z INFO  BaseBuster::searcher] 0 profitable paths
+[2024-10-22T22:40:24Z DEBUG BaseBuster::market_state] Processing block 21423738
+[2024-10-22T22:40:24Z DEBUG BaseBuster::market_state] Updating state for pool 0x377FeeeD4820B3B28D1ab429509e7A0789824fCA
+[2024-10-22T22:40:24Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x377FeeeD4820B3B28D1ab429509e7A0789824fCA
+[2024-10-22T22:40:24Z DEBUG BaseBuster::market_state] Updating state for pool 0x51831D9357252FD2678cF44E2c9ED1ad2F5a0b01
+[2024-10-22T22:40:24Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x51831D9357252FD2678cF44E2c9ED1ad2F5a0b01
+[2024-10-22T22:40:24Z DEBUG BaseBuster::market_state] Updating state for pool 0x7274e7ba268EC1349338a2D6083a7f03d410E8E8
+[2024-10-22T22:40:24Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x7274e7ba268EC1349338a2D6083a7f03d410E8E8
+[2024-10-22T22:40:24Z DEBUG BaseBuster::market_state] Updating state for pool 0xF4D030e2788BA4E0E10ccEE27D2d24D4660685D2
+[2024-10-22T22:40:24Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xF4D030e2788BA4E0E10ccEE27D2d24D4660685D2
+[2024-10-22T22:40:24Z DEBUG BaseBuster::market_state] Updating state for pool 0x51831D9357252FD2678cF44E2c9ED1ad2F5a0b01
+[2024-10-22T22:40:24Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x51831D9357252FD2678cF44E2c9ED1ad2F5a0b01
+[2024-10-22T22:40:24Z DEBUG BaseBuster::market_state] Updating state for pool 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:40:24Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:40:24Z DEBUG BaseBuster::market_state] Updating state for pool 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:40:24Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:40:24Z DEBUG BaseBuster::market_state] Updating state for pool 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:40:24Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:40:24Z DEBUG BaseBuster::market_state] Updating state for pool 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:40:24Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x9032EC1C0b34Ce192c3149e1B1a578Bf03a22B99
+[2024-10-22T22:40:24Z DEBUG BaseBuster::market_state] Updating state for pool 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:40:24Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:40:24Z DEBUG BaseBuster::market_state] Updating state for pool 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:40:24Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:40:24Z DEBUG BaseBuster::market_state] Updating state for pool 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:40:24Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xFFFEd65c9fdAF0818867E8b6d841FDB0631BC223
+[2024-10-22T22:40:24Z DEBUG BaseBuster::market_state] Updating state for pool 0x377FeeeD4820B3B28D1ab429509e7A0789824fCA
+[2024-10-22T22:40:24Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x377FeeeD4820B3B28D1ab429509e7A0789824fCA
+[2024-10-22T22:40:24Z INFO  BaseBuster::market_state] Got 6 updates in block 21423738
+[2024-10-22T22:40:24Z INFO  BaseBuster::searcher] Searching for arbs...
+[2024-10-22T22:40:24Z INFO  BaseBuster::searcher] 12 touched paths
+[2024-10-22T22:40:24Z INFO  BaseBuster::searcher] 163.259µs elapsed
+[2024-10-22T22:40:24Z INFO  BaseBuster::searcher] 12 profitable paths
+[2024-10-22T22:40:24Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:24Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:24Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:24Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:24Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:24Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:24Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:24Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:24Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:24Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:24Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:24Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:24Z INFO  BaseBuster::simulator] Success.. Calculated 1404465095378, Quoted: 1404465095378, Path Hash 1407368266301493053
+[2024-10-22T22:40:24Z INFO  BaseBuster::simulator] Success.. Calculated 35138179203229, Quoted: 35138179203229, Path Hash 2213450546375085357
+[2024-10-22T22:40:24Z INFO  BaseBuster::simulator] Success.. Calculated 1043099006732, Quoted: 1043099006732, Path Hash 13171075161723439678
+[2024-10-22T22:40:24Z INFO  BaseBuster::simulator] Success.. Calculated 90361403077549, Quoted: 90361403077549, Path Hash 1709426076274562026
+[2024-10-22T22:40:24Z INFO  BaseBuster::simulator] Success.. Calculated 185545742794, Quoted: 185545742794, Path Hash 8081567528661577365
+[2024-10-22T22:40:24Z INFO  BaseBuster::simulator] Success.. Calculated 83860227376350, Quoted: 83860227376350, Path Hash 6695206162922855251
+[2024-10-22T22:40:24Z INFO  BaseBuster::simulator] Success.. Calculated 85214728460047, Quoted: 85214728460047, Path Hash 12452196574750986814
+[2024-10-22T22:40:24Z INFO  BaseBuster::simulator] Success.. Calculated 85340946758115, Quoted: 85340946758115, Path Hash 7725255597217720747
+[2024-10-22T22:40:24Z INFO  BaseBuster::simulator] Success.. Calculated 172526755379, Quoted: 172526755379, Path Hash 11731969152268185275
+[2024-10-22T22:40:24Z INFO  BaseBuster::simulator] Success.. Calculated 124400886459, Quoted: 124400886459, Path Hash 12587989454922368917
+[2024-10-22T22:40:24Z INFO  BaseBuster::simulator] Success.. Calculated 120523817824, Quoted: 120523817824, Path Hash 13485418840462343437
+[2024-10-22T22:40:24Z INFO  BaseBuster::simulator] Success.. Calculated 33105046110990, Quoted: 33105046110990, Path Hash 14387490493214553116
+[2024-10-22T22:40:26Z DEBUG BaseBuster::market_state] Processing block 21423739
+[2024-10-22T22:40:26Z DEBUG BaseBuster::market_state] Updating state for pool 0xfE83058F06869da5d70a1355dCA64C873480ab1d
+[2024-10-22T22:40:26Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0xfE83058F06869da5d70a1355dCA64C873480ab1d
+[2024-10-22T22:40:26Z DEBUG BaseBuster::market_state] Updating state for pool 0x08D69593886D29064690f2eD3AFBCee839F88c95
+[2024-10-22T22:40:26Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x08D69593886D29064690f2eD3AFBCee839F88c95
+[2024-10-22T22:40:26Z DEBUG BaseBuster::market_state] Updating state for pool 0x08D69593886D29064690f2eD3AFBCee839F88c95
+[2024-10-22T22:40:26Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x08D69593886D29064690f2eD3AFBCee839F88c95
+[2024-10-22T22:40:26Z DEBUG BaseBuster::market_state] Updating state for pool 0x08D69593886D29064690f2eD3AFBCee839F88c95
+[2024-10-22T22:40:26Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x08D69593886D29064690f2eD3AFBCee839F88c95
+[2024-10-22T22:40:26Z DEBUG BaseBuster::market_state] Updating state for pool 0x51831D9357252FD2678cF44E2c9ED1ad2F5a0b01
+[2024-10-22T22:40:26Z TRACE BaseBuster::state_db::blockstate_db] Update all slots: updating all storage slots for adddress 0x51831D9357252FD2678cF44E2c9ED1ad2F5a0b01
+[2024-10-22T22:40:26Z INFO  BaseBuster::market_state] Got 3 updates in block 21423739
+[2024-10-22T22:40:26Z INFO  BaseBuster::searcher] Searching for arbs...
+[2024-10-22T22:40:26Z INFO  BaseBuster::searcher] 76 touched paths
+[2024-10-22T22:40:26Z INFO  BaseBuster::searcher] 212.599µs elapsed
+[2024-10-22T22:40:26Z INFO  BaseBuster::searcher] 76 profitable paths
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z DEBUG BaseBuster::searcher] Sent path
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Fail.. Calculated 7668977254, Quoted: 7668976497, Path Hash 7268799845827868986, Path: [
+        SwapStep {
+            poolAddress: 0x8cf50d1581b801168a4f9ff1ae087e78d03bed5b,
+            tokenIn: 0x4200000000000000000000000000000000000006,
+            tokenOut: 0xb79dd08ea68a908a97220c76d19a6aa9cbde4376,
+            protocol: 5,
+            fee: 0,
+        },
+        SwapStep {
+            poolAddress: 0x10146c6eae6f2ccc1e706714849c03ed8b50c9d4,
+            tokenIn: 0xb79dd08ea68a908a97220c76d19a6aa9cbde4376,
+            tokenOut: 0xafb89a09d82fbde58f18ac6437b3fc81724e4df6,
+            protocol: 3,
+            fee: 0,
+        },
+        SwapStep {
+            poolAddress: 0x60197c8c146b1cd2635678085b08d068f1c3b170,
+            tokenIn: 0xafb89a09d82fbde58f18ac6437b3fc81724e4df6,
+            tokenOut: 0xb8d98a102b0079b69ffbc760c8d857a31653e56e,
+            protocol: 3,
+            fee: 0,
+        },
+        SwapStep {
+            poolAddress: 0xfe83058f06869da5d70a1355dca64c873480ab1d,
+            tokenIn: 0xb8d98a102b0079b69ffbc760c8d857a31653e56e,
+            tokenOut: 0x4200000000000000000000000000000000000006,
+            protocol: 1,
+            fee: 0,
+        },
+    ]
+[2024-10-22T22:40:26Z WARN  BaseBuster::simulator] Failed to simulate quote for Simulation reverted 0x08c379a000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000025556e697377617056323a20494e53554646494349454e545f4f55545055545f414d4f554e54000000000000000000000000000000000000000000000000000000
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 273969292959, Quoted: 273969292959, Path Hash 13921260520458506001
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 2451620002667868, Quoted: 2451620002667868, Path Hash 15412697541251944217
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 845409452299113, Quoted: 845409452299113, Path Hash 13911991588300071285
+[2024-10-22T22:40:26Z WARN  BaseBuster::simulator] Failed to simulate quote for Simulation reverted 0x08c379a000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000025556e697377617056323a20494e53554646494349454e545f4f55545055545f414d4f554e54000000000000000000000000000000000000000000000000000000
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 7669593289, Quoted: 7669593289, Path Hash 17198344849749736700
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 3275281250, Quoted: 3275281250, Path Hash 10618484430882903868
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 3304302536, Quoted: 3304302536, Path Hash 12382877527322334871
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 7669585942, Quoted: 7669585942, Path Hash 9588885914164478990
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 4098147881, Quoted: 4098147881, Path Hash 10502562668144283478
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 100810425, Quoted: 100810425, Path Hash 3264868507336778510
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 4097825980, Quoted: 4097825980, Path Hash 4750065136422792097
+[2024-10-22T22:40:26Z WARN  BaseBuster::simulator] Failed to simulate quote for Simulation reverted 0x08c379a000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000025556e697377617056323a20494e53554646494349454e545f4f55545055545f414d4f554e54000000000000000000000000000000000000000000000000000000
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 3041576038, Quoted: 3041576038, Path Hash 13966030503833374094
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Fail.. Calculated 7669556105, Quoted: 7669556109, Path Hash 10971358884793368661, Path: [
+        SwapStep {
+            poolAddress: 0xedc8f86740daafed0a38f1b73f9964aa5c80901c,
+            tokenIn: 0x4200000000000000000000000000000000000006,
+            tokenOut: 0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca,
+            protocol: 1,
+            fee: 0,
+        },
+        SwapStep {
+            poolAddress: 0x5c2e05cd7f5c7813efa3e23f4f340a88fa0f8975,
+            tokenIn: 0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca,
+            tokenOut: 0xafb89a09d82fbde58f18ac6437b3fc81724e4df6,
+            protocol: 3,
+            fee: 0,
+        },
+        SwapStep {
+            poolAddress: 0x60197c8c146b1cd2635678085b08d068f1c3b170,
+            tokenIn: 0xafb89a09d82fbde58f18ac6437b3fc81724e4df6,
+            tokenOut: 0xb8d98a102b0079b69ffbc760c8d857a31653e56e,
+            protocol: 3,
+            fee: 0,
+        },
+        SwapStep {
+            poolAddress: 0xfe83058f06869da5d70a1355dca64c873480ab1d,
+            tokenIn: 0xb8d98a102b0079b69ffbc760c8d857a31653e56e,
+            tokenOut: 0x4200000000000000000000000000000000000006,
+            protocol: 1,
+            fee: 0,
+        },
+    ]
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 7669631455, Quoted: 7669631455, Path Hash 2801611346797960896
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 4150875200, Quoted: 4150875200, Path Hash 10090275869506850706
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 7669582529, Quoted: 7669582529, Path Hash 6905374428966348496
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 7669632087, Quoted: 7669632087, Path Hash 5400271672637150467
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 7669590003, Quoted: 7669590003, Path Hash 3365984536450515835
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Fail.. Calculated 3005589761, Quoted: 3015899290, Path Hash 4464689968283317711, Path: [
+        SwapStep {
+            poolAddress: 0xfe83058f06869da5d70a1355dca64c873480ab1d,
+            tokenIn: 0x4200000000000000000000000000000000000006,
+            tokenOut: 0xb8d98a102b0079b69ffbc760c8d857a31653e56e,
+            protocol: 1,
+            fee: 0,
+        },
+        SwapStep {
+            poolAddress: 0x60197c8c146b1cd2635678085b08d068f1c3b170,
+            tokenIn: 0xb8d98a102b0079b69ffbc760c8d857a31653e56e,
+            tokenOut: 0xafb89a09d82fbde58f18ac6437b3fc81724e4df6,
+            protocol: 3,
+            fee: 0,
+        },
+        SwapStep {
+            poolAddress: 0x10146c6eae6f2ccc1e706714849c03ed8b50c9d4,
+            tokenIn: 0xafb89a09d82fbde58f18ac6437b3fc81724e4df6,
+            tokenOut: 0xb79dd08ea68a908a97220c76d19a6aa9cbde4376,
+            protocol: 3,
+            fee: 0,
+        },
+        SwapStep {
+            poolAddress: 0x8cf50d1581b801168a4f9ff1ae087e78d03bed5b,
+            tokenIn: 0xb79dd08ea68a908a97220c76d19a6aa9cbde4376,
+            tokenOut: 0x4200000000000000000000000000000000000006,
+            protocol: 5,
+            fee: 0,
+        },
+    ]
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 8762196875409599, Quoted: 8762196875409599, Path Hash 4096567972873814265
+[2024-10-22T22:40:26Z WARN  BaseBuster::simulator] Failed to simulate quote for Simulation reverted 0x08c379a000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000025556e697377617056323a20494e53554646494349454e545f4f55545055545f414d4f554e54000000000000000000000000000000000000000000000000000000
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 6568622019, Quoted: 6568622019, Path Hash 16286859603277636289
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 4306010696417, Quoted: 4306010696417, Path Hash 8741211709752079572
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 3221195781, Quoted: 3221195781, Path Hash 14862704262807578204
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 7669569439, Quoted: 7669569439, Path Hash 17533609944628479147
+[2024-10-22T22:40:26Z WARN  BaseBuster::simulator] Failed to simulate quote for Simulation reverted 0x08c379a000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000025556e697377617056323a20494e53554646494349454e545f4f55545055545f414d4f554e54000000000000000000000000000000000000000000000000000000
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Fail.. Calculated 3021401009, Quoted: 3016622769, Path Hash 10142735593718228587, Path: [
+        SwapStep {
+            poolAddress: 0xfe83058f06869da5d70a1355dca64c873480ab1d,
+            tokenIn: 0x4200000000000000000000000000000000000006,
+            tokenOut: 0xb8d98a102b0079b69ffbc760c8d857a31653e56e,
+            protocol: 1,
+            fee: 0,
+        },
+        SwapStep {
+            poolAddress: 0x60197c8c146b1cd2635678085b08d068f1c3b170,
+            tokenIn: 0xb8d98a102b0079b69ffbc760c8d857a31653e56e,
+            tokenOut: 0xafb89a09d82fbde58f18ac6437b3fc81724e4df6,
+            protocol: 3,
+            fee: 0,
+        },
+        SwapStep {
+            poolAddress: 0x5c2e05cd7f5c7813efa3e23f4f340a88fa0f8975,
+            tokenIn: 0xafb89a09d82fbde58f18ac6437b3fc81724e4df6,
+            tokenOut: 0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca,
+            protocol: 3,
+            fee: 0,
+        },
+        SwapStep {
+            poolAddress: 0xedc8f86740daafed0a38f1b73f9964aa5c80901c,
+            tokenIn: 0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca,
+            tokenOut: 0x4200000000000000000000000000000000000006,
+            protocol: 1,
+            fee: 0,
+        },
+    ]
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 3022414125, Quoted: 3022414125, Path Hash 10174034290004359257
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 3029533354, Quoted: 3029533354, Path Hash 14512296697349124688
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 3074805062, Quoted: 3074805062, Path Hash 6699660025850750873
+[2024-10-22T22:40:26Z WARN  BaseBuster::simulator] Failed to simulate quote for Simulation reverted 0x08c379a00000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002350616e63616b653a20494e53554646494349454e545f4f55545055545f414d4f554e540000000000000000000000000000000000000000000000000000000000
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 3032840103, Quoted: 3032840103, Path Hash 7944967172598133308
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 3192893213, Quoted: 3192893213, Path Hash 4282270927793944609
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 7669556205, Quoted: 7669556205, Path Hash 17763584927570246255
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Fail.. Calculated 3038558628, Quoted: 3035969494, Path Hash 17590366340234699817, Path: [
+        SwapStep {
+            poolAddress: 0xfe83058f06869da5d70a1355dca64c873480ab1d,
+            tokenIn: 0x4200000000000000000000000000000000000006,
+            tokenOut: 0xb8d98a102b0079b69ffbc760c8d857a31653e56e,
+            protocol: 1,
+            fee: 0,
+        },
+        SwapStep {
+            poolAddress: 0x60197c8c146b1cd2635678085b08d068f1c3b170,
+            tokenIn: 0xb8d98a102b0079b69ffbc760c8d857a31653e56e,
+            tokenOut: 0xafb89a09d82fbde58f18ac6437b3fc81724e4df6,
+            protocol: 3,
+            fee: 0,
+        },
+        SwapStep {
+            poolAddress: 0x5c2e05cd7f5c7813efa3e23f4f340a88fa0f8975,
+            tokenIn: 0xafb89a09d82fbde58f18ac6437b3fc81724e4df6,
+            tokenOut: 0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca,
+            protocol: 3,
+            fee: 0,
+        },
+        SwapStep {
+            poolAddress: 0x03281be3475151c411dfeb392be9f1137ee3f778,
+            tokenIn: 0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca,
+            tokenOut: 0x4200000000000000000000000000000000000006,
+            protocol: 6,
+            fee: 0,
+        },
+    ]
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Fail.. Calculated 3328241148, Quoted: 3272586984, Path Hash 14367939809882175483, Path: [
+        SwapStep {
+            poolAddress: 0xfe83058f06869da5d70a1355dca64c873480ab1d,
+            tokenIn: 0x4200000000000000000000000000000000000006,
+            tokenOut: 0xb8d98a102b0079b69ffbc760c8d857a31653e56e,
+            protocol: 1,
+            fee: 0,
+        },
+        SwapStep {
+            poolAddress: 0x60197c8c146b1cd2635678085b08d068f1c3b170,
+            tokenIn: 0xb8d98a102b0079b69ffbc760c8d857a31653e56e,
+            tokenOut: 0xafb89a09d82fbde58f18ac6437b3fc81724e4df6,
+            protocol: 3,
+            fee: 0,
+        },
+        SwapStep {
+            poolAddress: 0x14b678a76677831dbc90df1d5b1d642ec846854a,
+            tokenIn: 0xafb89a09d82fbde58f18ac6437b3fc81724e4df6,
+            tokenOut: 0xf6e932ca12afa26665dc4dde7e27be02a7c02e50,
+            protocol: 3,
+            fee: 0,
+        },
+        SwapStep {
+            poolAddress: 0xed9682343e70ba0f399897fc059d920239626319,
+            tokenIn: 0xf6e932ca12afa26665dc4dde7e27be02a7c02e50,
+            tokenOut: 0x4200000000000000000000000000000000000006,
+            protocol: 3,
+            fee: 0,
+        },
+    ]
+[2024-10-22T22:40:26Z WARN  BaseBuster::simulator] Failed to simulate quote for Simulation reverted 0x08c379a000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000025556e697377617056323a20494e53554646494349454e545f4f55545055545f414d4f554e54000000000000000000000000000000000000000000000000000000
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 2393389670363756, Quoted: 2393389670363756, Path Hash 4765624168970333051
+[2024-10-22T22:40:26Z WARN  BaseBuster::simulator] Failed to simulate quote for Simulation reverted 0x08c379a000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000025556e697377617056323a20494e53554646494349454e545f4f55545055545f414d4f554e54000000000000000000000000000000000000000000000000000000
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 3021879617, Quoted: 3021879617, Path Hash 3931651961028076150
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 7669553878, Quoted: 7669553878, Path Hash 144060641970396937
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 4079154275524, Quoted: 4079154275524, Path Hash 16633488282649756052
+[2024-10-22T22:40:26Z WARN  BaseBuster::simulator] Failed to simulate quote for Simulation reverted 0x08c379a000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000025556e697377617056323a20494e53554646494349454e545f4f55545055545f414d4f554e54000000000000000000000000000000000000000000000000000000
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 8584670094359458, Quoted: 8584670094359458, Path Hash 430704803413709799
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 6568617283, Quoted: 6568617283, Path Hash 7947979572442957814
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 44119196, Quoted: 44119196, Path Hash 13482738425271268126
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 44115762, Quoted: 44115762, Path Hash 10498629673006548332
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 3298011569, Quoted: 3298011569, Path Hash 11715611301625837902
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 7669556139, Quoted: 7669556139, Path Hash 2018205815244948931
+[2024-10-22T22:40:26Z WARN  BaseBuster::simulator] Failed to simulate quote for Simulation reverted 0x08c379a000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000025556e697377617056323a20494e53554646494349454e545f4f55545055545f414d4f554e54000000000000000000000000000000000000000000000000000000
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 44687324, Quoted: 44687324, Path Hash 17420751669117796385
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 7669556211, Quoted: 7669556211, Path Hash 17718963327600917878
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 363610360897, Quoted: 363610360897, Path Hash 1160573744127007830
+[2024-10-22T22:40:26Z WARN  BaseBuster::simulator] Failed to simulate quote for Simulation reverted 0x08c379a00000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002350616e63616b653a20494e53554646494349454e545f4f55545055545f414d4f554e540000000000000000000000000000000000000000000000000000000000
+[2024-10-22T22:40:26Z WARN  BaseBuster::simulator] Failed to simulate quote for Simulation reverted 0x08c379a000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000025556e697377617056323a20494e53554646494349454e545f4f55545055545f414d4f554e54000000000000000000000000000000000000000000000000000000
+[2024-10-22T22:40:26Z WARN  BaseBuster::simulator] Failed to simulate quote for Simulation reverted 0x08c379a000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000025556e697377617056323a20494e53554646494349454e545f4f55545055545f414d4f554e54000000000000000000000000000000000000000000000000000000
+[2024-10-22T22:40:26Z WARN  BaseBuster::simulator] Failed to simulate quote for Simulation reverted 0x08c379a000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000025556e697377617056323a20494e53554646494349454e545f4f55545055545f414d4f554e54000000000000000000000000000000000000000000000000000000
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 7637038059, Quoted: 7637038059, Path Hash 12656293980285164996
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Fail.. Calculated 7669556196, Quoted: 7669556197, Path Hash 13542617841850721123, Path: [
+        SwapStep {
+            poolAddress: 0x86cd030822547105bd7952af4ba48534640a3824,
+            tokenIn: 0x4200000000000000000000000000000000000006,
+            tokenOut: 0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca,
+            protocol: 4,
+            fee: 0,
+        },
+        SwapStep {
+            poolAddress: 0x5c2e05cd7f5c7813efa3e23f4f340a88fa0f8975,
+            tokenIn: 0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca,
+            tokenOut: 0xafb89a09d82fbde58f18ac6437b3fc81724e4df6,
+            protocol: 3,
+            fee: 0,
+        },
+        SwapStep {
+            poolAddress: 0x60197c8c146b1cd2635678085b08d068f1c3b170,
+            tokenIn: 0xafb89a09d82fbde58f18ac6437b3fc81724e4df6,
+            tokenOut: 0xb8d98a102b0079b69ffbc760c8d857a31653e56e,
+            protocol: 3,
+            fee: 0,
+        },
+        SwapStep {
+            poolAddress: 0xfe83058f06869da5d70a1355dca64c873480ab1d,
+            tokenIn: 0xb8d98a102b0079b69ffbc760c8d857a31653e56e,
+            tokenOut: 0x4200000000000000000000000000000000000006,
+            protocol: 1,
+            fee: 0,
+        },
+    ]
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 3030585724, Quoted: 3030585724, Path Hash 3707757742475313061
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 3310954572, Quoted: 3310954572, Path Hash 16031663201816816708
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Fail.. Calculated 7669589894, Quoted: 7669589938, Path Hash 1368130392953187869, Path: [
+        SwapStep {
+            poolAddress: 0xed9682343e70ba0f399897fc059d920239626319,
+            tokenIn: 0x4200000000000000000000000000000000000006,
+            tokenOut: 0xf6e932ca12afa26665dc4dde7e27be02a7c02e50,
+            protocol: 3,
+            fee: 0,
+        },
+        SwapStep {
+            poolAddress: 0x14b678a76677831dbc90df1d5b1d642ec846854a,
+            tokenIn: 0xf6e932ca12afa26665dc4dde7e27be02a7c02e50,
+            tokenOut: 0xafb89a09d82fbde58f18ac6437b3fc81724e4df6,
+            protocol: 3,
+            fee: 0,
+        },
+        SwapStep {
+            poolAddress: 0x60197c8c146b1cd2635678085b08d068f1c3b170,
+            tokenIn: 0xafb89a09d82fbde58f18ac6437b3fc81724e4df6,
+            tokenOut: 0xb8d98a102b0079b69ffbc760c8d857a31653e56e,
+            protocol: 3,
+            fee: 0,
+        },
+        SwapStep {
+            poolAddress: 0xfe83058f06869da5d70a1355dca64c873480ab1d,
+            tokenIn: 0xb8d98a102b0079b69ffbc760c8d857a31653e56e,
+            tokenOut: 0x4200000000000000000000000000000000000006,
+            protocol: 1,
+            fee: 0,
+        },
+    ]
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 7669554313, Quoted: 7669554313, Path Hash 10583326329241980130
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 100810437, Quoted: 100810437, Path Hash 8986246667980706227
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 818611631542740, Quoted: 818611631542740, Path Hash 9397178815129041655
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 100810436, Quoted: 100810436, Path Hash 15299234915541217609
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 6568549562, Quoted: 6568549562, Path Hash 17679738789352335597
+[2024-10-22T22:40:26Z WARN  BaseBuster::simulator] Failed to simulate quote for Simulation reverted 0x08c379a00000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002350616e63616b653a20494e53554646494349454e545f4f55545055545f414d4f554e540000000000000000000000000000000000000000000000000000000000
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Fail.. Calculated 7669555854, Quoted: 7669555856, Path Hash 6309651092969520579, Path: [
+        SwapStep {
+            poolAddress: 0x03281be3475151c411dfeb392be9f1137ee3f778,
+            tokenIn: 0x4200000000000000000000000000000000000006,
+            tokenOut: 0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca,
+            protocol: 6,
+            fee: 0,
+        },
+        SwapStep {
+            poolAddress: 0x5c2e05cd7f5c7813efa3e23f4f340a88fa0f8975,
+            tokenIn: 0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca,
+            tokenOut: 0xafb89a09d82fbde58f18ac6437b3fc81724e4df6,
+            protocol: 3,
+            fee: 0,
+        },
+        SwapStep {
+            poolAddress: 0x60197c8c146b1cd2635678085b08d068f1c3b170,
+            tokenIn: 0xafb89a09d82fbde58f18ac6437b3fc81724e4df6,
+            tokenOut: 0xb8d98a102b0079b69ffbc760c8d857a31653e56e,
+            protocol: 3,
+            fee: 0,
+        },
+        SwapStep {
+            poolAddress: 0xfe83058f06869da5d70a1355dca64c873480ab1d,
+            tokenIn: 0xb8d98a102b0079b69ffbc760c8d857a31653e56e,
+            tokenOut: 0x4200000000000000000000000000000000000006,
+            protocol: 1,
+            fee: 0,
+        },
+    ]
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Fail.. Calculated 3030050930, Quoted: 3029971841, Path Hash 6357036393302494369, Path: [
+        SwapStep {
+            poolAddress: 0xfe83058f06869da5d70a1355dca64c873480ab1d,
+            tokenIn: 0x4200000000000000000000000000000000000006,
+            tokenOut: 0xb8d98a102b0079b69ffbc760c8d857a31653e56e,
+            protocol: 1,
+            fee: 0,
+        },
+        SwapStep {
+            poolAddress: 0x60197c8c146b1cd2635678085b08d068f1c3b170,
+            tokenIn: 0xb8d98a102b0079b69ffbc760c8d857a31653e56e,
+            tokenOut: 0xafb89a09d82fbde58f18ac6437b3fc81724e4df6,
+            protocol: 3,
+            fee: 0,
+        },
+        SwapStep {
+            poolAddress: 0x5c2e05cd7f5c7813efa3e23f4f340a88fa0f8975,
+            tokenIn: 0xafb89a09d82fbde58f18ac6437b3fc81724e4df6,
+            tokenOut: 0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca,
+            protocol: 3,
+            fee: 0,
+        },
+        SwapStep {
+            poolAddress: 0x86cd030822547105bd7952af4ba48534640a3824,
+            tokenIn: 0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca,
+            tokenOut: 0x4200000000000000000000000000000000000006,
+            protocol: 4,
+            fee: 0,
+        },
+    ]
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 3350099209, Quoted: 3350099209, Path Hash 11716202205653484229
+[2024-10-22T22:40:26Z WARN  BaseBuster::simulator] Failed to simulate quote for Simulation reverted 0x08c379a000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000025556e697377617056323a20494e53554646494349454e545f4f55545055545f414d4f554e54000000000000000000000000000000000000000000000000000000
+[2024-10-22T22:40:26Z INFO  BaseBuster::simulator] Success.. Calculated 7669627046, Quoted: 7669627046, Path Hash 14099156556279955990
+^C
+dsfreakdude@devey:~/code/BaseBuster$

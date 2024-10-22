@@ -36,12 +36,18 @@ pub async fn simulate_paths(tx_sender: Sender<Event>, arb_receiver: Receiver<Eve
                         if quote == expected_out {
                             info!("Success.. Calculated {expected_out}, Quoted: {quote}, Path Hash {}", arb_path.hash);
                         } else {
+                            info!("Fail.. Calculated {expected_out}, Quoted: {quote}, Path Hash {}", arb_path.hash);
+                            /*
                             info!(
-                                "Fail.. Calculated {expected_out}, Quoted: {quote}, Path: {:#?}",
+                                "Fail.. Calculated {expected_out}, Quoted: {quote}, Path Hash {}, Path: {:#?}",
+                                arb_path.hash,
                                 converted_path
                             );
+                            */
                         }
                     } else {
+                        info!("Calculated {expected_out}, Quoted: {quote}, Path Hash {}", arb_path.hash);
+                        /*
                         // we need to optimize the amount in
                         let optimized_out = U256::ZERO;
                         // send the optimize path to the tx sender
@@ -49,6 +55,7 @@ pub async fn simulate_paths(tx_sender: Sender<Event>, arb_receiver: Receiver<Eve
                             Ok(_) => debug!("Sent path"),
                             Err(_) => warn!("Failed to send path"),
                         }
+                        */
                     }
                 }
                 Err(quote_err) => {

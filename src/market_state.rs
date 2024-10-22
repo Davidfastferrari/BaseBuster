@@ -165,7 +165,7 @@ where
             if pool.is_v2() {
                 db.insert_v2(pool.get_v2().unwrap().clone()).unwrap();
             } else if pool.is_v3() {
-                todo!()
+                db.insert_v3(pool.get_v3().unwrap().clone()).unwrap();
             }
         }
     }
