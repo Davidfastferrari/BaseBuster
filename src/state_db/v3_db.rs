@@ -1,11 +1,13 @@
 use alloy::primitives::{keccak256, Address, Signed, Uint, B256, I256, U160, U256};
 use alloy::sol;
-use pool_sync::{PoolType, UniswapV2Pool};
+use pool_sync::{PoolType, UniswapV2Pool, UniswapV3Pool};
 use revm::database_interface::{Database, DatabaseRef};
 use revm::state::AccountInfo;
 
+
 use super::BlockStateDB;
 use crate::bytecode::*;
+use crate::state_db::blockstate_db::BlockStateDBAccount;
 use alloy::network::Network;
 use alloy::providers::Provider;
 use alloy::transports::Transport;
@@ -50,6 +52,34 @@ where
     N: Network,
     P: Provider<T, N>,
 {
+
+    pub fn insert_v3(&mut self, pool: UniswapV3Pool) -> Result<()> {
+
+        let address = pool.address;
+
+
+        // make an insert new account for this pool
+        let account = BlockStateDBAccount::new_not_existing();
+
+
+         // makea 
+
+        // Insert slot0
+        let slot0 = U256::from(pool.sqrt_price)
+            | (U256::from(pool.tick as u32) << 160)
+            | (U256::from(0u16) << 184) // observationIndex
+            | (U256::from(0u16) << 200) // observationCardinality
+            | (U256::from(0u16) << 216) // observationCardinalityNext
+            | (U256::from(0u8) << 232)  // feeProtocol
+            | (U256::from(1u8) << 240); // unlocked
+        //self.insert_account_storage(address, U256::from(0), slot0)?;
+
+        todo!()
+    }
+
+
+
+
     pub fn fee_growth_global0_x128(&self, address: Address) -> Result<U256> {
         let value = self.storage_ref(address, U256::from(1))?;
         Ok(value)
@@ -82,7 +112,6 @@ where
         let signed_liquidity: Signed<128, 2> = Signed::<128, 2>::from_raw(unsigned_liqudity);
         let lu128: u128 = unsigned_liqudity.to();
         let li128: i128 = lu128 as i128;
-        info!("ticks_liquidity_net {address} {tick} {cell} -> {signed_liquidity}");
 
         Ok(li128)
     }
@@ -93,7 +122,6 @@ where
             &U256::from(6),
             &U256::from_be_bytes(I256::try_from(tick)?.to_be_bytes::<32>()),
         )?;
-        info!("tickBitmap {address} {tick} {cell}");
         Ok(cell)
     }
 

@@ -3,10 +3,12 @@ use crate::gen::V2Swap;
 use crate::gen::V3Swap;
 use crate::gen::V3SwapDeadline;
 use alloy::eips::BlockId;
+use std::time::Duration;
 use alloy::network::Ethereum;
 use alloy::primitives::{address, Address, U160, U256};
 use alloy::providers::{ProviderBuilder, RootProvider};
 use alloy::sol;
+use std::time::Instant;
 use alloy::sol_types::{SolCall, SolValue};
 use alloy::transports::http::Client as AlloyClient;
 use alloy::transports::http::Http;
@@ -20,6 +22,7 @@ use revm::primitives::keccak256;
 use revm::wiring::default::TransactTo;
 use revm::wiring::result::ExecutionResult;
 use revm::wiring::EthereumWiring;
+use node_db::{NodeDB, InsertionType};
 use revm::Evm;
 use revm_database::{AlloyDB, CacheDB};
 use serde::{Deserialize, Serialize};
@@ -35,16 +38,16 @@ type AlloyCacheDB = CacheDB<
 // Blacklisted tokens we dont want to consider
 lazy_static! {
     static ref BLACKLIST: Vec<Address> = vec![
-        address!("60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42"),
-        address!("04D5ddf5f3a8939889F11E97f8c4BB48317F1938"),
-        address!("fde4C96c8593536E31F229EA8f37b2ADa2699bb2"),
-        address!("d9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA"),
-        address!("B79DD08EA68A908A97220C76d19A6aA9cBDE4376"),
-        address!("2Ae3F1Ec7F1F5012CFEab0185bfc7aa3cf0DEc22"),
-        address!("2416092f143378750bb29b79eD961ab195CcEea5"),
-        address!("50c5725949A6F0c72E6C4a641F24049A917DB0Cb"),
-        address!("833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
-        address!("b56d0839998fd79efcd15c27cf966250aa58d6d3")
+        //address!("60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42"),
+        //address!("04D5ddf5f3a8939889F11E97f8c4BB48317F1938"),
+        //address!("fde4C96c8593536E31F229EA8f37b2ADa2699bb2"),
+        ////address!("d9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA"),
+        //address!("B79DD08EA68A908A97220C76d19A6aA9cBDE4376"),
+        ////address!("2Ae3F1Ec7F1F5012CFEab0185bfc7aa3cf0DEc22"),
+        //address!("2416092f143378750bb29b79eD961ab195CcEea5"),
+        //address!("50c5725949A6F0c72E6C4a641F24049A917DB0Cb"),
+        //address!("833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
+        //address!("b56d0839998fd79efcd15c27cf966250aa58d6d3")
     ];
 }
 
@@ -214,9 +217,10 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
     let provider = ProviderBuilder::new().on_http(url);
 
     // construct the db
-    let db = WrapDatabaseAsync::new(AlloyDB::new(provider, BlockId::latest())).unwrap();
-    let mut cache_db = CacheDB::new(db);
+    let database_path = String::from("/home/dsfreakdude/nodes/base/data");
+    let mut nodedb = NodeDB::new(database_path).unwrap();
 
+    let start = Instant::now();
     // go through all the pools and try a swap on each one
     for pool in pools {
         // get the router address
@@ -281,13 +285,13 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
         };
 
         // give ourselves some of the input token, just assume 18 decimal points
-        cache_db
-            .insert_account_storage(pool.token0_address(), balance_slot.into(), ten_units)
+        nodedb
+            .insert_account_storage(pool.token0_address(), balance_slot.into(), ten_units, InsertionType::OnChain)
             .unwrap();
 
         // construct a new evm instance
-        let mut evm = Evm::<EthereumWiring<&mut AlloyCacheDB, ()>>::builder()
-            .with_db(&mut cache_db)
+        let mut evm = Evm::<EthereumWiring<&mut NodeDB, ()>>::builder()
+            .with_db(&mut nodedb)
             .with_default_ext_ctx()
             .modify_cfg_env(|env| {
                 env.disable_nonce_check = true;
@@ -364,6 +368,7 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
         } else {
             debug!("Unsuccessful swap for pool {}", pool.address());
         }
+        println!("{:?}", start.elapsed());
     }
 
     filtered_pools

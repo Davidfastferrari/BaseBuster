@@ -1,20 +1,18 @@
 use alloy::network::Network;
 use alloy::primitives::{address, Address, U256};
-use alloy::providers::{Provider, ProviderBuilder, RootProvider};
+use alloy::providers::{Provider, ProviderBuilder, RootProvider, WsConnect};
 use alloy::rpc::types::trace::geth::AccountState;
 use alloy::rpc::types::BlockNumberOrTag;
-use alloy::sol_types::SolValue;
 use alloy::transports::http::{Client, Http};
 use alloy::transports::Transport;
 use anyhow::Result;
 use log::{debug, error, info};
 use pool_sync::Pool;
-use revm::primitives::{keccak256, Bytes};
-use revm::state::{AccountInfo, Bytecode};
 use std::collections::{BTreeMap, HashSet};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 use std::sync::RwLock;
+use futures::StreamExt;
 
 use crate::events::Event;
 use crate::gen::FlashQuoter;
@@ -49,7 +47,6 @@ where
         debug!("Populating the db with {} pools", pools.len());
         let mut db = BlockStateDB::new(provider).unwrap();
         MarketState::populate_db_with_pools(pools, &mut db);
-        MarketState::populate_db_with_accounts(&mut db);
 
         // init the market state with the db
         let market_state = Arc::new(Self {
@@ -95,10 +92,17 @@ where
             last_synced_block = current_block;
             current_block = http.get_block_number().await.unwrap();
         }
-        println!("waiting for a new block");
+
+
+        // start the stream
+        let ws_url = WsConnect::new(std::env::var("WS").unwrap());
+        let ws = Arc::new(ProviderBuilder::new().on_ws(ws_url).await.unwrap());
+
+        let sub = ws.subscribe_blocks().await.unwrap();
+        let mut stream = sub.into_stream();
 
         // stream in new blocks
-        while let Ok(Event::NewBlock(block)) = block_rx.recv() {
+        while let Some(block) = stream.next().await {
             let block_number = block.header.number;
             if block_number <= last_synced_block {
                 continue;
@@ -160,38 +164,9 @@ where
         for pool in pools {
             if pool.is_v2() {
                 db.insert_v2(pool.get_v2().unwrap().clone()).unwrap();
+            } else if pool.is_v3() {
+                todo!()
             }
         }
-    }
-
-    // Insert the quoter and dummy account into the db
-    fn populate_db_with_accounts(db: &mut BlockStateDB<T, N, P>) {
-        // give the dummy account some weth
-        let dummy_account = address!("1E0294b6e4D72857B5eC467f5c2E52BDA37CA5b8");
-        let weth = std::env::var("WETH").unwrap().parse().unwrap();
-        let weth_balance_slot = U256::from(3);
-        let one_ether = U256::from(1_000_000_000_000_000_000u128);
-        let hashed_acc_balance_slot = keccak256((dummy_account, weth_balance_slot).abi_encode());
-        db.insert_account_storage(weth, hashed_acc_balance_slot.into(), one_ether)
-            .unwrap();
-
-        let acc_info = AccountInfo {
-            nonce: 0_u64,
-            balance: one_ether,
-            code_hash: keccak256(Bytes::new()),
-            code: None,
-        };
-        db.insert_account_info(dummy_account, acc_info);
-
-        // Insert the quoter contract, used for simulations
-        let quoter = address!("0000000000000000000000000000000000001000");
-        let quoter_bytecode = FlashQuoter::DEPLOYED_BYTECODE.clone();
-        let quoter_acc_info = AccountInfo {
-            nonce: 0_u64,
-            balance: U256::ZERO,
-            code_hash: keccak256(&quoter_bytecode),
-            code: Some(Bytecode::new_raw(quoter_bytecode)),
-        };
-        db.insert_account_info(quoter, quoter_acc_info);
     }
 }

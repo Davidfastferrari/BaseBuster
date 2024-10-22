@@ -13,6 +13,7 @@ anyhow = "1.0.89"
 env_logger = "0.11.5"
 futures = "0.3.31"
 pool-sync = { path = "../PoolSync" }
+node-db = { path = "../node-db"}
 log = "0.4.22"
 petgraph = "0.6.5"
 rayon = "1.10.0"
@@ -24,7 +25,7 @@ sha2 = "0.10.8"
 dashmap = "6.1.0"
 tokio = { version = "1.40.0", features = ["full"] }
 lazy_static = "1.5.0"
-uniswap_v3_math = "0.5.1"
+uniswap_v3_math = { path = "../uniswap-v3-math" } 
 dotenv = "0.15.0"
 reqwest = "0.12.8"
 zerocopy = "0.8.6"

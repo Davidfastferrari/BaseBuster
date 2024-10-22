@@ -1,8 +1,5 @@
-use alloy::primitives::{Address, BlockNumber, B256, U256};
-use revm::primitives::{Log, KECCAK_EMPTY};
-use revm::state::{Account, AccountInfo, Bytecode};
-use revm_database::AccountState;
 use alloy::network::{BlockResponse, HeaderResponse, Network};
+use alloy::primitives::{Address, BlockNumber, B256, U256};
 use alloy::providers::Provider;
 use alloy::rpc::types::trace::geth::AccountState as GethAccountState;
 use alloy::rpc::types::BlockId;
@@ -10,7 +7,10 @@ use alloy::transports::{Transport, TransportError};
 use anyhow::Result;
 use log::{debug, info, trace, warn};
 use pool_sync::PoolType;
+use revm::primitives::{Log, KECCAK_EMPTY};
+use revm::state::{Account, AccountInfo, Bytecode};
 use revm::{Database, DatabaseCommit, DatabaseRef};
+use revm_database::AccountState;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::future::IntoFuture;
@@ -103,6 +103,7 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> BlockStateDB<T, N, P> 
         token1: Address,
         pool_type: PoolType,
     ) {
+        trace!("Adding pool {} to database", pool);
         self.pools.insert(pool);
         self.pool_info.insert(
             pool,
@@ -112,50 +113,18 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> BlockStateDB<T, N, P> 
                 pool_type,
             },
         );
+        let pool_account = BlockStateDBAccount::new_not_existing();
+        self.accounts.insert(pool, pool_account);
     }
 
-    // Insert a contract into the DB
-    pub fn insert_contract(&mut self, account: &mut AccountInfo) {
-        trace!("Inserting new contract");
-        if let Some(code) = &account.code {
-            if !code.is_empty() {
-                account.code_hash = code.hash_slow();
-                if let Some(_) = self.contracts.insert(account.code_hash, code.clone()) {
-                    trace!("Updated existing contract with hash: {:?}", account.code_hash);
-                } else {
-                    trace!("Inserted new contract with hash: {:?}", account.code_hash);
-                }
-                return;
-            }
-        }
-        
-        account.code_hash = KECCAK_EMPTY;
+    // Check if we are tracking the pool. This is our working set
+    pub fn tracking_pool(&self, pool: &Address) -> bool {
+        self.pools.contains(pool)
     }
 
-    // Insert some account info into the DB
-    pub fn insert_account_info(&mut self, address: Address, mut info: AccountInfo) {
-        trace!("Insert account info: Inserting account info for account {}", address);
-        self.insert_contract(&mut info);
-        self.accounts.entry(address).or_default().info = info;
-    }
-
-    // insert new storage slot value into the account
-    pub fn insert_account_storage(
-        &mut self,
-        address: Address,
-        slot: U256,
-        value: U256,
-    ) -> Result<()> {
-        trace!(
-            "Insert account storage: Inserting value {} into slot {} for account {}",
-            value,
-            slot,
-            address
-        );
-        if let Some(account) = self.accounts.get_mut(&address) {
-            account.storage.insert(slot, value);
-        }
-        Ok(())
+    // Compute zero to one for amount out computations
+    pub fn zero_to_one(&self, pool: &Address, token_in: Address) -> Option<bool> {
+        self.pool_info.get(pool).map(|info| info.token0 == token_in)
     }
 
     // Go through a block trace and update all relevant slots
@@ -269,7 +238,7 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> Database for BlockStat
         );
 
         // Check if the account exists
-        if let Some(account) = self.accounts.get_mut(&address) {
+        if let Some(account) = self.accounts.get(&address) {
             // Check if the storage slot exists
             if let Some(value) = account.storage.get(&index) {
                 trace!(
@@ -290,9 +259,10 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> Database for BlockStat
                 index,
                 address
             );
-            // todo!() make sure to handle any error here, we are getting the account again, need
-            // to get rid of this
-            self.insert_account_storage(address, index, value).unwrap(); // fix error
+
+            // get a mutable ref to the account and insert the storage value in
+            let account = self.accounts.get_mut(&address).unwrap();
+            account.storage.insert(index, value);
             return Ok(value);
         }
 
@@ -495,7 +465,30 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> DatabaseCommit for Blo
                 continue;
             }
             let is_newly_created = account.is_created();
-            self.insert_contract(&mut account.info);
+
+            if let Some(code) = &account.info.code {
+                if !code.is_empty() {
+                    account.info.code_hash = code.hash_slow();
+                    if self
+                        .contracts
+                        .insert(account.info.code_hash, code.clone())
+                        .is_some()
+                    {
+                        trace!(
+                            "Updated existing contract with hash: {:?}",
+                            account.info.code_hash
+                        );
+                    } else {
+                        trace!(
+                            "Inserted new contract with hash: {:?}",
+                            account.info.code_hash
+                        );
+                    }
+                    return;
+                }
+            } else {
+                account.info.code_hash = KECCAK_EMPTY;
+            }
 
             let db_account = self.accounts.entry(address).or_default();
             db_account.info = account.info;
@@ -528,7 +521,7 @@ pub struct BlockStateDBAccount {
 
 impl BlockStateDBAccount {
     pub fn new_not_existing() -> Self {
-        debug!("Creating a new non-existing BlockStateDBAccount");
+        trace!("Creating a new non-existing BlockStateDBAccount");
         Self {
             state: AccountState::NotExisting,
             ..Default::default()
@@ -542,32 +535,6 @@ impl BlockStateDBAccount {
         } else {
             debug!("Returning account info: {:?}", self.info);
             Some(self.info.clone())
-        }
-    }
-}
-
-impl From<Option<AccountInfo>> for BlockStateDBAccount {
-    fn from(from: Option<AccountInfo>) -> Self {
-        match from {
-            Some(info) => {
-                debug!("Converting Some(AccountInfo) into BlockStateDBAccount");
-                Self::from(info)
-            }
-            None => {
-                debug!("Converting None into BlockStateDBAccount::new_not_existing");
-                Self::new_not_existing()
-            }
-        }
-    }
-}
-
-impl From<AccountInfo> for BlockStateDBAccount {
-    fn from(info: AccountInfo) -> Self {
-        debug!("Converting AccountInfo into BlockStateDBAccount");
-        Self {
-            info,
-            state: AccountState::None,
-            ..Default::default()
         }
     }
 }

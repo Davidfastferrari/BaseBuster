@@ -35,7 +35,7 @@ async fn main() -> Result<()> {
     // init dots and logger
     dotenv::dotenv().ok();
     env_logger::Builder::new()
-        .filter_module("BaseBuster", LevelFilter::Debug)
+        .filter_module("BaseBuster", LevelFilter::Trace)
         .init();
 
     // Load in all the pools
@@ -49,7 +49,7 @@ async fn main() -> Result<()> {
             //PoolType::BaseSwapV2,
             //PoolType::DackieSwapV2,
             //PoolType::SwapBasedV2,
-            PoolType::UniswapV3,
+            //PoolType::UniswapV3,
         ])
         .chain(Chain::Base)
         .rate_limit(1000)

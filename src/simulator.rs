@@ -27,7 +27,7 @@ pub async fn simulate_paths(tx_sender: Sender<Event>, arb_receiver: Receiver<Eve
         // get the quote for the path and handle it appropriately
         let amount_in = U256::from(1e16);
         // if we have not blacklisted the path
-        if blacklisted_paths.contains(&arb_path.hash) {
+        if !blacklisted_paths.contains(&arb_path.hash) {
             // get a quote for the path
             match quoter.quote_path(converted_path.clone(), amount_in) {
                 Ok(quote) => {

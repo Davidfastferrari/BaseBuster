@@ -25,9 +25,6 @@ pub async fn start_workers(pools: Vec<Pool>, last_synced_block: u64) {
     let pools = filter_pools(pools, 500, Chain::Base).await;
     info!("Pool count after filter {}", pools.len());
 
-    // Stream in new blocks from the chain
-    info!("Starting block stream...");
-    tokio::spawn(stream_new_blocks(block_sender));
 
     // Initialize our market state, this is a wrapper over the REVM database with all our pool state
     // then start the updater
@@ -42,7 +39,7 @@ pub async fn start_workers(pools: Vec<Pool>, last_synced_block: u64) {
     )
     .await
     .unwrap(); // add something to reeiver blocks, this the state will be updated here
-
+               
     // generate the graph
     info!("Generating cycles...");
     let cycles = ArbGraph::generate_cycles(pools.clone()).await;

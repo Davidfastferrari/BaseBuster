@@ -1,13 +1,14 @@
+use super::BlockStateDB;
 use alloy::network::Network;
 use alloy::primitives::{Address, U256};
 use alloy::providers::Provider;
 use alloy::transports::Transport;
 use anyhow::Result;
 use lazy_static::lazy_static;
+use log::trace;
 use pool_sync::{PoolType, UniswapV2Pool};
 use revm::database_interface::{Database, DatabaseRef};
 use zerocopy::IntoBytes;
-use super::BlockStateDB;
 
 lazy_static! {
     static ref U112_MASK: U256 = (U256::from(1) << 112) - U256::from(1);
@@ -31,7 +32,7 @@ where
         // track the pool
         self.add_pool(address, token0, token1, PoolType::UniswapV2);
 
-        // insert storage values
+        // create account and insert storage values
         self.insert_reserves(address, reserve0, reserve1)?;
         self.insert_token0(address, token0)?;
         self.insert_token1(address, token1)?;
@@ -39,26 +40,15 @@ where
         Ok(())
     }
 
-    // check if we are tracking this pool
-    #[inline]
-    pub fn tracking_pool(&self, pool: &Address) -> bool {
-        self.pools.contains(pool)
-    }
-
-    // compute zero to one
-    pub fn zero_to_one(&self, pool: &Address, token_in: Address) -> Option<bool> {
-        self.pool_info.get(pool).map(|info| info.token0 == token_in)
-    }
-
     // get the reserves
     pub fn get_reserves(&self, pool: &Address) -> (U256, U256) {
-        let value = self.storage_ref(*pool, U256::from(8)).ok().unwrap();
+        let value = *self.accounts.get(pool).unwrap().storage.get(&U256::from(8)).unwrap();
         ((value >> 0) & *U112_MASK, (value >> (112)) & *U112_MASK)
     }
 
     // get token 0
     pub fn get_token0(&mut self, pool: Address) -> Result<Option<Address>> {
-        let token0 = self.storage(pool, U256::from(6))?;
+        let token0 = self.storage(pool, U256::from(0))?;
         if token0 == U256::ZERO {
             Ok(None)
         } else {
@@ -68,7 +58,7 @@ where
 
     // get token 1
     pub fn get_token1(&mut self, pool: Address) -> Result<Option<Address>> {
-        let token1 = self.storage(pool, U256::from(7))?;
+        let token1 = self.storage(pool, U256::from(1))?;
         if token1 == U256::ZERO {
             Ok(None)
         } else {
@@ -78,23 +68,35 @@ where
 
     // insert pool reserves into the database
     fn insert_reserves(&mut self, pool: Address, reserve0: U256, reserve1: U256) -> Result<()> {
-        self.pools.insert(pool);
         let packed_reserves = (reserve1 << 112) | reserve0;
-        self.insert_account_storage(pool, U256::from(8), packed_reserves)
+        trace!("V2 Database: Inserting reserves for {}", pool);
+        let account = self.accounts.get_mut(&pool).unwrap();
+        account.storage.insert(U256::from(8), packed_reserves);
+        Ok(())
     }
 
     // insert token0 into the database
     fn insert_token0(&mut self, pool: Address, token: Address) -> Result<()> {
         let mut bytes = [0u8; 32];
         bytes[12..].copy_from_slice(token.as_bytes());
-        self.insert_account_storage(pool, U256::ZERO, U256::from_be_bytes(bytes))
+        trace!("V2 Database: Inserting token 0 for {}", pool);
+        let account = self.accounts.get_mut(&pool).unwrap();
+        account
+            .storage
+            .insert(U256::ZERO, U256::from_be_bytes(bytes));
+        Ok(())
     }
 
     // insert token1 into the database
     fn insert_token1(&mut self, pool: Address, token: Address) -> Result<()> {
         let mut bytes = [0u8; 32];
         bytes[12..].copy_from_slice(token.as_bytes());
-        self.insert_account_storage(pool, U256::from(1), U256::from_be_bytes(bytes))
+        trace!("V2 Database: Inserting token 1 for {}", pool);
+        let account = self.accounts.get_mut(&pool).unwrap();
+        account
+            .storage
+            .insert(U256::from(1), U256::from_be_bytes(bytes));
+        Ok(())
     }
 }
 

@@ -15,13 +15,14 @@ use revm::wiring::result::ExecutionResult;
 use revm::wiring::EthereumWiring;
 use revm::Evm;
 use revm_database::{AlloyDB, CacheDB};
+use node_db::{NodeDB, InsertionType};
 
 use crate::gen::FlashQuoter;
 
 // Types to make our life easier
 type AlloyCacheDB =
     CacheDB<WrapDatabaseAsync<AlloyDB<Http<Client>, Ethereum, RootProvider<Http<Client>>>>>;
-type QuoterEvm = Evm<'static, EthereumWiring<AlloyCacheDB, ()>>;
+type QuoterEvm = Evm<'static, EthereumWiring<NodeDB, ()>>;
 
 // Quoter. This class is used to get a simulation quote before sending off a transaction.
 // This will confirm that our offchain calculations are reasonable and make sure we can swap the tokens
@@ -41,23 +42,25 @@ impl Quoter {
             }
         );
 
-        let account = address!("18B06aaF27d44B756FCF16Ca20C1f183EB49111f");
+        let account = address!("d8da6bf26964af9d7eed9e03e53415d37aa96045");
         let weth = std::env::var("WETH").unwrap().parse().unwrap();
         let quoter: Address = address!("0000000000000000000000000000000000001000");
 
         // setup the provider
-        let url = std::env::var("FULL").unwrap().parse().unwrap();
-        let provider = ProviderBuilder::new().on_http(url);
+        //let url = std::env::var("FULL").unwrap().parse().unwrap();
+        //let provider = ProviderBuilder::new().on_http(url);
 
         // setup the database
-        let db = WrapDatabaseAsync::new(AlloyDB::new(provider, BlockId::latest())).unwrap();
-        let mut cache_db = CacheDB::new(db);
+        //let db = WrapDatabaseAsync::new(AlloyDB::new(provider, BlockId::latest())).unwrap();
+        //let mut cache_db = CacheDB::new(db);
+        let database_path = String::from("/home/dsfreakdude/nodes/base/data");
+        let mut nodedb = NodeDB::new(database_path).unwrap();
 
         // give the account some weth
         let one_ether = U256::from(1_000_000_000_000_000_000u128);
         let hashed_acc_balance_slot = keccak256((account, U256::from(3)).abi_encode());
-        cache_db
-            .insert_account_storage(weth, hashed_acc_balance_slot.into(), one_ether)
+        nodedb
+            .insert_account_storage(weth, hashed_acc_balance_slot.into(), one_ether, InsertionType::OnChain)
             .unwrap();
 
         // insert the quoter bytecode
@@ -68,10 +71,10 @@ impl Quoter {
             code_hash: keccak256(&quoter_bytecode),
             code: Some(Bytecode::new_raw(quoter_bytecode)),
         };
-        cache_db.insert_account_info(quoter, quoter_acc_info);
+        nodedb.insert_account_info(quoter, quoter_acc_info, InsertionType::Custom);
 
-        let mut evm = Evm::<EthereumWiring<AlloyCacheDB, ()>>::builder()
-            .with_db(cache_db)
+        let mut evm = Evm::<EthereumWiring<NodeDB, ()>>::builder()
+            .with_db(nodedb)
             .with_default_ext_ctx()
             .modify_tx_env(|tx| {
                 tx.caller = account;
