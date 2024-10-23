@@ -75,8 +75,7 @@ where
         Ok(())
     }
 
-
-    // Inser
+    // Insert tick bitmap
     fn insert_tick_bitmap(&mut self, pool: Address, tick: i16, bitmap: U256) -> Result<()> {
         trace!(
             "V3 Database: Inserting tick bitmap for tick {} in pool {}",
@@ -96,23 +95,7 @@ where
         Ok(())
     }
 
-    fn insert_position(&mut self, pool: Address, position: B256, info: U256) -> Result<()> {
-        trace!("V3 Database: Inserting position info in pool {}", pool);
-        // Convert position to U256 exactly as in read operation
-        let position: U256 = position.into();
-
-        // Hash slot exactly as in read operation
-        let mut buf = position.to_be_bytes::<32>().to_vec();
-        buf.append(&mut U256::from(7).to_be_bytes::<32>().to_vec());
-        let slot = keccak256(buf.as_slice());
-
-        let account = self.accounts.get_mut(&pool).unwrap();
-        account
-            .storage
-            .insert(U256::from_be_bytes(slot.into()), info);
-        Ok(())
-    }
-
+    // Insert the pool liquidity
     fn insert_liquidity(&mut self, pool: Address, liquidity: u128) -> Result<()> {
         trace!("V3 Database: Inserting liquidity for {}", pool);
         let account = self.accounts.get_mut(&pool).unwrap();
@@ -120,6 +103,7 @@ where
         Ok(())
     }
 
+    // Insert tick liquidity
     fn insert_tick_liquidity_net(
         &mut self,
         pool: Address,
@@ -134,7 +118,7 @@ where
         // Convert signed 128-bit to unsigned representation matching the read operation
         let unsigned_liquidity = liquidity_net as u128;
 
-        // Hash slot exactly as in read operation
+        // Hash slot
         let tick_bytes = I256::try_from(tick)?.to_be_bytes::<32>();
         let mut buf = tick_bytes.to_vec();
         buf.append(&mut U256::from(5).to_be_bytes::<32>().to_vec());
@@ -149,6 +133,8 @@ where
             .insert(U256::from_be_bytes(slot.into()), value);
         Ok(())
     }
+
+    // Insert slot0
     fn insert_slot0(&mut self, pool: Address, sqrt_price: U160, tick: i32) -> Result<()> {
         trace!("V3 Database: Inserting slot0 for {}", pool);
 
@@ -167,6 +153,7 @@ where
         Ok(())
     }
 
+    // Get slot 0
     pub fn slot0(&self, address: Address) -> Result<UniswapV3::slot0Return> {
         let cell = self.storage_ref(address, U256::from(0))?;
         let tick: Uint<24, 1> = ((Shr::<U256>::shr(cell, U256::from(160))) & *BITS24MASK).to();
@@ -194,40 +181,6 @@ where
         })
     }
 
-    fn insert_observation(&mut self, pool: Address, idx: u32, observation: U256) -> Result<()> {
-        trace!(
-            "V3 Database: Inserting observation {} in pool {}",
-            idx,
-            pool
-        );
-        let account = self.accounts.get_mut(&pool).unwrap();
-
-        // Convert index to storage slot using same hashing as read method
-        let mut buf = U256::from(idx).to_be_bytes::<32>().to_vec();
-        buf.append(&mut U256::from(8).to_be_bytes::<32>().to_vec());
-        let slot = keccak256(buf.as_slice());
-
-        account
-            .storage
-            .insert(U256::from_be_bytes(slot.into()), observation);
-        Ok(())
-    }
-
-    pub fn fee_growth_global0_x128(&self, address: Address) -> Result<U256> {
-        let value = self.storage_ref(address, U256::from(1))?;
-        Ok(value)
-    }
-
-    pub fn fee_growth_global1_x128(&self, address: Address) -> Result<U256> {
-        let value = self.storage_ref(address, U256::from(2))?;
-        Ok(value)
-    }
-
-    pub fn protocol_fees(&self, address: Address) -> Result<U256> {
-        let value = self.storage_ref(address, U256::from(3))?;
-        Ok(value)
-    }
-
     pub fn liquidity(&self, address: Address) -> Result<u128> {
         let cell = self.storage_ref(address, U256::from(4))?;
         let cell: u128 = cell.saturating_to();
@@ -242,7 +195,6 @@ where
             &U256::from_be_bytes(I256::try_from(tick)?.to_be_bytes::<32>()),
         )?;
         let unsigned_liqudity: Uint<128, 2> = cell.shr(U256::from(128)).to();
-        let signed_liquidity: Signed<128, 2> = Signed::<128, 2>::from_raw(unsigned_liqudity);
         let lu128: u128 = unsigned_liqudity.to();
         let li128: i128 = lu128 as i128;
 
@@ -255,19 +207,6 @@ where
             &U256::from(6),
             &U256::from_be_bytes(I256::try_from(tick)?.to_be_bytes::<32>()),
         )?;
-        Ok(cell)
-    }
-
-    pub fn position_info(&self, address: Address, position: B256) -> Result<U256> {
-        //i16
-        let position: U256 = position.into();
-        let cell = self.read_hashed_slot(&address, &U256::from(7), &position)?;
-        Ok(cell)
-    }
-
-    pub fn observations(&self, address: Address, idx: u32) -> Result<U256> {
-        //i16
-        let cell = self.read_hashed_slot(&address, &U256::from(7), &U256::from(idx))?;
         Ok(cell)
     }
 
@@ -284,62 +223,23 @@ where
     }
 }
 
-/*
-UniswapV3Pool {
-    address: 0xe375e4dd3fc5bf117aa00c5241dd89ddd979a2c4,
-    token0: 0x0578d8a44db98b23bf096a382e016e29a5ce0ffe,
-    token1: 0x27501bdd6a4753dffc399ee20eb02b304f670f50,
-    token0_name: "HIGHER",
-    token1_name: "INDEX",
-    token0_decimals: 18,
-    token1_decimals: 18,
-    liquidity: 21775078430692230315408,
-    sqrt_price: 4654106501023758788420274431,
-    fee: 3000,
-    tick: -56695,
-    tick_spacing: 60,
-    tick_bitmap: {
-        -58: 2305843009213693952,
-        57: 50216813883093446110686315385661331328818843555712276103168,
-    },
-    ticks: {
-        -887220: TickInfo {
-            liquidity_net: 14809333843350818121657,
-            initialized: true,
-            liquidity_gross: 14809333843350818121657,
-        },
-        887220: TickInfo {
-            liquidity_net: -14809333843350818121657,
-            initialized: true,
-            liquidity_gross: 14809333843350818121657,
-        },
-    },
-}
-*/
-
 #[cfg(test)]
 mod v3_db_test {
     use super::*;
     use alloy::primitives::{address, U128};
+    use alloy::primitives::aliases::I24;
     use alloy::providers::ProviderBuilder;
     use alloy::sol_types::SolCall;
     use pool_sync::TickInfo;
     use std::collections::HashMap;
 
-    #[tokio::test(flavor = "multi_thread")]
-    async fn test_insert_and_retrieve() {
-        dotenv::dotenv().ok();
-        let url = std::env::var("FULL").unwrap().parse().unwrap();
-        let provider = ProviderBuilder::new().on_http(url);
-        let mut db = BlockStateDB::new(provider).unwrap();
-
-        let pool_addr = address!("e375e4dd3fc5bf117aa00c5241dd89ddd979a2c4");
-        let token0 = address!("0578d8a44db98b23bf096a382e016e29a5ce0ffe");
-        let token1 = address!("27501bdd6a4753dffc399ee20eb02b304f670f50");
-        let mut tick_bitmap: HashMap<i16, U256> = HashMap::new();
+    fn create_test_pool() -> UniswapV3Pool {
+        // Set up tick bitmap
+        let mut tick_bitmap = HashMap::new();
         tick_bitmap.insert(-58, U256::from(2305843009213693952_u128));
 
-        let mut ticks: HashMap<i32, TickInfo> = HashMap::new();
+        // Set up ticks
+        let mut ticks = HashMap::new();
         ticks.insert(
             -887220,
             TickInfo {
@@ -349,11 +249,10 @@ mod v3_db_test {
             },
         );
 
-        // construct and insert pool
-        let pool = UniswapV3Pool {
-            address: pool_addr,
-            token0,
-            token1,
+        UniswapV3Pool {
+            address: address!("e375e4dd3fc5bf117aa00c5241dd89ddd979a2c4"),
+            token0: address!("0578d8a44db98b23bf096a382e016e29a5ce0ffe"),
+            token1: address!("27501bdd6a4753dffc399ee20eb02b304f670f50"),
             token0_name: "USDC".to_string(),
             token1_name: "WETH".to_string(),
             token0_decimals: 6,
@@ -365,17 +264,57 @@ mod v3_db_test {
             tick_spacing: 60,
             tick_bitmap,
             ticks,
-        };
-        db.insert_v3(pool).unwrap();
-        let zero_to_one = db.zero_to_one(&pool_addr, token0);
-        println!("{:#?}", zero_to_one);
-        let slot0 = db.slot0(pool_addr);
-        println!("{:#?}", slot0);
-        let liquidity = db.liquidity(pool_addr);
-        println!("{:#?}", liquidity);
-        let tick_liqu = db.ticks_liquidity_net(pool_addr, -887220);
-        println!("{:#?}", tick_liqu);
-        let tick = db.tick_bitmap(pool_addr, -58);
-        println!("{:#?}", tick);
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_insert_and_retrieve() -> Result<()> {
+        // Initialize environment and provider
+        dotenv::dotenv().ok();
+        let url = std::env::var("FULL")
+            .expect("FULL env var not set")
+            .parse()?;
+        let provider = ProviderBuilder::new().on_http(url);
+        let mut db = BlockStateDB::new(provider).unwrap();
+
+        // Create and insert test pool
+        let pool = create_test_pool();
+        let pool_addr = pool.address;
+        let expected_liquidity = pool.liquidity;
+        let expected_sqrt_price = U160::from(pool.sqrt_price);
+        let expected_tick = I24::try_from(pool.tick).unwrap();
+
+        db.insert_v3(pool)?;
+
+        // Test slot0 values
+        let slot0 = db.slot0(pool_addr).unwrap();
+        assert_eq!(
+            slot0.sqrtPriceX96, expected_sqrt_price,
+            "Incorrect sqrt price"
+        );
+        assert_eq!(slot0.tick, expected_tick, "Incorrect tick");
+        assert_eq!(slot0.feeProtocol, 0, "Fee protocol should be 0");
+        assert!(slot0.unlocked, "Pool should be unlocked");
+
+        // Test liquidity
+        let liquidity = db.liquidity(pool_addr)?;
+        assert_eq!(liquidity, expected_liquidity, "Incorrect liquidity value");
+
+        // Test tick liquidityNet
+        let tick_liquidity = db.ticks_liquidity_net(pool_addr, -887220)?;
+        assert_eq!(
+            tick_liquidity, 14809333843350818121657,
+            "Incorrect tick liquidity net"
+        );
+
+        // Test tick bitmap
+        let tick_bitmap = db.tick_bitmap(pool_addr, -58)?;
+        assert_eq!(
+            tick_bitmap,
+            U256::from(2305843009213693952_u128),
+            "Incorrect tick bitmap"
+        );
+
+        Ok(())
     }
 }
