@@ -1,23 +1,17 @@
-use alloy::primitives::{keccak256, Address, Signed, Uint, B256, I256, U160, U256};
-use alloy::sol;
-use log::trace;
-use pool_sync::{PoolType, UniswapV2Pool, UniswapV3Pool};
-use revm::database_interface::{Database, DatabaseRef};
-use revm::state::AccountInfo;
-
 use super::BlockStateDB;
-use crate::bytecode::*;
-use crate::state_db::blockstate_db::BlockStateDBAccount;
 use alloy::network::Network;
+use alloy::primitives::{keccak256, Address, Signed, Uint, B256, I256, U160, U256};
 use alloy::providers::Provider;
+use alloy::sol;
 use alloy::transports::Transport;
 use anyhow::Result;
 use lazy_static::lazy_static;
-use log::info;
+use log::trace;
+use pool_sync::{PoolType, UniswapV3Pool};
+use revm::DatabaseRef;
 use std::ops::{BitAnd, Shl, Shr};
-use std::time::Instant;
-use zerocopy::IntoBytes;
 
+// Bitmasks for storage insertion
 lazy_static! {
     static ref U112_MASK: U256 = (U256::from(1) << 112) - U256::from(1);
 }
@@ -31,13 +25,14 @@ lazy_static! {
     static ref BITS1MASK: U256 = U256::from(1);
 }
 
+// Function signature for Slot0 call
 sol!(
     #[derive(Debug)]
     contract UniswapV3 {
         function slot0() external view returns (
             uint160 sqrtPriceX96,
             int24 tick,
-uint16 observationIndex,
+            uint16 observationIndex,
             uint16 observationCardinality,
             uint16 observationCardinalityNext,
             uint8 feeProtocol,
@@ -47,28 +42,24 @@ uint16 observationIndex,
 );
 
 /// uniswapv3 db read/write related methods
+// UniswapV3 DB read and write related methods
 impl<T, N, P> BlockStateDB<T, N, P>
 where
     T: Transport + Clone,
     N: Network,
     P: Provider<T, N>,
 {
+    // Insert a new uniswapv3 pool into the database
     pub fn insert_v3(&mut self, pool: UniswapV3Pool) -> Result<()> {
         let address = pool.address;
         let token0 = pool.token0;
         let token1 = pool.token1;
-        println!("{:#?}", pool);
 
-        // track the pool
+        // Add the pool to our working set
         self.add_pool(address, token0, token1, PoolType::UniswapV3);
 
-        // Insert all storage values
-        self.insert_slot0(
-            address,
-            U160::from(pool.sqrt_price),
-            pool.tick,
-            pool.fee as u8,
-        )?;
+        // Insert slot and liquidity
+        self.insert_slot0(address, U160::from(pool.sqrt_price), pool.tick)?;
         self.insert_liquidity(address, pool.liquidity)?;
 
         // Insert tick-related data
@@ -84,6 +75,8 @@ where
         Ok(())
     }
 
+
+    // Inser
     fn insert_tick_bitmap(&mut self, pool: Address, tick: i16, bitmap: U256) -> Result<()> {
         trace!(
             "V3 Database: Inserting tick bitmap for tick {} in pool {}",
@@ -156,26 +149,18 @@ where
             .insert(U256::from_be_bytes(slot.into()), value);
         Ok(())
     }
-
-    fn insert_slot0(
-        &mut self,
-        pool: Address,
-        sqrt_price: U160,
-        tick: i32,
-        fee_protocol: u8,
-    ) -> Result<()> {
+    fn insert_slot0(&mut self, pool: Address, sqrt_price: U160, tick: i32) -> Result<()> {
         trace!("V3 Database: Inserting slot0 for {}", pool);
-        let observation_index = 0;
-        let observation_cardinality = 0;
-        let observation_cardinality_next = 0;
-        // Pack values exactly matching the unpacking in the read operation
+
+        // Extract from read operation:
+        // feeProtocol: ((Shr::<U256>::shr(cell, U256::from(160 + 24 + 16 + 16 + 16))) & *BITS8MASK)
         let slot0 = U256::from(sqrt_price)
-            | (U256::from(tick as u32) << 160)
-            | (U256::from(observation_index) << (160 + 24))
-            | (U256::from(observation_cardinality) << (160 + 24 + 16))
-            | (U256::from(observation_cardinality_next) << (160 + 24 + 16 + 16))
-            | (U256::from(fee_protocol) << (160 + 24 + 16 + 16 + 16))
-            | (U256::from(1u8) << (160 + 24 + 16 + 16 + 16 + 8)); // unlocked
+            | ((U256::from(tick as u32) & *BITS24MASK) << 160)
+            | (U256::from(0) << (160 + 24))
+            | (U256::from(0) << (160 + 24 + 16))
+            | (U256::from(0) << (160 + 24 + 16 + 16))
+            | ((U256::from(0) & *BITS8MASK) << (160 + 24 + 16 + 16 + 16))
+            | (U256::from(1u8) << (160 + 24 + 16 + 16 + 16 + 8));
 
         let account = self.accounts.get_mut(&pool).unwrap();
         account.storage.insert(U256::from(0), slot0);
@@ -286,7 +271,6 @@ where
         Ok(cell)
     }
 
-
     fn read_hashed_slot(
         &self,
         account: &Address,
@@ -337,10 +321,10 @@ UniswapV3Pool {
 mod v3_db_test {
     use super::*;
     use alloy::primitives::{address, U128};
-    use alloy::sol_types::SolCall;
     use alloy::providers::ProviderBuilder;
-    use std::collections::HashMap;
+    use alloy::sol_types::SolCall;
     use pool_sync::TickInfo;
+    use std::collections::HashMap;
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_insert_and_retrieve() {
@@ -355,13 +339,15 @@ mod v3_db_test {
         let mut tick_bitmap: HashMap<i16, U256> = HashMap::new();
         tick_bitmap.insert(-58, U256::from(2305843009213693952_u128));
 
-        let mut ticks : HashMap<i32, TickInfo> = HashMap::new();
+        let mut ticks: HashMap<i32, TickInfo> = HashMap::new();
         ticks.insert(
-        -887220, TickInfo {
-            liquidity_net: 14809333843350818121657,
-            initialized: true,
-            liquidity_gross: 14809333843350818121657,
-        });
+            -887220,
+            TickInfo {
+                liquidity_net: 14809333843350818121657,
+                initialized: true,
+                liquidity_gross: 14809333843350818121657,
+            },
+        );
 
         // construct and insert pool
         let pool = UniswapV3Pool {
@@ -385,36 +371,11 @@ mod v3_db_test {
         println!("{:#?}", zero_to_one);
         let slot0 = db.slot0(pool_addr);
         println!("{:#?}", slot0);
-
-
+        let liquidity = db.liquidity(pool_addr);
+        println!("{:#?}", liquidity);
+        let tick_liqu = db.ticks_liquidity_net(pool_addr, -887220);
+        println!("{:#?}", tick_liqu);
+        let tick = db.tick_bitmap(pool_addr, -58);
+        println!("{:#?}", tick);
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
