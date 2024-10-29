@@ -102,7 +102,7 @@ where
                 })
                 .collect();
 
-            info!("{:?} elapsed", start.elapsed());
+            info!("{:?} elapsed calculating paths", start.elapsed());
             info!("{} profitable paths", profitable_paths.len());
 
             for path in profitable_paths {

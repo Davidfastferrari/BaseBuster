@@ -1,4 +1,5 @@
 use crate::gen::FlashQuoter;
+use crate::gen::FlashSwap;
 use alloy::primitives::Address;
 use alloy::primitives::Uint;
 use pool_sync::PoolType;
@@ -33,6 +34,24 @@ impl From<SwapPath> for Vec<FlashQuoter::SwapStep> {
 impl From<SwapStep> for FlashQuoter::SwapStep {
     fn from(step: SwapStep) -> Self {
         FlashQuoter::SwapStep {
+            poolAddress: step.pool_address,
+            tokenIn: step.token_in,
+            tokenOut: step.token_out,
+            protocol: step.as_u8(),
+            fee: Uint::from(step.fee),
+        }
+    }
+}
+
+impl From<SwapPath> for Vec<FlashSwap::SwapStep> {
+    fn from(path: SwapPath) -> Self {
+        path.steps.into_iter().map(|step| step.into()).collect()
+    }
+}
+
+impl From<SwapStep> for FlashSwap::SwapStep {
+    fn from(step: SwapStep) -> Self {
+        FlashSwap::SwapStep {
             poolAddress: step.pool_address,
             tokenIn: step.token_in,
             tokenOut: step.token_out,

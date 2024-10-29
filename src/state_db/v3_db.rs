@@ -1,6 +1,6 @@
 use super::BlockStateDB;
 use alloy::network::Network;
-use alloy::primitives::{keccak256, Address, Signed, Uint, B256, I256, U160, U256};
+use alloy::primitives::{keccak256, Address, Signed, Uint, I256, U160, U256};
 use alloy::providers::Provider;
 use alloy::sol;
 use alloy::transports::Transport;
@@ -58,9 +58,10 @@ where
         // Add the pool to our working set
         self.add_pool(address, token0, token1, PoolType::UniswapV3);
 
-        // Insert slot and liquidity
+        // Insert slot, liquidity, tick spacing
         self.insert_slot0(address, U160::from(pool.sqrt_price), pool.tick)?;
         self.insert_liquidity(address, pool.liquidity)?;
+        self.insert_tick_spacing(address, pool.tick_spacing)?;
 
         // Insert tick-related data
         for (tick, liquidity_net) in pool.ticks {
@@ -153,6 +154,21 @@ where
         Ok(())
     }
 
+    fn insert_tick_spacing(&mut self, pool: Address, tick_spacing: i32) -> Result<()> {
+        trace!("V3 Database: Inserting tick spacing for {}", pool);
+
+        // get the account and insert into slot 14
+        let account = self.accounts.get_mut(&pool).unwrap();
+        account.storage.insert(U256::from(14), U256::from(tick_spacing));
+        Ok(())
+    }
+
+    pub fn tick_spacing(&self, address: &Address) -> Result<i32> {
+        let data = self.storage_ref(*address, U256::from(14))?;
+        let tick_spacing: i32 = data.saturating_to();
+        Ok(tick_spacing)
+    }
+
     // Get slot 0
     pub fn slot0(&self, address: Address) -> Result<UniswapV3::slot0Return> {
         let cell = self.storage_ref(address, U256::from(0))?;
@@ -226,10 +242,9 @@ where
 #[cfg(test)]
 mod v3_db_test {
     use super::*;
-    use alloy::primitives::{address, U128};
+    use alloy::primitives::address;
     use alloy::primitives::aliases::I24;
     use alloy::providers::ProviderBuilder;
-    use alloy::sol_types::SolCall;
     use pool_sync::TickInfo;
     use std::collections::HashMap;
 

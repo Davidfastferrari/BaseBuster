@@ -11,6 +11,7 @@ use crate::market_state::MarketState;
 use crate::searcher::Searchoor;
 use crate::simulator::simulate_paths;
 use crate::stream::stream_new_blocks;
+use crate::tx_sender::TransactionSender;
 
 /// Start all of the workers
 pub async fn start_workers(pools: Vec<Pool>, last_synced_block: u64) {
@@ -22,7 +23,7 @@ pub async fn start_workers(pools: Vec<Pool>, last_synced_block: u64) {
 
     // filter the pools here to smartly select the working set
     info!("Pool count before filter {}", pools.len());
-    let pools = filter_pools(pools, 500, Chain::Base).await;
+    let pools = filter_pools(pools, 1000, Chain::Base).await;
     info!("Pool count after filter {}", pools.len());
 
 
@@ -45,7 +46,6 @@ pub async fn start_workers(pools: Vec<Pool>, last_synced_block: u64) {
     let cycles = ArbGraph::generate_cycles(pools.clone()).await;
     info!("Generated {} cycles", cycles.len());
 
-
     // start the simulator
     info!("Starting the simulator...");
     tokio::spawn(simulate_paths(profitable_sender, paths_receiver));
@@ -54,4 +54,10 @@ pub async fn start_workers(pools: Vec<Pool>, last_synced_block: u64) {
     info!("Starting arbitrage searcher...");
     let mut searcher = Searchoor::new(cycles, market_state.clone());
     thread::spawn(move || searcher.search_paths(paths_sender, address_receiver));
+
+    // start the tx sender
+    info!("Starting transaction sender...");
+    let tx_sender = TransactionSender::new();
+    tokio::spawn(async move { tx_sender.send_transactions(profitable_receiver).await });
+
 }

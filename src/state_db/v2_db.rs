@@ -42,7 +42,13 @@ where
 
     // get the reserves
     pub fn get_reserves(&self, pool: &Address) -> (U256, U256) {
-        let value = *self.accounts.get(pool).unwrap().storage.get(&U256::from(8)).unwrap();
+        let value = *self
+            .accounts
+            .get(pool)
+            .unwrap()
+            .storage
+            .get(&U256::from(8))
+            .unwrap();
         ((value >> 0) & *U112_MASK, (value >> (112)) & *U112_MASK)
     }
 
@@ -100,22 +106,21 @@ where
     }
 }
 
-/*
 #[cfg(test)]
 mod test_db_v2 {
     use super::*;
-    use alloy::network::ethereum;
-    use alloy::primitives::{address, u128};
-    use alloy::providers::providerbuilder;
-    use alloy::providers::rootprovider;
+    use alloy::network::Ethereum;
+    use alloy::primitives::{address, U128};
+    use alloy::providers::ProviderBuilder;
+    use alloy::providers::RootProvider;
     use alloy::sol;
-    use alloy::sol_types::solcall;
-    use alloy::transports::http::{client, http};
-    use log::levelfilter;
-    use revm::wiring::default::transactto;
-    use revm::wiring::ethereumwiring;
-    use revm::evm;
-    use std::time::instant;
+    use alloy::sol_types::SolCall;
+    use alloy::transports::http::{Client, Http};
+    use log::LevelFilter;
+    use revm::wiring::default::TransactTo;
+    use revm::wiring::EthereumWiring;
+    use revm::Evm;
+    use std::time::Instant;
 
     #[test]
     pub fn test_insert_pool_and_retrieve() {
@@ -142,7 +147,7 @@ mod test_db_v2 {
             stable: None,
             fee: None,
         };
-        //db.insert_v2(pool).unwrap();
+        db.insert_v2(pool).unwrap();
 
         // asserts
         assert_eq!(db.get_token0(pool_addr).unwrap().unwrap(), token0);
@@ -248,4 +253,3 @@ mod test_db_v2 {
         //println!("{:?}", result);
     }
 }
-*/

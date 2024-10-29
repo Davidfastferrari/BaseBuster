@@ -38,6 +38,7 @@ where
         }
     }
 
+
     // calculate the output amount
     // we can get read access to the db since we know it will not change for duration of calculation
     #[inline]

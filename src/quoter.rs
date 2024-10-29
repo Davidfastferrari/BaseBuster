@@ -13,6 +13,7 @@ use revm::state::{AccountInfo, Bytecode};
 use revm::wiring::default::TransactTo;
 use revm::wiring::result::ExecutionResult;
 use revm::wiring::EthereumWiring;
+use std::time::Instant;
 use revm::Evm;
 use revm_database::{AlloyDB, CacheDB};
 use node_db::{NodeDB, InsertionType};
@@ -124,6 +125,60 @@ impl Quoter {
                 } else {
                     Err(anyhow!("Failed to decode"))
                 }
+            }
+            ExecutionResult::Revert { output, .. } => Err(anyhow!("Simulation reverted {output}")),
+            _ => Err(anyhow!("Failed to simulate")),
+        }
+    }
+
+    // optimize the input amount
+    pub fn optimize_input(
+        &mut self,
+        quote_path: Vec<FlashQuoter::SwapStep>,
+    ) -> Result<U256> {
+        let min_amount = U256::from(1_000_000_000_000_000u128); // 0.001 ETH
+        let max_amount = U256::from(1_000_000_000_000_000_000u128); // 1 ETH
+        let mut best_amount = min_amount;
+        let mut best_output = U256::ZERO;
+        
+        // Binary search with a fixed number of iterations
+        for _ in 0..10 {
+            let third = (max_amount - min_amount) / U256::from(3);
+            let test_amounts = [
+                min_amount + third,
+                min_amount + (third * U256::from(2)),
+            ];
+
+            // Test both points
+            for amount in test_amounts {
+                if let Ok(output) = self.try_quote(quote_path.clone(), amount) {
+                    if output > best_output {
+                        best_amount = amount;
+                        best_output = output;
+                    }
+                }
+            }
+        }
+
+        Ok(best_amount)
+    }
+
+    // Helper function to try a single quote
+    fn try_quote(&mut self, quote_path: Vec<FlashQuoter::SwapStep>, amount: U256) -> Result<U256> {
+        let quote_calldata = FlashQuoter::quoteArbitrageCall {
+            steps: quote_path,
+            amount,
+        }
+        .abi_encode();
+        self.evm.tx_mut().data = quote_calldata.into();
+
+        let ref_tx = self.evm.transact().unwrap();
+        let result = ref_tx.result;
+
+        match result {
+            ExecutionResult::Success { output: value, .. } => {
+                U256::abi_decode(value.data(), false)
+                    .map_err(|_| anyhow!("Failed to decode"))
             }
             ExecutionResult::Revert { output, .. } => Err(anyhow!("Simulation reverted {output}")),
             _ => Err(anyhow!("Failed to simulate")),

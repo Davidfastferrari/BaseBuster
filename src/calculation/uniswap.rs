@@ -2,11 +2,26 @@ use super::Calculator;
 use alloy::network::Network;
 use alloy::primitives::Address;
 use alloy::primitives::{I256, U256};
-use alloy::providers::Provider;
+use alloy::providers::{Provider, ProviderBuilder};
 use alloy::transports::Transport;
+use alloy::sol;
 use anyhow::Result;
 use std::collections::HashMap;
+use std::future::IntoFuture;
 use uniswap_v3_math::tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK};
+
+sol!{
+    #[sol(rpc)]
+    contract V2State {
+        function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast);
+    }
+}
+sol!{
+    #[sol(rpc)]
+    contract V3State {
+        function liquidity() external view returns (uint128);
+    }
+}
 
 pub const U256_1: U256 = U256::from_limbs([1, 0, 0, 0]);
 
@@ -54,6 +69,25 @@ where
         let zero_to_one = db_read.zero_to_one(pool_address, *token_in).unwrap();
         let (reserve0, reserve1) = db_read.get_reserves(pool_address);
 
+        // verify that we do have the correct reserve amounts
+        #[cfg(feature = "verification")] 
+        {
+            tokio::runtime::Runtime::new()
+                .unwrap()
+                .block_on(async {
+                    let provider = ProviderBuilder::new()
+                        .on_http(std::env::var("FULL").unwrap().parse().unwrap());
+                    let getReservesReturn { reserve0: res0, reserve1: res1, .. } = 
+                        V2State::new(*pool_address, provider)
+                            .getReserves()
+                            .call()
+                            .await
+                            .unwrap();
+                    assert_eq!(reserve0, U256::from(res0));
+                    assert_eq!(reserve1, U256::from(res1));
+                });
+        }
+
         let scalar = U256::from(10000);
 
         let (reserve0, reserve1) = if zero_to_one {
@@ -81,7 +115,7 @@ where
         let zero_to_one = db_read.zero_to_one(pool_address, *token_in).unwrap();
         let slot0 = db_read.slot0(*pool_address)?;
         let liquidity = db_read.liquidity(*pool_address)?;
-        let tick_spacing = 10;
+        let tick_spacing = db_read.tick_spacing(pool_address)?;
 
         if amount_in.is_zero() {
             return Ok(U256::ZERO);

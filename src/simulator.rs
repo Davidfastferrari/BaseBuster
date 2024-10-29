@@ -6,6 +6,7 @@ use std::collections::HashSet;
 use crate::events::Event;
 use crate::gen::FlashQuoter;
 use crate::quoter::Quoter;
+use crate::AMOUNT;
 
 // recieve a stream of potential arbitrage paths from the searcher and
 // simulate them against the contract to determine if they are actually viable
@@ -21,48 +22,45 @@ pub async fn simulate_paths(tx_sender: Sender<Event>, arb_receiver: Receiver<Eve
 
     // recieve new paths from the searcher
     while let Ok(Event::ArbPath((arb_path, expected_out))) = arb_receiver.recv() {
+        info!("Simulating Path");
         // convert from searcher format into quoter format
         let converted_path: Vec<FlashQuoter::SwapStep> = arb_path.clone().into();
 
         // get the quote for the path and handle it appropriately
-        let amount_in = U256::from(1e16);
         // if we have not blacklisted the path
         if !blacklisted_paths.contains(&arb_path.hash) {
-            // get a quote for the path
-            match quoter.quote_path(converted_path.clone(), amount_in) {
+            // get an initial quote to see if we can swap
+            match quoter.quote_path(converted_path.clone(), *AMOUNT) {
                 Ok(quote) => {
+                    // if we are just simulated, compare to the expected amount
                     if sim {
-                        // if we are just simulating, check we got the proper output
                         if quote == expected_out {
                             info!("Success.. Calculated {expected_out}, Quoted: {quote}, Path Hash {}", arb_path.hash);
                         } else {
-                            info!("Fail.. Calculated {expected_out}, Quoted: {quote}, Path Hash {}", arb_path.hash);
-                            /*
                             info!(
                                 "Fail.. Calculated {expected_out}, Quoted: {quote}, Path Hash {}, Path: {:#?}",
                                 arb_path.hash,
                                 converted_path
                             );
-                            */
                         }
                     } else {
-                        info!("Calculated {expected_out}, Quoted: {quote}, Path Hash {}", arb_path.hash);
-                        /*
-                        // we need to optimize the amount in
-                        let optimized_out = U256::ZERO;
+                        // optimize the input amount
+                        let optimized_input = quoter.optimize_input(converted_path.clone()).unwrap();
+                        info!("Simulaton Successful, Sending to TX Sender.. Calculated {expected_out}, Quoted: {quote}, Path Hash {}", arb_path.hash);
+
                         // send the optimize path to the tx sender
-                        match tx_sender.send(Event::ArbPath((arb_path, optimized_out))) {
-                            Ok(_) => debug!("Sent path"),
-                            Err(_) => warn!("Failed to send path"),
+                        match tx_sender.send(Event::ArbPath((arb_path, optimized_input))) {
+                            Ok(_) => debug!("Simulator sent path to Tx Sender"),
+                            Err(_) => warn!("Simulator: failed to send path to tx sender"),
                         }
-                        */
                     }
                 }
                 Err(quote_err) => {
-                    warn!("Failed to simulate quote for {}", quote_err);
+                    warn!("Failed to simulate quote {}", quote_err);
                     blacklisted_paths.insert(arb_path.hash);
 
                 }
+
             }
         }
     }
