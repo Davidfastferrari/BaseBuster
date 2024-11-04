@@ -29,7 +29,7 @@ where
         let pool_fee = db_read.get_fee(&pool_address);
         let (dec_0, dec_1) = db_read.get_decimals(&pool_address);
         let stable = db_read.get_stable(&pool_address);
-        let token0 = db_read.get_token0(&pool_address);
+        let token0 = db_read.get_token0(pool_address);
 
         // verify that we have the correct state
         #[cfg(feature = "verification")]

@@ -35,7 +35,7 @@ async fn main() -> Result<()> {
     // init dots and logger
     dotenv::dotenv().ok();
     env_logger::Builder::new()
-        .filter_module("BaseBuster", LevelFilter::Info)
+        .filter_module("BaseBuster", LevelFilter::Trace)
         .init();
 
     // Load in all the pools
@@ -48,7 +48,7 @@ async fn main() -> Result<()> {
             //PoolType::PancakeSwapV2,
             //PoolType::Aerodrome,
             PoolType::Slipstream,
-            PoolType::UniswapV3,
+            //PoolType::UniswapV3,
             //PoolType::SushiSwapV3, //PoolType::BaseSwapV2, // this is wrong
             //PoolType::BaseSwapV2,
             //PoolType::SwapBasedV2,

@@ -7,7 +7,7 @@ use crate::swap::SwapPath;
 
 #[derive(Debug, Clone)]
 pub enum Event {
-    ArbPath((SwapPath, U256)),
-    PoolsTouched(HashSet<Address>),
+    ArbPath((SwapPath, U256, u64)),
+    PoolsTouched(HashSet<Address>, u64),
     NewBlock(Block),
 }

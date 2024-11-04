@@ -3,6 +3,7 @@ use alloy::primitives::{address, Address, U256};
 use alloy::providers::{Provider, ProviderBuilder, RootProvider, WsConnect};
 use alloy::rpc::types::trace::geth::AccountState;
 use alloy::rpc::types::BlockNumberOrTag;
+use std::time::Instant;
 use alloy::transports::http::{Client, Http};
 use alloy::transports::Transport;
 use anyhow::Result;
@@ -102,6 +103,7 @@ where
 
         // stream in new blocks
         while let Some(block) = stream.next().await {
+            let start = Instant::now();
             let block_number = block.header.number;
             if block_number <= last_synced_block {
                 continue;
@@ -110,10 +112,14 @@ where
 
             // update the state and get the list of updated pools
             let updated_pools = self.update_state(http.clone(), block_number).await;
+            debug!("Processed the block {block_number}");
 
             // send the updated pools
-            if let Err(e) = address_tx.send(Event::PoolsTouched(updated_pools)) {
+            if let Err(e) = address_tx.send(Event::PoolsTouched(updated_pools, block_number)) {
                 error!("Failed to send updated pools: {}", e);
+            } else {
+                info!("Block processed and send in {:?}", start.elapsed());
+                debug!("Sent updated addresses for block {}", block_number);
             }
 
             last_synced_block = block_number;
@@ -162,9 +168,9 @@ where
     fn populate_db_with_pools(pools: Vec<Pool>, db: &mut BlockStateDB<T, N, P>) {
         for pool in pools {
             if pool.is_v2() {
-                db.insert_v2(pool.get_v2().unwrap().clone()).unwrap();
+                db.insert_v2(pool.get_v2().unwrap().clone());
             } else if pool.is_v3() {
-                db.insert_v3(pool.get_v3().unwrap().clone()).unwrap();
+                db.insert_v3(pool.get_v3().unwrap().clone());
             }
         }
     }

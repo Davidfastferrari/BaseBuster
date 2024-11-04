@@ -67,13 +67,14 @@ where
 
         println!("Default thread pool size: {}", rayon::current_num_threads());
         // wait for a new single with the pools that have reserved updated
-        while let Ok(Event::PoolsTouched(pools)) = address_rx.recv() {
-            info!("Searching for arbs...");
+        while let Ok(Event::PoolsTouched(pools, block_number)) = address_rx.recv() {
+
+            info!("Searching for arbs in block {}...", block_number);
             let res = Instant::now();
 
             // invalidate all updated pools in the cache
 
-            self.calculator.invalidate_cache(&pools);
+            //self.calculator.invalidate_cache(&pools);
 
             // from the updated pools, get all paths that we want to recheck
             let affected_paths: HashSet<&SwapPath> = pools
@@ -89,6 +90,8 @@ where
                 .par_iter()
                 .filter_map(|path| {
                     let output_amount = self.calculator.calculate_output(path);
+                    let debug_quote = self.calculator.debug_calculation(path);
+                    assert_eq!(output_amount, *debug_quote.last().unwrap());
 
                     if sim {
                         // if this is a sim, we are concerened about correct amounts out
@@ -108,7 +111,7 @@ where
             info!("{} profitable paths", profitable_paths.len());
 
             for path in profitable_paths {
-                match paths_tx.send(Event::ArbPath((path.0, path.1))) {
+                match paths_tx.send(Event::ArbPath((path.0, path.1, block_number))) {
                     Ok(_) => debug!("Sent path"),
                     Err(_) => warn!("Failed to send path"),
                 }

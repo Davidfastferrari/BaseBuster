@@ -10,6 +10,7 @@ use log::trace;
 use pool_sync::{PoolType, UniswapV3Pool};
 use revm::DatabaseRef;
 use std::ops::{BitAnd, Shl, Shr};
+use crate::state_db::blockstate_db::{InsertionType, BlockStateDBSlot};
 
 // Bitmasks for storage insertion
 lazy_static! {
@@ -90,9 +91,13 @@ where
         let slot = keccak256(buf.as_slice());
 
         let account = self.accounts.get_mut(&pool).unwrap();
+        let new_db_slot = BlockStateDBSlot {
+            value: bitmap,
+            insertion_type: InsertionType::Custom
+        };
         account
             .storage
-            .insert(U256::from_be_bytes(slot.into()), bitmap);
+            .insert(U256::from_be_bytes(slot.into()), new_db_slot);
         Ok(())
     }
 
@@ -100,7 +105,11 @@ where
     fn insert_liquidity(&mut self, pool: Address, liquidity: u128) -> Result<()> {
         trace!("V3 Database: Inserting liquidity for {}", pool);
         let account = self.accounts.get_mut(&pool).unwrap();
-        account.storage.insert(U256::from(4), U256::from(liquidity));
+        let new_db_slot = BlockStateDBSlot {
+            value: U256::from(liquidity),
+            insertion_type: InsertionType::Custom
+        };
+        account.storage.insert(U256::from(4), new_db_slot);
         Ok(())
     }
 
@@ -129,9 +138,13 @@ where
         let value = U256::from(unsigned_liquidity) << 128;
 
         let account = self.accounts.get_mut(&pool).unwrap();
+        let new_db_slot = BlockStateDBSlot {
+            value,
+            insertion_type: InsertionType::Custom
+        };
         account
             .storage
-            .insert(U256::from_be_bytes(slot.into()), value);
+            .insert(U256::from_be_bytes(slot.into()), new_db_slot);
         Ok(())
     }
 
@@ -150,7 +163,11 @@ where
             | (U256::from(1u8) << (160 + 24 + 16 + 16 + 16 + 8));
 
         let account = self.accounts.get_mut(&pool).unwrap();
-        account.storage.insert(U256::from(0), slot0);
+        let new_db_slot = BlockStateDBSlot {
+            value: slot0,
+            insertion_type: InsertionType::Custom
+        };
+        account.storage.insert(U256::from(0), new_db_slot);
         Ok(())
     }
 
@@ -159,13 +176,18 @@ where
 
         // get the account and insert into slot 14
         let account = self.accounts.get_mut(&pool).unwrap();
-        account.storage.insert(U256::from(14), U256::from(tick_spacing));
+        let new_db_slot = BlockStateDBSlot {
+            value: U256::from(tick_spacing),
+            insertion_type: InsertionType::Custom
+        };
+        account.storage.insert(U256::from(14), new_db_slot);
         Ok(())
     }
 
     #[inline]
     pub fn tick_spacing(&self, address: &Address) -> Result<i32> {
         let data = self.accounts.get(address).unwrap().storage.get(&U256::from(14)).unwrap();
+        let data = data.value;
         let tick_spacing: i32 = data.saturating_to();
         Ok(tick_spacing)
     }
@@ -174,6 +196,7 @@ where
     #[inline]
     pub fn slot0(&self, address: Address) -> Result<UniswapV3::slot0Return> {
         let cell = *self.accounts.get(&address).unwrap().storage.get(&U256::from(0)).unwrap();
+        let cell = cell.value;
         let tick: Uint<24, 1> = ((Shr::<U256>::shr(cell, U256::from(160))) & *BITS24MASK).to();
         let tick: Signed<24, 1> = Signed::<24, 1>::from_raw(tick);
         let tick: i32 = tick.as_i32();
@@ -202,6 +225,7 @@ where
     #[inline]
     pub fn liquidity(&self, address: Address) -> Result<u128> {
         let cell = self.accounts.get(&address).unwrap().storage.get(&U256::from(4)).unwrap();
+        let cell = cell.value;
         let cell: u128 = cell.saturating_to();
         Ok(cell)
     }

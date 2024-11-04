@@ -11,6 +11,7 @@ use revm::primitives::{Log, KECCAK_EMPTY};
 use revm::state::{Account, AccountInfo, Bytecode};
 use revm::{Database, DatabaseCommit, DatabaseRef};
 use revm_database::AccountState;
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::future::IntoFuture;
@@ -70,8 +71,8 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> BlockStateDB<T, N, P> 
     pub fn new(provider: P) -> Option<Self> {
         debug!("Creating new BlockStateDB");
         let mut contracts = HashMap::new();
-        contracts.insert(KECCAK_EMPTY, Bytecode::default());
-        contracts.insert(B256::ZERO, Bytecode::default());
+        //contracts.insert(KECCAK_EMPTY, Bytecode::default());
+        //contracts.insert(B256::ZERO, Bytecode::default());
 
         // get our runtime handle
         let rt = match Handle::try_current() {
@@ -104,6 +105,8 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> BlockStateDB<T, N, P> 
         pool_type: PoolType,
     ) {
         trace!("Adding pool {} to database", pool);
+
+        // track the pool and the pool information
         self.pools.insert(pool);
         self.pool_info.insert(
             pool,
@@ -113,8 +116,16 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> BlockStateDB<T, N, P> 
                 pool_type,
             },
         );
-        let pool_account = BlockStateDBAccount::new_not_existing();
-        self.accounts.insert(pool, pool_account);
+
+        // fetch the onchain pool account and insert it into database
+        // this is onchain because it has onchain state, the slots will be custom
+        let pool_account = <Self as DatabaseRef>::basic_ref(self, pool);
+        let new_db_account = BlockStateDBAccount {
+            info: pool_account.unwrap().unwrap(),
+            insertion_type: InsertionType::OnChain,
+            ..Default::default()
+        };
+        self.accounts.insert(pool, new_db_account);
     }
 
     // Check if we are tracking the pool. This is our working set
@@ -143,11 +154,63 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> BlockStateDB<T, N, P> 
         let storage = account_state.storage;
         for (slot, value) in storage {
             if let Some(account) = self.accounts.get_mut(&address) {
-                account.storage.insert(slot.into(), value.into());
+                let new_slot_val = BlockStateDBSlot {
+                    value: value.into(),
+                    insertion_type: InsertionType::Custom
+                };
+                account.storage.insert(slot.into(), new_slot_val);
             }
         }
         Ok(())
     }
+
+      // Insert account information into the database
+      pub fn insert_account_info(
+        &mut self,
+        account_address: Address,
+        account_info: AccountInfo,
+        insertion_type: InsertionType,
+    ) {
+        let mut new_account = BlockStateDBAccount::new(insertion_type);
+        new_account.info = account_info;
+        self.accounts.insert(account_address, new_account);
+    }
+
+    // Insert storage info into the database.
+    pub fn insert_account_storage(
+        &mut self,
+        account_address: Address,
+        slot: U256,
+        value: U256,
+        insertion_type: InsertionType,
+    ) -> Result<()> {
+        // If this account already exists, just update the storage slot
+        if let Some(account) = self.accounts.get_mut(&account_address) {
+            // slot value is marked as custom since this is a custom insertion
+            let slot_value = BlockStateDBSlot {
+                value,
+                insertion_type: InsertionType::Custom,
+            };
+            account.storage.insert(slot, slot_value);
+            return Ok(());
+        }
+
+        // The account does not exist. Fetch account information from provider and insert account
+        // into database
+        let account = self.basic(account_address)?.unwrap();
+        self.insert_account_info(account_address, account, insertion_type);
+
+        // The account is now in the database, so fetch and insert the storage value
+        let node_db_account = self.accounts.get_mut(&account_address).unwrap();
+        let slot_value = BlockStateDBSlot {
+            value,
+            insertion_type: InsertionType::Custom,
+        };
+        node_db_account.storage.insert(slot, slot_value);
+
+        Ok(())
+    }
+
 }
 
 // Implement the database trait for the BlockStateDB
@@ -160,7 +223,7 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> Database for BlockStat
         // Look if we already have the account
         if let Some(account) = self.accounts.get(&address) {
             trace!("Database Basic: Account {} found in database", address);
-            return Ok(account.info());
+            return Ok(Some(account.info.clone()));
         }
 
         // Fetch the account data if we don't have the account and insert it into database
@@ -168,26 +231,14 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> Database for BlockStat
             "Database Basic: Account {} not found in cache. Fetching info via basic_ref",
             address
         );
-        let account_info = <Self as DatabaseRef>::basic_ref(self, address)?;
-        let account = match account_info {
-            Some(info) => {
-                trace!("Database Basic: Account {} fetched from basic_ref", address);
-                BlockStateDBAccount {
-                    info,
-                    ..Default::default()
-                }
-            }
-            None => {
-                trace!(
-                    "Database Basic: Unable to fetch account {} from basic_ref",
-                    address
-                );
-                BlockStateDBAccount::new_not_existing()
-            }
-        };
-        self.accounts.insert(address, account.clone());
-        trace!("Database Basic: Inserted account {} into database", address);
-        Ok(account.info())
+        // Fetch the account from the chain
+        let account_info = Self::basic_ref(self, address)?.unwrap();
+        match self.accounts.get_mut(&address) {
+            Some(account) => account.info = account_info.clone(),
+            None => self.insert_account_info(address, account_info.clone(), InsertionType::OnChain),
+        }
+
+        Ok(Some(account_info))
     }
 
     // Get account code by its hash
@@ -242,52 +293,57 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> Database for BlockStat
 
         // Check if the account exists
         if let Some(account) = self.accounts.get(&address) {
-            // Check if the storage slot exists
             if let Some(value) = account.storage.get(&index) {
                 trace!(
                     "Database Storage: Storage for address {}, slot {} found in database",
                     address,
                     index
                 );
-                return Ok(*value);
+                // The slot is in storage. If it is custom, there is no corresponding onchain state
+                // to update it with, just return the value
+                if value.insertion_type == InsertionType::Custom {
+                    return Ok(value.value);
+                }
+                // The account exists and the slot is onchain, continue on so it is fetched and updated
             }
-
-            // The account exists, but the storage slot does not, fetch it
-            trace!("Database Storage: Account {} found, but slot {} missing. Fetching slot via storage_ref", address, index);
-            // todo!() make sure this is valid
-            let value = <Self as DatabaseRef>::storage_ref(self, address, index)?;
-
-            trace!(
-                "Database Storage: Fetched slot {} for account {}. Inserting storage into database",
-                index,
-                address
-            );
-
-            // get a mutable ref to the account and insert the storage value in
-            let account = self.accounts.get_mut(&address).unwrap();
-            account.storage.insert(index, value);
-            return Ok(value);
         }
 
-        // This is a brand new account, fetch the slots and make/insert a new account
-        trace!(
-            "Database Storage: Account {} not found in database. Fetching account and slot info",
-            address
-        );
+        // The account exists, but the storage slot does not, fetch it
+        trace!("Database Storage: Account {} found, but slot {} missing. Fetching slot via storage_ref", address, index);
+        // todo!() make sure this is valid
+        let value = <Self as DatabaseRef>::storage_ref(self, address, index)?;
+        match self.accounts.get_mut(&address) {
+            Some(account) => {
+                account.storage.insert(
+                    index,
+                    BlockStateDBSlot {
+                        value,
+                        insertion_type: InsertionType::OnChain,
+                    },
+                );
+            }
+            None => {
+                let _ = Self::basic(self, address)?;
+                let account = self.accounts.get_mut(&address).unwrap();
+                account.storage.insert(
+                    index,
+                    BlockStateDBSlot {
+                        value,
+                        insertion_type: InsertionType::OnChain,
+                    },
+                );
+            }
+        }
 
-        // insert account via basic(), retrieve account and fetch storage value, insert storage
-        // value
-        self.basic(address)?; // this will fetch/insert the account
-        let slot_value = <Self as DatabaseRef>::storage_ref(self, address, index)?;
-        let account = self.accounts.get_mut(&address).unwrap();
-        account.storage.insert(index, slot_value);
         trace!(
-            "Database Storage: Inserted account {} and slot {} into database",
+            "Database Storage: Fetched slot {} for account {}, with value {}. Inserting storage into database",
+            index,
             address,
-            index
+            value
         );
 
-        Ok(slot_value)
+        // get a mutable ref to the account and insert the storage value in
+        Ok(value)
     }
 
     fn block_hash(&mut self, number: BlockNumber) -> Result<B256, Self::Error> {
@@ -318,12 +374,12 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> DatabaseRef for BlockS
     // Get basic account information
     fn basic_ref(&self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
         trace!("Database BasicRef: Looking for account {}", address);
-
-        // look if we already have the account
         if let Some(account) = self.accounts.get(&address) {
-            trace!("Database Basic: Account {} found in cache", address);
-            return Ok(account.info());
+            if account.insertion_type == InsertionType::Custom {
+                return Ok(Some(account.info.clone()));
+            }
         }
+
 
         // we do not have the account, fetch from the provider
         trace!(
@@ -396,17 +452,14 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> DatabaseRef for BlockS
             address,
             index
         );
-
         if let Some(account) = self.accounts.get(&address) {
             if let Some(value) = account.storage.get(&index) {
-                trace!(
-                    "Database Storage Ref: Storage for address {}, slot {} found in database",
-                    address,
-                    index
-                );
-                return Ok(*value);
+                if value.insertion_type == InsertionType::Custom {
+                    return Ok(value.value);
+                }
             }
         }
+
         trace!(
             "Database Storage Ref: Account {} not found. Fetching slot {} from provider",
             address,
@@ -469,28 +522,15 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> DatabaseCommit for Blo
             }
             let is_newly_created = account.is_created();
 
-            if let Some(code) = &account.info.code {
+            if let Some(code) = &mut account.info.code {
                 if !code.is_empty() {
-                    account.info.code_hash = code.hash_slow();
-                    if self
-                        .contracts
-                        .insert(account.info.code_hash, code.clone())
-                        .is_some()
-                    {
-                        trace!(
-                            "Updated existing contract with hash: {:?}",
-                            account.info.code_hash
-                        );
-                    } else {
-                        trace!(
-                            "Inserted new contract with hash: {:?}",
-                            account.info.code_hash
-                        );
+                    if account.info.code_hash == KECCAK_EMPTY {
+                        account.info.code_hash = code.hash_slow();
                     }
-                    return;
+                    self.contracts
+                        .entry(account.info.code_hash)
+                        .or_insert_with(|| code.clone());
                 }
-            } else {
-                account.info.code_hash = KECCAK_EMPTY;
             }
 
             let db_account = self.accounts.entry(address).or_default();
@@ -505,39 +545,49 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> DatabaseCommit for Blo
             } else {
                 AccountState::Touched
             };
-            db_account.storage.extend(
-                account
-                    .storage
-                    .into_iter()
-                    .map(|(key, value)| (key, value.present_value())),
-            );
+            db_account
+                .storage
+                .extend(account.storage.into_iter().map(|(key, value)| {
+                    (
+                        key,
+                        BlockStateDBSlot {
+                            value: value.present_value(),
+                            insertion_type: InsertionType::Custom,
+                        },
+                    )
+                }));
         }
     }
+}
+
+#[derive(Default, Eq, PartialEq, Copy, Clone, Debug)]
+pub enum InsertionType {
+    Custom,
+    #[default]
+    OnChain,
+}
+
+#[derive(Default, Eq, PartialEq, Copy, Clone, Debug)]
+pub struct BlockStateDBSlot {
+    pub value: U256,
+    pub insertion_type: InsertionType,
 }
 
 #[derive(Default, Debug, Clone)]
 pub struct BlockStateDBAccount {
     pub info: AccountInfo,
     pub state: AccountState,
-    pub storage: HashMap<U256, U256>,
+    pub storage: HashMap<U256, BlockStateDBSlot>,
+    pub insertion_type: InsertionType,
 }
 
 impl BlockStateDBAccount {
-    pub fn new_not_existing() -> Self {
-        trace!("Creating a new non-existing BlockStateDBAccount");
+    pub fn new(insertion_type: InsertionType) -> Self {
         Self {
+            info: AccountInfo::default(),
             state: AccountState::NotExisting,
-            ..Default::default()
-        }
-    }
-
-    pub fn info(&self) -> Option<AccountInfo> {
-        if matches!(self.state, AccountState::NotExisting) {
-            debug!("AccountState is NotExisting, returning None");
-            None
-        } else {
-            debug!("Returning account info: {:?}", self.info);
-            Some(self.info.clone())
+            storage: HashMap::new(),
+            insertion_type,
         }
     }
 }

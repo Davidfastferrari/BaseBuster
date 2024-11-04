@@ -106,7 +106,8 @@ impl Quoter {
         &mut self,
         quote_path: Vec<FlashQuoter::SwapStep>,
         amount_in: U256,
-    ) -> Result<U256> {
+        block_number: u64
+    ) -> Result<Vec<U256>> {
         // setup the calldata
         let quote_calldata = FlashQuoter::quoteArbitrageCall {
             steps: quote_path,
@@ -121,7 +122,7 @@ impl Quoter {
 
         match result {
             ExecutionResult::Success { output: value, .. } => {
-                if let Ok(amount) = U256::abi_decode(value.data(), false) {
+                if let Ok(amount) = Vec::<U256>::abi_decode(value.data(), false) {
                     Ok(amount)
                 } else {
                     Err(anyhow!("Failed to decode"))
@@ -133,6 +134,7 @@ impl Quoter {
     }
 
     // optimize the input amount
+    /* 
     pub fn optimize_input(
         &mut self,
         quote_path: Vec<FlashQuoter::SwapStep>,
@@ -169,12 +171,14 @@ impl Quoter {
                 }
             }
         }
+        
 
         Ok((best_amount, best_output))
     }
+    */
 
     // Helper function to try a single quote
-    fn try_quote(&mut self, quote_path: Vec<FlashQuoter::SwapStep>, amount: U256) -> Result<U256> {
+    fn try_quote(&mut self, quote_path: Vec<FlashQuoter::SwapStep>, amount: U256) -> Result<Vec<U256>> {
         let quote_calldata = FlashQuoter::quoteArbitrageCall {
             steps: quote_path,
             amount,
@@ -187,7 +191,7 @@ impl Quoter {
 
         match result {
             ExecutionResult::Success { output: value, .. } => {
-                U256::abi_decode(value.data(), false).map_err(|_| anyhow!("Failed to decode"))
+                Vec::<U256>::abi_decode(value.data(), false).map_err(|_| anyhow!("Failed to decode"))
             }
             ExecutionResult::Revert { output, .. } => Err(anyhow!("Simulation reverted {output}")),
             _ => Err(anyhow!("Failed to simulate")),

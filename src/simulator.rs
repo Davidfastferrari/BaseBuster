@@ -15,6 +15,7 @@ use crate::events::Event;
 use crate::market_state::MarketState;
 use crate::swap::SwapPath;
 use crate::gen::{FlashQuoter, V3State, V2State};
+use crate::calculation::Calculator;
 use crate::quoter::Quoter;
 use crate::AMOUNT;
 
@@ -35,7 +36,7 @@ pub async fn simulate_paths(
     let mut blacklisted_paths: HashSet<u64> = HashSet::new();
 
     // recieve new paths from the searcher
-    while let Ok(Event::ArbPath((arb_path, expected_out))) = arb_receiver.recv() {
+    while let Ok(Event::ArbPath((arb_path, expected_out, block_number))) = arb_receiver.recv() {
         // convert from searcher format into quoter format
         let converted_path: Vec<FlashQuoter::SwapStep> = arb_path.clone().into();
 
@@ -43,27 +44,32 @@ pub async fn simulate_paths(
         // if we have not blacklisted the path
         if !blacklisted_paths.contains(&arb_path.hash) {
             // get an initial quote to see if we can swap
-            match quoter.quote_path(converted_path.clone(), *AMOUNT) {
+            match quoter.quote_path(converted_path.clone(), *AMOUNT, block_number) {
                 Ok(quote) => {
                     // if we are just simulated, compare to the expected amount
                     if sim {
-                        if quote == expected_out {
-                            info!("Success.. Calculated {expected_out}, Quoted: {quote}, Path Hash {}", arb_path.hash);
+                        if *(quote.last().unwrap()) == expected_out {
+                            //info!("Success.. Calculated {expected_out}, Quoted: {}, Path Hash {}", quote.last().unwrap(), arb_path.hash);
                         } else {
+                            let calculator = Calculator::new(market_state.clone());
+                            let output = calculator.debug_calculation(&arb_path);
                             info!(
-                                "Fail.. Calculated {expected_out}, Quoted: {quote}, Path Hash {}, Path: {:#?}",
+                                "Fail.. Calculated {expected_out}, Quoted: {:#?}, Path Hash {}, Path: {:#?} {:#?}",
+                                quote,
                                 arb_path.hash,
-                                converted_path
+                                converted_path,
+                                output
                             );
+
                             // we need to figure out where we went off sync
-                            block_on(
-                                debug_arb(arb_path.clone(), market_state.clone())
-                            );
+                            //block_on(
+                                //debug_arb(arb_path.clone(), market_state.clone())
+                            //);
 
                         }
                     } else {
                         // optimize the input amount
-                        info!("Simulation Successful... Calculated {expected_out}, Quoted: {quote}, Input amount {}, Path: {:#?}", *AMOUNT, converted_path);
+                        //info!("Simulation Successful... Calculated {expected_out}, Quoted: {}, Input amount {}, Path: {:#?}", *AMOUNT, converted_path);
 
                         /*
                         let (optimized_input, optimized_output) =

@@ -59,17 +59,38 @@ where
                     swap_step.protocol,
                     swap_step.fee,
                 );
-                self.cache.set(amount, pool_address, output_amount);
+                //self.cache.set(amount, pool_address, output_amount);
                 amount = output_amount;
             }
 
             if amount == U256::ZERO {
-                return U256::ZERO;
+               return U256::ZERO;
             }
         }
 
         // all good, return the output amount of the path
         amount
+    }
+
+    pub fn debug_calculation(&self, path: &SwapPath) -> Vec<U256> {
+        let mut path_calc: Vec<U256> = Vec::new();
+        let mut amount = *AMOUNT;
+        path_calc.push(amount);
+
+        for swap_step in &path.steps {
+            let pool_address = swap_step.pool_address;
+            let output_amount = self.compute_amount_out(
+                amount,
+                pool_address,
+                swap_step.token_in,
+                swap_step.protocol,
+                swap_step.fee,
+            );
+            path_calc.push(output_amount);
+            amount = output_amount;
+        }
+
+        path_calc
     }
 
     // calculate the ratio for the pool

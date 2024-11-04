@@ -7,6 +7,13 @@ interface IERC20 {
     function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
     function approve(address spender, uint256 amount) external returns (bool);
 }
+interface IUniswapV2Pair {
+    function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast);
+    function token0() external view returns (address);
+    function token1() external view returns (address);
+    function swap(uint amount0Out, uint amount1Out, address to, bytes calldata data) external;
+}
+
 
 interface IWETH is IERC20 {
     function deposit() external payable;
@@ -167,22 +174,25 @@ contract FlashQuoter {
 
     IWETH public constant WETH = IWETH(0x4200000000000000000000000000000000000006);
 
-    function quoteArbitrage(SwapStep[] calldata steps, uint256 amount) external returns (uint256) {
+    function quoteArbitrage(SwapStep[] calldata steps, uint256 amount) external returns (uint256[] memory) {
         require(steps.length > 0, "Invalid path");
         require(amount > 0, "Invalid amount");
 
         // Transfer WETH from sender to this contract
         require(WETH.transferFrom(msg.sender, address(this), amount), "WETH transfer failed");
 
+        uint256[] memory amounts = new uint256[](steps.length + 1);
+        amounts[0] = amount;
         uint256 amountIn = amount;
 
         for (uint256 i = 0; i < steps.length; i++) {
             uint256 balance = IERC20(steps[i].tokenIn).balanceOf(address(this));
             IERC20(steps[i].tokenIn).approve(_getRouter(steps[i].protocol), balance);
             amountIn = _swap(steps[i], balance);
+            amounts[i + 1] = amountIn;
         }
 
-        return amountIn;
+        return amounts;
     }
 
     function _getRouter(uint8 protocol) private pure returns (address) {
@@ -237,14 +247,31 @@ contract FlashQuoter {
     }
 
     function _swapV2(SwapStep memory step, uint256 amountIn) private returns (uint256) {
-        address[] memory path = new address[](2);
-        path[0] = step.tokenIn;
-        path[1] = step.tokenOut;
-        uint256[] memory amounts = IUniswapV2Router(_getRouter(step.protocol)).swapExactTokensForTokens(
-            amountIn, 0, path, address(this), block.timestamp
-        );
-        require(amounts.length > 1, "Invalid swap result");
-        return amounts[1];
+        IUniswapV2Pair pair = IUniswapV2Pair(step.poolAddress);
+        (uint112 reserve0, uint112 reserve1,) = pair.getReserves();
+        
+        address token0 = pair.token0();
+        uint amount0Out;
+        uint amount1Out;
+        uint amountOut;
+        
+        if (step.tokenIn == token0) {
+            amount1Out = _getAmountOut(amountIn, reserve0, reserve1);
+            amount0Out = 0;
+            amountOut = amount1Out;
+            // Transfer token0 to pair
+            IERC20(token0).transfer(step.poolAddress, amountIn);
+        } else {
+            amount0Out = _getAmountOut(amountIn, reserve1, reserve0);
+            amount1Out = 0;
+            amountOut = amount0Out;
+            // Transfer token1 to pair
+            IERC20(step.tokenIn).transfer(step.poolAddress, amountIn);
+        }
+
+        pair.swap(amount0Out, amount1Out, address(this), "");
+        
+        return amountOut;
     }
 
     function _swapV3(SwapStep memory step, uint256 amountIn) private returns (uint256) {
@@ -337,6 +364,17 @@ contract FlashQuoter {
         require(balance > 0, "No tokens to rescue");
         IERC20(token).transfer(msg.sender, balance);
     }
+    function _getAmountOut(uint256 amountIn, uint256 reserveIn, uint256 reserveOut) internal pure returns (uint256) {
+        require(amountIn > 0, 'INSUFFICIENT_INPUT_AMOUNT');
+        require(reserveIn > 0 && reserveOut > 0, 'INSUFFICIENT_LIQUIDITY');
+        
+        uint256 amountInWithFee = amountIn * 997; // 0.3% fee
+        uint256 numerator = amountInWithFee * reserveOut;
+        uint256 denominator = (reserveIn * 1000) + amountInWithFee;
+        
+        return numerator / denominator;
+    }
+
 
     // Function to receive ETH
     receive() external payable {}

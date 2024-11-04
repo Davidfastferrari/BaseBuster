@@ -92,7 +92,7 @@ impl TransactionSender {
     }
     pub async fn send_transactions(&self, tx_receiver: Receiver<Event>) {
         // wait for a new transaction that has passed simulation
-        while let Ok(Event::ArbPath((arb_path, optimized_input))) = tx_receiver.recv() {
+        while let Ok(Event::ArbPath((arb_path, optimized_input, block_number))) = tx_receiver.recv() {
             info!("Sending path...");
             // convert from seacher format into swapper format
             let converted_path: Vec<FlashSwap::SwapStep> = arb_path.clone().into();
