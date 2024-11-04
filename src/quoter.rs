@@ -7,16 +7,16 @@ use alloy::sol_types::SolCall;
 use alloy::sol_types::SolValue;
 use alloy::transports::http::{Client, Http};
 use anyhow::{anyhow, Result};
+use node_db::{InsertionType, NodeDB};
 use revm::database_interface::WrapDatabaseAsync;
 use revm::primitives::keccak256;
 use revm::state::{AccountInfo, Bytecode};
 use revm::wiring::default::TransactTo;
 use revm::wiring::result::ExecutionResult;
 use revm::wiring::EthereumWiring;
-use std::time::Instant;
 use revm::Evm;
 use revm_database::{AlloyDB, CacheDB};
-use node_db::{NodeDB, InsertionType};
+use std::time::Instant;
 
 use crate::gen::FlashQuoter;
 
@@ -48,20 +48,21 @@ impl Quoter {
         let quoter: Address = address!("0000000000000000000000000000000000001000");
 
         // setup the provider
-        //let url = std::env::var("FULL").unwrap().parse().unwrap();
-        //let provider = ProviderBuilder::new().on_http(url);
 
         // setup the database
-        //let db = WrapDatabaseAsync::new(AlloyDB::new(provider, BlockId::latest())).unwrap();
-        //let mut cache_db = CacheDB::new(db);
-        let database_path = String::from("/home/dsfreakdude/nodes/base/data");
+        let database_path = std::env::var("DB_PATH").unwrap();
         let mut nodedb = NodeDB::new(database_path).unwrap();
 
         // give the account some weth
         let one_ether = U256::from(1_000_000_000_000_000_000u128);
         let hashed_acc_balance_slot = keccak256((account, U256::from(3)).abi_encode());
         nodedb
-            .insert_account_storage(weth, hashed_acc_balance_slot.into(), one_ether, InsertionType::OnChain)
+            .insert_account_storage(
+                weth,
+                hashed_acc_balance_slot.into(),
+                one_ether,
+                InsertionType::OnChain,
+            )
             .unwrap();
 
         // insert the quoter bytecode
@@ -135,32 +136,41 @@ impl Quoter {
     pub fn optimize_input(
         &mut self,
         quote_path: Vec<FlashQuoter::SwapStep>,
-    ) -> Result<U256> {
-        let min_amount = U256::from(1_000_000_000_000_000u128); // 0.001 ETH
-        let max_amount = U256::from(1_000_000_000_000_000_000u128); // 1 ETH
-        let mut best_amount = min_amount;
+    ) -> Result<(U256, U256)> {
+        let mut left = U256::from(1_000_000_000_000_000u128); // 0.001 ETH
+        let mut right = U256::from(1_000_000_000_000_000_000u128); // 1 ETH
+        let mut best_amount = left;
         let mut best_output = U256::ZERO;
-        
-        // Binary search with a fixed number of iterations
-        for _ in 0..10 {
-            let third = (max_amount - min_amount) / U256::from(3);
-            let test_amounts = [
-                min_amount + third,
-                min_amount + (third * U256::from(2)),
-            ];
 
-            // Test both points
-            for amount in test_amounts {
-                if let Ok(output) = self.try_quote(quote_path.clone(), amount) {
-                    if output > best_output {
-                        best_amount = amount;
-                        best_output = output;
-                    }
+        // Binary search with golden-section search inspired approach
+        while right - left > U256::from(1_000_000_000_000u128) {
+            // 0.000001 ETH precision
+            let mid1 = left + (right - left) / U256::from(3);
+            let mid2 = right - (right - left) / U256::from(3);
+
+            let output1 = self
+                .try_quote(quote_path.clone(), mid1)
+                .unwrap_or(U256::ZERO);
+            let output2 = self
+                .try_quote(quote_path.clone(), mid2)
+                .unwrap_or(U256::ZERO);
+
+            if output1 > output2 {
+                right = mid2;
+                if output1 > best_output {
+                    best_output = output1;
+                    best_amount = mid1;
+                }
+            } else {
+                left = mid1;
+                if output2 > best_output {
+                    best_output = output2;
+                    best_amount = mid2;
                 }
             }
         }
 
-        Ok(best_amount)
+        Ok((best_amount, best_output))
     }
 
     // Helper function to try a single quote
@@ -177,8 +187,7 @@ impl Quoter {
 
         match result {
             ExecutionResult::Success { output: value, .. } => {
-                U256::abi_decode(value.data(), false)
-                    .map_err(|_| anyhow!("Failed to decode"))
+                U256::abi_decode(value.data(), false).map_err(|_| anyhow!("Failed to decode"))
             }
             ExecutionResult::Revert { output, .. } => Err(anyhow!("Simulation reverted {output}")),
             _ => Err(anyhow!("Failed to simulate")),

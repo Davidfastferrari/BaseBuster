@@ -163,15 +163,17 @@ where
         Ok(())
     }
 
+    #[inline]
     pub fn tick_spacing(&self, address: &Address) -> Result<i32> {
-        let data = self.storage_ref(*address, U256::from(14))?;
+        let data = self.accounts.get(address).unwrap().storage.get(&U256::from(14)).unwrap();
         let tick_spacing: i32 = data.saturating_to();
         Ok(tick_spacing)
     }
 
     // Get slot 0
+    #[inline]
     pub fn slot0(&self, address: Address) -> Result<UniswapV3::slot0Return> {
-        let cell = self.storage_ref(address, U256::from(0))?;
+        let cell = *self.accounts.get(&address).unwrap().storage.get(&U256::from(0)).unwrap();
         let tick: Uint<24, 1> = ((Shr::<U256>::shr(cell, U256::from(160))) & *BITS24MASK).to();
         let tick: Signed<24, 1> = Signed::<24, 1>::from_raw(tick);
         let tick: i32 = tick.as_i32();
@@ -197,12 +199,14 @@ where
         })
     }
 
+    #[inline]
     pub fn liquidity(&self, address: Address) -> Result<u128> {
-        let cell = self.storage_ref(address, U256::from(4))?;
+        let cell = self.accounts.get(&address).unwrap().storage.get(&U256::from(4)).unwrap();
         let cell: u128 = cell.saturating_to();
         Ok(cell)
     }
 
+    #[inline]
     pub fn ticks_liquidity_net(&self, address: Address, tick: i32) -> Result<i128> {
         //i24
         let cell = self.read_hashed_slot(
@@ -216,6 +220,8 @@ where
 
         Ok(li128)
     }
+
+    #[inline]
     pub fn tick_bitmap(&self, address: Address, tick: i16) -> Result<U256> {
         //i16
         let cell = self.read_hashed_slot(
@@ -226,6 +232,7 @@ where
         Ok(cell)
     }
 
+    #[inline]
     fn read_hashed_slot(
         &self,
         account: &Address,

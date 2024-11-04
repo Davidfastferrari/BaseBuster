@@ -1,20 +1,17 @@
 use crate::gen::ERC20Token::approveCall;
-use crate::gen::V2Swap;
-use crate::gen::V3Swap;
-use crate::gen::V3SwapDeadline;
+use crate::gen::{V2Aerodrome, V2Swap, V3Swap, V3SwapDeadline, V3SwapDeadlineTick};
 use alloy::eips::BlockId;
-use std::time::Duration;
 use alloy::network::Ethereum;
-use alloy::primitives::{address, Address, U160, U256};
+use alloy::primitives::{address, Address, Signed, U160, U256};
 use alloy::providers::{ProviderBuilder, RootProvider};
 use alloy::sol;
-use std::time::Instant;
 use alloy::sol_types::{SolCall, SolValue};
 use alloy::transports::http::Client as AlloyClient;
 use alloy::transports::http::Http;
 use anyhow::Result;
 use lazy_static::lazy_static;
 use log::debug;
+use node_db::{InsertionType, NodeDB};
 use pool_sync::{Chain, Pool, PoolInfo, PoolType};
 use reqwest::header::{HeaderMap, HeaderValue};
 use revm::database_interface::WrapDatabaseAsync;
@@ -22,7 +19,6 @@ use revm::primitives::keccak256;
 use revm::wiring::default::TransactTo;
 use revm::wiring::result::ExecutionResult;
 use revm::wiring::EthereumWiring;
-use node_db::{NodeDB, InsertionType};
 use revm::Evm;
 use revm_database::{AlloyDB, CacheDB};
 use serde::{Deserialize, Serialize};
@@ -30,6 +26,8 @@ use std::fs::{create_dir_all, File};
 use std::io::{BufReader, BufWriter};
 use std::path::Path;
 use std::str::FromStr;
+use std::time::Duration;
+use std::time::Instant;
 
 type AlloyCacheDB = CacheDB<
     WrapDatabaseAsync<AlloyDB<Http<AlloyClient>, Ethereum, RootProvider<Http<AlloyClient>>>>,
@@ -72,9 +70,11 @@ struct Token {
 
 // enum for swap dispatch
 enum SwapType {
-    V2Basic,    // standard univ2 swap
-    V3Basic,    // univ3 swap w/o deadline
-    V3Deadline, // univ3 swap w/ deadline
+    V2Basic,     // standard univ2 swap
+    V2Aerodrome, // aerodrome swap
+    V3Basic,     // univ3 swap w/o deadline
+    V3Deadline,  // univ3 swap w/ deadline
+    V3DeadlineTick // Slipstream v3 deadline and tick
 }
 
 // Given a set of pools, filter them down to a proper working set
@@ -212,19 +212,14 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
     let balance_slot = keccak256((account, U256::from(3)).abi_encode());
     let ten_units = U256::from(10_000_000_000_000_000_000u128);
 
-    // setup provider
-    let url = std::env::var("FULL").unwrap().parse().unwrap();
-    let provider = ProviderBuilder::new().on_http(url);
-
     // construct the db
-    let database_path = String::from("/home/dsfreakdude/nodes/base/data");
+    let database_path = std::env::var("DB_PATH").unwrap();
     let mut nodedb = NodeDB::new(database_path).unwrap();
 
-    let start = Instant::now();
     // go through all the pools and try a swap on each one
     for pool in pools {
         // get the router address
-        let (address, swap_type) = match pool.pool_type() {
+        let (router_address, swap_type) = match pool.pool_type() {
             PoolType::UniswapV2 => (
                 address!("4752ba5dbc23f44d87826276bf6fd6b1c372ad24"),
                 SwapType::V2Basic,
@@ -281,12 +276,25 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
                 address!("1B8eea9315bE495187D873DA7773a874545D9D48"),
                 SwapType::V3Deadline,
             ),
+            PoolType::Aerodrome => (
+                address!("cF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43"),
+                SwapType::V2Aerodrome,
+            ),
+            PoolType::Slipstream => (
+                address!("BE6D8f0d05cC4be24d5167a3eF062215bE6D18a5"),
+                SwapType::V3DeadlineTick
+            ),
             _ => panic!("will not reach here"),
         };
 
         // give ourselves some of the input token, just assume 18 decimal points
         nodedb
-            .insert_account_storage(pool.token0_address(), balance_slot.into(), ten_units, InsertionType::OnChain)
+            .insert_account_storage(
+                pool.token0_address(),
+                balance_slot.into(),
+                ten_units,
+                InsertionType::OnChain,
+            )
             .unwrap();
 
         // construct a new evm instance
@@ -304,7 +312,7 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
 
         // setup approval call and transact
         let approve_calldata = approveCall {
-            spender: address,
+            spender: router_address,
             amount: ten_units,
         }
         .abi_encode();
@@ -312,7 +320,7 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
         evm.tx_mut().data = approve_calldata.into();
         evm.transact_commit().unwrap();
 
-        // we now have some of the input token and we have approved the router to spend it
+        // we now have some of the input token and we have approved the router to spend it 
         // try a swap to see if if it is valid
 
         // setup calldata based on the swap type
@@ -352,23 +360,51 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
                 };
                 V3SwapDeadline::exactInputSingleCall { params }.abi_encode()
             }
+            SwapType::V2Aerodrome => {
+                let is_stable = pool.get_v2().unwrap().stable.unwrap();
+                let route = vec![V2Aerodrome::Route {
+                    from: pool.token0_address(),
+                    to: pool.token1_address(),
+                    stable: is_stable,
+                    factory: Address::ZERO,
+                }]; 
+                V2Aerodrome::swapExactTokensForTokensCall { 
+                    amountIn: U256::from(1e16), 
+                    amountOutMin: U256::ZERO,
+                    routes: route,
+                    to: account,
+                    deadline: U256::MAX
+                }.abi_encode()
+            }
+            SwapType::V3DeadlineTick => {
+                let tick_spacing = pool.get_v3().unwrap().tick_spacing;
+                let params = V3SwapDeadlineTick::ExactInputSingleParams {
+                    tokenIn: pool.token0_address(),
+                    tokenOut: pool.token1_address(),
+                    tickSpacing: tick_spacing.try_into().unwrap(),
+                    recipient: account,
+                    deadline: U256::MAX,
+                    amountIn: U256::from(1e16),
+                    amountOutMinimum: U256::ZERO,
+                    sqrtPriceLimitX96: U160::ZERO
+                };
+                V3SwapDeadlineTick::exactInputSingleCall { params }.abi_encode()
+            }
         };
 
         // set call to the router
-        evm.tx_mut().transact_to = TransactTo::Call(address);
+        evm.tx_mut().transact_to = TransactTo::Call(router_address);
         evm.tx_mut().data = calldata.into();
 
         // if we can transact, add it as it is a valid pool. Else ignore it
         let ref_tx = evm.transact().unwrap();
         let result = ref_tx.result;
-        //println!("{:#?}", ref_tx);
         if let ExecutionResult::Success { .. } = result {
-            debug!("Successful swap for pool {}", pool.address());
+            println!("Successful swap for pool {}", pool.address());
             filtered_pools.push(pool.clone());
         } else {
-            debug!("Unsuccessful swap for pool {}", pool.address());
+            println!("Unsuccessful swap for pool {}", pool.address());
         }
-        println!("{:?}", start.elapsed());
     }
 
     filtered_pools

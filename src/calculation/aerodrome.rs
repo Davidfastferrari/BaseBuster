@@ -1,25 +1,75 @@
-use alloy::primitives::{Address, U256};
 use super::Calculator;
+use alloy::sol;
+use alloy::network::Network;
+use alloy::primitives::Address;
+use alloy::primitives::U256;
+use alloy::providers::Provider;
+use alloy::transports::Transport;
+use crate::gen::V2State;
+use alloy::providers::ProviderBuilder;
 
-impl Calculator {
+sol! {
+    #[sol(rpc)]
+    contract v2state {
+        function getreserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blocktimestamplast);
+    }
+}
+
+impl<T, N, P> Calculator<T, N, P>
+where
+    T: Transport + Clone,
+    N: Network,
+    P: Provider<T, N>,
+{
     // Amount out calculation for aerodrome pools
-    pub fn aerodrome_out(
-        &self,
-        amount_in: U256,
-        token_in: Address,
-        pool_address: Address,
-    ) -> U256 {
-        let pool = self.pool_manager.get_v2pool(&pool_address);
-        let (mut _reserve0, mut _reserve1) = (
-            U256::from(pool.token0_reserves),
-            U256::from(pool.token1_reserves),
-        );
-        let mut amount_in = amount_in;
-        amount_in -= (amount_in * pool.fee.unwrap()) / U256::from(10000);
+    pub fn aerodrome_out(&self, amount_in: U256, token_in: Address, pool_address: Address) -> U256 {
+        // get all of the state
+        let db_read = self.market_state.db.read().unwrap();
+        let (reserve0, reserve1) = db_read.get_reserves(&pool_address);
+        let pool_fee = db_read.get_fee(&pool_address);
+        let (dec_0, dec_1) = db_read.get_decimals(&pool_address);
+        let stable = db_read.get_stable(&pool_address);
+        let token0 = db_read.get_token0(&pool_address);
 
-        let token0_decimals = U256::from(10).pow(U256::from(pool.token0_decimals));
-        let token1_decimals = U256::from(10).pow(U256::from(pool.token1_decimals));
-        let stable = pool.stable.unwrap();
+        // verify that we have the correct state
+        #[cfg(feature = "verification")]
+        {
+            tokio::runtime::Runtime::new().unwrap().block_on(async {
+                let provider =
+                    ProviderBuilder::new().on_http(std::env::var("FULL").unwrap().parse().unwrap());
+                let V2State::getReservesReturn {
+                    reserve0: res0,
+                    reserve1: res1,
+                    ..
+                } = V2State::new(pool_address, provider)
+                    .getReserves()
+                    .call()
+                    .await
+                    .unwrap();
+                assert_eq!(
+                    reserve0,
+                    U256::from(res0),
+                    "reserve0 mismatch for pool: {:#x}",
+                    pool_address
+                );
+                assert_eq!(
+                    reserve1,
+                    U256::from(res1),
+                    "reserve1 mismatch for pool: {:#x}",
+                    pool_address
+                );
+            });
+        }
+
+        let mut _reserve0 = U256::from(reserve0);
+        let mut _reserve1 = U256::from(reserve1);
+
+        let mut amount_in = amount_in;
+        amount_in -= (amount_in * pool_fee) / U256::from(10000);
+
+        let token0_decimals = U256::from(10).pow(U256::from(dec_0));
+        let token1_decimals = U256::from(10).pow(U256::from(dec_1));
+
         if stable {
             let xy = Self::_k(
                 _reserve0,
@@ -30,12 +80,12 @@ impl Calculator {
             );
             _reserve0 = (_reserve0 * U256::from(1e18)) / token0_decimals;
             _reserve1 = (_reserve1 * U256::from(1e18)) / token1_decimals;
-            let (reserve_a, reserve_b) = if token_in == pool.token0 {
+            let (reserve_a, reserve_b) = if token_in == token0 {
                 (_reserve0, _reserve1)
             } else {
                 (_reserve1, _reserve0)
             };
-            amount_in = if token_in == pool.token0 {
+            amount_in = if token_in == token0 {
                 (amount_in * U256::from(1e18)) / token0_decimals
             } else {
                 (amount_in * U256::from(1e18)) / token1_decimals
@@ -49,18 +99,18 @@ impl Calculator {
                     token0_decimals,
                     token1_decimals,
                 );
-            if token_in == pool.token0 {
-                return (y * token1_decimals) / U256::from(1e18);
+            if token_in == token0 {
+                (y * token1_decimals) / U256::from(1e18)
             } else {
-                return (y * token0_decimals) / U256::from(1e18);
+                (y * token0_decimals) / U256::from(1e18)
             }
         } else {
-            let (reserve_a, reserve_b) = if token_in == pool.token0 {
+            let (reserve_a, reserve_b) = if token_in == token0 {
                 (_reserve0, _reserve1)
             } else {
                 (_reserve1, _reserve0)
             };
-            return (amount_in * reserve_b) / (reserve_a + amount_in);
+            (amount_in * reserve_b) / (reserve_a + amount_in)
         }
     }
 
@@ -70,9 +120,9 @@ impl Calculator {
             let _y = (y * U256::from(1e18)) / decimals1;
             let _a = (_x * _y) / U256::from(1e18);
             let _b = (_x * _x) / U256::from(1e18) + (_y * _y) / U256::from(1e18);
-            return (_a * _b) / U256::from(1e18);
+            (_a * _b) / U256::from(1e18)
         } else {
-            return x * y;
+            x * y
         }
     }
 
@@ -81,7 +131,9 @@ impl Calculator {
         for _ in 0..255 {
             let k = Self::_f(x0, y);
             let d = Self::_d(x0, y);
-            if d == U256::ZERO { return U256::ZERO }
+            if d == U256::ZERO {
+                return U256::ZERO;
+            }
             if k < xy {
                 let mut dy = ((xy - k) * U256::from(1e18)) / d;
                 if dy == U256::ZERO {
@@ -93,7 +145,7 @@ impl Calculator {
                     }
                     dy = U256::from(1);
                 }
-                y = y + dy;
+                y += dy;
             } else {
                 let mut dy = ((k - xy) * U256::from(1e18)) / d;
                 if dy == U256::ZERO {
@@ -102,7 +154,7 @@ impl Calculator {
                     }
                     dy = U256::from(1);
                 }
-                y = y - dy;
+                y -= dy;
             }
         }
         U256::ZERO
@@ -111,11 +163,11 @@ impl Calculator {
     fn _f(x0: U256, y: U256) -> U256 {
         let _a = (x0 * y) / U256::from(1e18);
         let _b = (x0 * x0) / U256::from(1e18) + (y * y) / U256::from(1e18);
-        return (_a * _b) / U256::from(1e18);
+        (_a * _b) / U256::from(1e18)
     }
 
     fn _d(x0: U256, y: U256) -> U256 {
-        return U256::from(3) * x0 * ((y * y) / U256::from(1e18)) / U256::from(1e18)
-            + (((x0 * x0) / U256::from(1e18)) * x0) / U256::from(1e18);
+        U256::from(3) * x0 * ((y * y) / U256::from(1e18)) / U256::from(1e18)
+            + (((x0 * x0) / U256::from(1e18)) * x0) / U256::from(1e18)
     }
 }

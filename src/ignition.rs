@@ -26,7 +26,6 @@ pub async fn start_workers(pools: Vec<Pool>, last_synced_block: u64) {
     let pools = filter_pools(pools, 1000, Chain::Base).await;
     info!("Pool count after filter {}", pools.len());
 
-
     // Initialize our market state, this is a wrapper over the REVM database with all our pool state
     // then start the updater
     let http_url = std::env::var("FULL").unwrap().parse().unwrap();
@@ -40,7 +39,7 @@ pub async fn start_workers(pools: Vec<Pool>, last_synced_block: u64) {
     )
     .await
     .unwrap(); // add something to reeiver blocks, this the state will be updated here
-               
+
     // generate the graph
     info!("Generating cycles...");
     let cycles = ArbGraph::generate_cycles(pools.clone()).await;
@@ -48,7 +47,7 @@ pub async fn start_workers(pools: Vec<Pool>, last_synced_block: u64) {
 
     // start the simulator
     info!("Starting the simulator...");
-    tokio::spawn(simulate_paths(profitable_sender, paths_receiver));
+    tokio::spawn(simulate_paths(profitable_sender, paths_receiver, market_state.clone()));
 
     // start the searcher
     info!("Starting arbitrage searcher...");
@@ -59,5 +58,4 @@ pub async fn start_workers(pools: Vec<Pool>, last_synced_block: u64) {
     info!("Starting transaction sender...");
     let tx_sender = TransactionSender::new();
     tokio::spawn(async move { tx_sender.send_transactions(profitable_receiver).await });
-
 }

@@ -6,13 +6,13 @@ use alloy::rpc::types::BlockNumberOrTag;
 use alloy::transports::http::{Client, Http};
 use alloy::transports::Transport;
 use anyhow::Result;
+use futures::StreamExt;
 use log::{debug, error, info};
 use pool_sync::Pool;
 use std::collections::{BTreeMap, HashSet};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 use std::sync::RwLock;
-use futures::StreamExt;
 
 use crate::events::Event;
 use crate::gen::FlashQuoter;
@@ -78,21 +78,20 @@ where
         // fast block times mean we can fall behind while initializing
         // catch up to the head to we are not missing any state
         let mut current_block = http.get_block_number().await.unwrap();
+        println!("Last synced block {}", last_synced_block);
 
         while last_synced_block < current_block {
             debug!(
                 "Catching up. Last synced block {}, Current block {}",
                 last_synced_block, current_block
             );
-            for block_num in last_synced_block..=current_block {
+            for block_num in (last_synced_block + 1)..=current_block {
                 debug!("Processing block {block_num}");
                 let _ = self.update_state(http.clone(), block_num).await;
-                debug!("Processed block {block_num}");
             }
             last_synced_block = current_block;
             current_block = http.get_block_number().await.unwrap();
         }
-
 
         // start the stream
         let ws_url = WsConnect::new(std::env::var("WS").unwrap());

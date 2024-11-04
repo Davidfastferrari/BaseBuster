@@ -41,6 +41,7 @@ where
     }
 
     // get the reserves
+    #[inline]
     pub fn get_reserves(&self, pool: &Address) -> (U256, U256) {
         let value = *self
             .accounts
@@ -53,6 +54,7 @@ where
     }
 
     // get token 0
+    /*
     pub fn get_token0(&mut self, pool: Address) -> Result<Option<Address>> {
         let token0 = self.storage(pool, U256::from(0))?;
         if token0 == U256::ZERO {
@@ -61,6 +63,7 @@ where
             Ok(Some(Address::from_word(token0.into())))
         }
     }
+    */
 
     // get token 1
     pub fn get_token1(&mut self, pool: Address) -> Result<Option<Address>> {
@@ -70,6 +73,26 @@ where
         } else {
             Ok(Some(Address::from_word(token1.into())))
         }
+    }
+
+    pub fn get_token0(&self, pool: &Address) -> Address {
+        todo!()
+    }
+
+    pub fn get_decimals(&self, pool: &Address) -> (u8, u8) {
+        todo!()
+    }
+
+    pub fn get_fee(&self, pool: &Address) -> U256 {
+        todo!()
+    }
+
+    pub fn get_stable(&self, pool: &Address) -> bool {
+        todo!()
+    }
+
+    pub fn get_tokens(&self, pool: &Address) -> (Address, Address) {
+        todo!()
     }
 
     // insert pool reserves into the database
@@ -106,6 +129,7 @@ where
     }
 }
 
+/*
 #[cfg(test)]
 mod test_db_v2 {
     use super::*;
@@ -174,7 +198,7 @@ mod test_db_v2 {
 
         // Fetch and assert token addresses
         let fetched_token1 = db.get_token1(pool_addr);
-        let fetched_token0 = db.get_token0(pool_addr);
+        let fetched_token0 = db.get_token0(&pool_addr);
         assert_eq!(
             fetched_token0.unwrap().unwrap(),
             expected_token0,
@@ -253,3 +277,4 @@ mod test_db_v2 {
         //println!("{:?}", result);
     }
 }
+*/

@@ -65,12 +65,14 @@ where
     pub fn search_paths(&mut self, paths_tx: Sender<Event>, address_rx: Receiver<Event>) {
         let sim: bool = std::env::var("SIM").unwrap().parse().unwrap();
 
+        println!("Default thread pool size: {}", rayon::current_num_threads());
         // wait for a new single with the pools that have reserved updated
         while let Ok(Event::PoolsTouched(pools)) = address_rx.recv() {
             info!("Searching for arbs...");
-            let start = Instant::now();
+            let res = Instant::now();
 
             // invalidate all updated pools in the cache
+
             self.calculator.invalidate_cache(&pools);
 
             // from the updated pools, get all paths that we want to recheck
@@ -102,7 +104,7 @@ where
                 })
                 .collect();
 
-            info!("{:?} elapsed calculating paths", start.elapsed());
+            info!("{:?} elapsed calculating paths", res.elapsed());
             info!("{} profitable paths", profitable_paths.len());
 
             for path in profitable_paths {

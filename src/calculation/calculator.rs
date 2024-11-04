@@ -5,7 +5,6 @@ use alloy::transports::Transport;
 use pool_sync::PoolType;
 use std::collections::HashSet;
 use std::sync::Arc;
-use std::time::Instant;
 
 use crate::cache::Cache;
 use crate::market_state::MarketState;
@@ -38,7 +37,6 @@ where
         }
     }
 
-
     // calculate the output amount
     // we can get read access to the db since we know it will not change for duration of calculation
     #[inline]
@@ -58,7 +56,6 @@ where
                     amount,
                     pool_address,
                     swap_step.token_in,
-                    swap_step.token_out,
                     swap_step.protocol,
                     swap_step.fee,
                 );
@@ -81,7 +78,6 @@ where
         input_amount: U256,
         pool_address: Address,
         token_in: Address,
-        token_out: Address,
         pool_type: PoolType,
         fee: u32,
     ) -> U256 {
@@ -105,14 +101,10 @@ where
             | PoolType::DackieSwapV3 => self
                 .uniswap_v3_out(input_amount, &pool_address, &token_in, fee)
                 .unwrap(),
-            /*
             PoolType::Aerodrome => self.aerodrome_out(input_amount, token_in, pool_address),
             PoolType::MaverickV1 | PoolType::MaverickV2 => todo!(),
-            PoolType::BalancerV2 => {
-                self.balancer_v2_out(input_amount, token_in, token_out, pool_address)
-            }
+            PoolType::BalancerV2 => todo!(),
             PoolType::CurveTwoCrypto | PoolType::CurveTriCrypto => todo!(),
-            */
             _ => U256::ZERO,
         }
     }

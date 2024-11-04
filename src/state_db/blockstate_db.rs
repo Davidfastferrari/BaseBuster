@@ -118,16 +118,19 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> BlockStateDB<T, N, P> 
     }
 
     // Check if we are tracking the pool. This is our working set
+    #[inline]
     pub fn tracking_pool(&self, pool: &Address) -> bool {
         self.pools.contains(pool)
     }
 
     // Compute zero to one for amount out computations
+    #[inline]
     pub fn zero_to_one(&self, pool: &Address, token_in: Address) -> Option<bool> {
         self.pool_info.get(pool).map(|info| info.token0 == token_in)
     }
 
     // Go through a block trace and update all relevant slots
+    #[inline]
     pub fn update_all_slots(
         &mut self,
         address: Address,
