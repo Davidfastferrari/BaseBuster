@@ -1,4 +1,4 @@
-pub use blockstate_db::BlockStateDB;
+pub use blockstate_db::{BlockStateDB, InsertionType};
 
 mod blockstate_db;
 mod v2_db;

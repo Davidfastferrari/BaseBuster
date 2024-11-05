@@ -150,7 +150,7 @@ mod test_db_v2 {
     #[tokio::test(flavor = "multi_thread")]
     pub async fn test_insert_pool_and_retrieve() {
         env_logger::Builder::new()
-            .filter_module("BaseBuster", LevelFilter::Trace)
+            .filter_module("BaseBuster", LevelFilter::Info)
             .init();
         dotenv::dotenv().ok();
         let url = std::env::var("FULL").unwrap().parse().unwrap();
@@ -279,7 +279,7 @@ mod test_db_v2 {
     async fn test_flashquote_onchain_pool() {
         dotenv::dotenv().ok();
         env_logger::Builder::new()
-            .filter_module("BaseBuster", LevelFilter::Trace)
+            .filter_module("BaseBuster", LevelFilter::Info)
             .init();
         sol!(
             #[derive(Debug)]
@@ -366,18 +366,10 @@ mod test_db_v2 {
         evm.tx_mut().data = quote_calldata.into();
 
         // transact
-        let start = Instant::now();
         let ref_tx = evm.transact().unwrap();
         let result = ref_tx.result;
         let output = result.output().unwrap();
         let decoded_outputs = <Vec<U256>>::abi_decode(output, false).unwrap();
-        println!("First time took {:?}", start.elapsed());
-        let start = Instant::now();
-        let ref_tx = evm.transact().unwrap();
-        let result = ref_tx.result;
-        let output = result.output().unwrap();
-        let decoded_outputs = <Vec<U256>>::abi_decode(output, false).unwrap();
-        println!("Second time took {:?}", start.elapsed());
         println!("{:#?}", decoded_outputs);
     }
 
@@ -386,7 +378,7 @@ mod test_db_v2 {
     async fn test_flashquote_offchain_pool() {
         dotenv::dotenv().ok();
         env_logger::Builder::new()
-            .filter_module("BaseBuster", LevelFilter::Info)
+            .filter_module("BaseBuster", LevelFilter::Trace)
             .init();
         sol!(
             #[derive(Debug)]
@@ -414,12 +406,27 @@ mod test_db_v2 {
             address: pool,
             token0: weth,
             token1: usdc,
-            token0_name: "USDC".to_string(),
-            token1_name: "WETH".to_string(),
-            token0_decimals: 6,
-            token1_decimals: 18,
+            token0_name: "WETH".to_string(),
+            token1_name: "USDC".to_string(),
+            token0_decimals: 18,
+            token1_decimals: 6,
             token0_reserves: U256::from(409844320018255314839_u128),
             token1_reserves: U256::from(94038111875_u128),
+            stable: None,
+            fee: None,
+        };
+        db.insert_v2(pool);
+
+        let pool = UniswapV2Pool {
+            address: address!("2F8818D1B0f3e3E295440c1C0cDDf40aAA21fA87"),
+            token0: weth,
+            token1: usdc,
+            token0_name: "WETH".to_string(),
+            token1_name: "USDC".to_string(),
+            token0_decimals: 6,
+            token1_decimals: 18,
+            token0_reserves: U256::from(678659086524752413_u128),
+            token1_reserves: U256::from(1649070661),
             stable: None,
             fee: None,
         };
@@ -477,7 +484,7 @@ mod test_db_v2 {
                 fee: 0.try_into().unwrap(),
             },
             SwapStep {
-                poolAddress: address!("88A43bbDF9D098eEC7bCEda4e2494615dfD9bB9C"),
+                poolAddress: address!("2F8818D1B0f3e3E295440c1C0cDDf40aAA21fA87"),
                 tokenIn: usdc,
                 tokenOut: weth,
                 protocol: 0,
@@ -499,7 +506,13 @@ mod test_db_v2 {
         let output = result.output().unwrap();
         let decoded_outputs = <Vec<U256>>::abi_decode(output, false).unwrap();
         println!("First time took {:?}", start.elapsed());
+        println!("{:#?}", decoded_outputs);
         let start = Instant::now();
+
+        let pool_addr = address!("88A43bbDF9D098eEC7bCEda4e2494615dfD9bB9C");
+        evm.db_mut().insert_reserves(pool_addr, U256::from(4098445218255314839_u128), U256::from(94038111875_u128));
+
+
         let ref_tx = evm.transact().unwrap();
         let result = ref_tx.result;
         let output = result.output().unwrap();

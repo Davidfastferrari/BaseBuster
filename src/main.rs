@@ -43,11 +43,11 @@ async fn main() -> Result<()> {
     let pool_sync = PoolSync::builder()
         .add_pools(&[
             //PoolType::Aerodrome
-            //PoolType::UniswapV2,
+            PoolType::UniswapV2,
             //PoolType::SushiSwapV2,
             //PoolType::PancakeSwapV2,
             //PoolType::Aerodrome,
-            PoolType::Slipstream,
+            //PoolType::Slipstream,
             //PoolType::UniswapV3,
             //PoolType::SushiSwapV3, //PoolType::BaseSwapV2, // this is wrong
             //PoolType::BaseSwapV2,

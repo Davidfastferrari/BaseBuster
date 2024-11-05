@@ -301,9 +301,9 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> Database for BlockStat
                 );
                 // The slot is in storage. If it is custom, there is no corresponding onchain state
                 // to update it with, just return the value
-                if value.insertion_type == InsertionType::Custom {
+                //if value.insertion_type == InsertionType::Custom {
                     return Ok(value.value);
-                }
+                //}
                 // The account exists and the slot is onchain, continue on so it is fetched and updated
             }
         }
@@ -375,9 +375,9 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> DatabaseRef for BlockS
     fn basic_ref(&self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
         trace!("Database BasicRef: Looking for account {}", address);
         if let Some(account) = self.accounts.get(&address) {
-            if account.insertion_type == InsertionType::Custom {
+            //if account.insertion_type == InsertionType::Custom {
                 return Ok(Some(account.info.clone()));
-            }
+           // }
         }
 
 
@@ -454,9 +454,9 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> DatabaseRef for BlockS
         );
         if let Some(account) = self.accounts.get(&address) {
             if let Some(value) = account.storage.get(&index) {
-                if value.insertion_type == InsertionType::Custom {
+                //if value.insertion_type == InsertionType::Custom {
                     return Ok(value.value);
-                }
+                //}
             }
         }
 

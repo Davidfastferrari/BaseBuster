@@ -27,7 +27,6 @@ pub async fn simulate_paths(
     market_state: Arc<MarketState<Http<Client>, Ethereum, RootProvider<Http<Client>>>>
 ) {
     // Construct a new quoter
-    let mut quoter = Quoter::new().await;
 
     // if this is just a sim run or not
     let sim: bool = std::env::var("SIM").unwrap().parse().unwrap();
@@ -44,12 +43,17 @@ pub async fn simulate_paths(
         // if we have not blacklisted the path
         if !blacklisted_paths.contains(&arb_path.hash) {
             // get an initial quote to see if we can swap
-            match quoter.quote_path(converted_path.clone(), *AMOUNT, block_number) {
+            // get read access to the db so we can quote the path
+            match Quoter::quote_path(
+                    converted_path.clone(), 
+                    *AMOUNT, 
+                    market_state.clone()
+                ) {
                 Ok(quote) => {
                     // if we are just simulated, compare to the expected amount
                     if sim {
                         if *(quote.last().unwrap()) == expected_out {
-                            //info!("Success.. Calculated {expected_out}, Quoted: {}, Path Hash {}", quote.last().unwrap(), arb_path.hash);
+                            info!("Success.. Calculated {expected_out}, Quoted: {}, Path Hash {}", quote.last().unwrap(), arb_path.hash);
                         } else {
                             let calculator = Calculator::new(market_state.clone());
                             let output = calculator.debug_calculation(&arb_path);
@@ -89,7 +93,7 @@ pub async fn simulate_paths(
                     }
                 }
                 Err(quote_err) => {
-                    //warn!("Failed to simulate quote {}", quote_err);
+                    warn!("Failed to simulate quote {}", quote_err);
                     blacklisted_paths.insert(arb_path.hash);
                 }
             }
