@@ -1,6 +1,6 @@
 use alloy::network::Network;
 use alloy::primitives::{address, Address, U256};
-use alloy::providers::{Provider, ProviderBuilder, RootProvider, WsConnect};
+use alloy::providers::{Provider, ProviderBuilder, RootProvider, WsConnect, IpcConnect};
 use alloy::rpc::types::trace::geth::AccountState;
 use revm::wiring::default::TransactTo;
 use revm::Evm;
@@ -109,10 +109,12 @@ where
         }
 
         // start the stream
-        let ws_url = WsConnect::new(std::env::var("WS").unwrap());
-        let ws = Arc::new(ProviderBuilder::new().on_ws(ws_url).await.unwrap());
+        //let ws_url = WsConnect::new(std::env::var("WS").unwrap());
+        //let ws = Arc::new(ProviderBuilder::new().on_ws(ws_url).await.unwrap());
+        let ipc_conn = IpcConnect::new(std::env::var("IPC").unwrap());
+        let ipc = ProviderBuilder::new().on_ipc(ipc_conn).await.unwrap();
 
-        let sub = ws.subscribe_blocks().await.unwrap();
+        let sub = ipc.subscribe_blocks().await.unwrap();
         let mut stream = sub.into_stream();
 
         // stream in new blocks
