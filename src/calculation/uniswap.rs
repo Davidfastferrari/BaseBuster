@@ -170,7 +170,7 @@ where
 
         // Set sqrt_price_limit_x_96 to the max or min sqrt price in the pool depending on zero_for_one
         let sqrt_price_limit_x_96 = if zero_to_one {
-            MIN_SQRT_RATIO + U256_1
+            U256::from(MIN_SQRT_RATIO) + U256_1
         } else {
             MAX_SQRT_RATIO - U256_1
         };
