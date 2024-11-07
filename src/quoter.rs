@@ -1,42 +1,33 @@
-use alloy::eips::BlockId;
 use alloy::network::Ethereum;
-use alloy::primitives::{address, Address, U256};
-use alloy::providers::{ProviderBuilder, RootProvider};
-use alloy::sol;
+use alloy::primitives::{address, U256};
+use alloy::providers::RootProvider;
 use alloy::sol_types::SolCall;
 use alloy::sol_types::SolValue;
 use alloy::transports::http::{Client, Http};
 use anyhow::{anyhow, Result};
-use revm::database_interface::WrapDatabaseAsync;
-use revm::primitives::keccak256;
-use revm::state::{AccountInfo, Bytecode};
+use revm::database_interface::WrapDatabaseRef;
 use revm::wiring::default::TransactTo;
 use revm::wiring::result::ExecutionResult;
 use revm::wiring::EthereumWiring;
 use revm::Evm;
-use revm::database_interface::WrapDatabaseRef;
-use revm_database::{AlloyDB, CacheDB};
 use std::sync::Arc;
-use std::sync::RwLockWriteGuard;
-use std::time::Instant;
 
 use crate::gen::FlashQuoter;
 use crate::market_state::MarketState;
-use crate::state_db::{BlockStateDB, InsertionType};
+use crate::state_db::BlockStateDB;
 
-// Types to make our life easier
-//type QuoterEvm = Evm<'static, EthereumWiring<NodeDB, ()>>;
-type AlloyCacheDB = CacheDB<WrapDatabaseAsync<AlloyDB<Http<Client>, Ethereum, RootProvider<Http<Client>>>>>;
-type StateDB = BlockStateDB<Http<Client>, Ethereum, RootProvider<Http<Client>>>;
-type StateEvm = Evm<'static, EthereumWiring<WrapDatabaseRef<StateDB>, ()>>;
+// type to make our life easier
+type QuoteEvm<'a> = Evm<
+    'a,
+    EthereumWiring<
+        &'a mut BlockStateDB<Http<Client>, Ethereum, RootProvider<Http<Client>>>,
+        (),
+    >,
+>;
 
-// Add this type alias near the other type declarations at the top
-type QuoteEvm<'a> = Evm<'a, EthereumWiring<WrapDatabaseRef<&'a BlockStateDB<Http<Client>, Ethereum, RootProvider<Http<Client>>>>, ()>>;
-
-// Quoter. This class is used to get a simulation quote before sending off a transaction.
+// Quoter. This is used to get a simulation quote before sending off a transaction.
 // This will confirm that our offchain calculations are reasonable and make sure we can swap the tokens
 pub struct Quoter;
-
 impl Quoter {
     // get a quote for the path
     pub fn quote_path(
@@ -44,16 +35,16 @@ impl Quoter {
         amount_in: U256,
         market_state: Arc<MarketState<Http<Client>, Ethereum, RootProvider<Http<Client>>>>,
     ) -> Result<Vec<U256>> {
-        let start = Instant::now();
-        let guard = market_state.db.write().unwrap();
+        let mut guard = market_state.db.write().unwrap();
+        // need to pass this as mut somehow
         let mut evm: QuoteEvm = Evm::builder()
-            .with_db(WrapDatabaseRef(&*guard))
+            .with_db(&mut *guard)
             .with_default_ext_ctx()
             .build();
         evm.cfg_mut().disable_nonce_check = true;
         evm.tx_mut().caller = address!("d8da6bf26964af9d7eed9e03e53415d37aa96045");
-        evm.tx_mut().transact_to = TransactTo::Call(address!("0000000000000000000000000000000000001000"));
-        println!("Constructed evm instantce {:?}", start.elapsed());
+        evm.tx_mut().transact_to =
+            TransactTo::Call(address!("0000000000000000000000000000000000001000"));
         // get read access to the db
         // setup the calldata
         let quote_calldata = FlashQuoter::quoteArbitrageCall {
@@ -62,17 +53,14 @@ impl Quoter {
         }
         .abi_encode();
         evm.tx_mut().data = quote_calldata.into();
-        println!("encoded calldata {:?}", start.elapsed());
 
         // transact
         let ref_tx = evm.transact().unwrap();
         let result = ref_tx.result;
-        println!("Finished transaction {:?}", start.elapsed());
 
         match result {
             ExecutionResult::Success { output: value, .. } => {
                 if let Ok(amount) = Vec::<U256>::abi_decode(value.data(), false) {
-                    println!("finished and decoded {:?}", start.elapsed());
                     Ok(amount)
                 } else {
                     Err(anyhow!("Failed to decode"))

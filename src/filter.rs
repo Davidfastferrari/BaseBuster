@@ -1,16 +1,15 @@
 use crate::gen::ERC20Token::approveCall;
 use crate::gen::{V2Aerodrome, V2Swap, V3Swap, V3SwapDeadline, V3SwapDeadlineTick};
-use alloy::eips::BlockId;
 use alloy::network::Ethereum;
-use alloy::primitives::{address, Address, Signed, U160, U256};
-use alloy::providers::{ProviderBuilder, RootProvider};
-use alloy::sol;
+use alloy::primitives::{address, Address, U160, U256};
+use alloy::providers::RootProvider;
 use alloy::sol_types::{SolCall, SolValue};
 use alloy::transports::http::Client as AlloyClient;
 use alloy::transports::http::Http;
 use anyhow::Result;
 use lazy_static::lazy_static;
 use log::debug;
+use log::trace;
 use node_db::{InsertionType, NodeDB};
 use pool_sync::{Chain, Pool, PoolInfo, PoolType};
 use reqwest::header::{HeaderMap, HeaderValue};
@@ -26,12 +25,6 @@ use std::fs::{create_dir_all, File};
 use std::io::{BufReader, BufWriter};
 use std::path::Path;
 use std::str::FromStr;
-use std::time::Duration;
-use std::time::Instant;
-
-type AlloyCacheDB = CacheDB<
-    WrapDatabaseAsync<AlloyDB<Http<AlloyClient>, Ethereum, RootProvider<Http<AlloyClient>>>>,
->;
 
 // Blacklisted tokens we dont want to consider
 lazy_static! {
@@ -70,11 +63,11 @@ struct Token {
 
 // enum for swap dispatch
 enum SwapType {
-    V2Basic,     // standard univ2 swap
-    V2Aerodrome, // aerodrome swap
-    V3Basic,     // univ3 swap w/o deadline
-    V3Deadline,  // univ3 swap w/ deadline
-    V3DeadlineTick // Slipstream v3 deadline and tick
+    V2Basic,        // standard univ2 swap
+    V2Aerodrome,    // aerodrome swap
+    V3Basic,        // univ3 swap w/o deadline
+    V3Deadline,     // univ3 swap w/ deadline
+    V3DeadlineTick, // Slipstream v3 deadline and tick
 }
 
 // Given a set of pools, filter them down to a proper working set
@@ -282,7 +275,7 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
             ),
             PoolType::Slipstream => (
                 address!("BE6D8f0d05cC4be24d5167a3eF062215bE6D18a5"),
-                SwapType::V3DeadlineTick
+                SwapType::V3DeadlineTick,
             ),
             _ => panic!("will not reach here"),
         };
@@ -320,7 +313,7 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
         evm.tx_mut().data = approve_calldata.into();
         evm.transact_commit().unwrap();
 
-        // we now have some of the input token and we have approved the router to spend it 
+        // we now have some of the input token and we have approved the router to spend it
         // try a swap to see if if it is valid
 
         // setup calldata based on the swap type
@@ -367,14 +360,15 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
                     to: pool.token1_address(),
                     stable: is_stable,
                     factory: Address::ZERO,
-                }]; 
-                V2Aerodrome::swapExactTokensForTokensCall { 
-                    amountIn: U256::from(1e16), 
+                }];
+                V2Aerodrome::swapExactTokensForTokensCall {
+                    amountIn: U256::from(1e16),
                     amountOutMin: U256::ZERO,
                     routes: route,
                     to: account,
-                    deadline: U256::MAX
-                }.abi_encode()
+                    deadline: U256::MAX,
+                }
+                .abi_encode()
             }
             SwapType::V3DeadlineTick => {
                 let tick_spacing = pool.get_v3().unwrap().tick_spacing;
@@ -386,7 +380,7 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
                     deadline: U256::MAX,
                     amountIn: U256::from(1e16),
                     amountOutMinimum: U256::ZERO,
-                    sqrtPriceLimitX96: U160::ZERO
+                    sqrtPriceLimitX96: U160::ZERO,
                 };
                 V3SwapDeadlineTick::exactInputSingleCall { params }.abi_encode()
             }
@@ -400,10 +394,10 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
         let ref_tx = evm.transact().unwrap();
         let result = ref_tx.result;
         if let ExecutionResult::Success { .. } = result {
-            println!("Successful swap for pool {}", pool.address());
+            trace!("Successful swap for pool {}", pool.address());
             filtered_pools.push(pool.clone());
         } else {
-            println!("Unsuccessful swap for pool {}", pool.address());
+            trace!("Unsuccessful swap for pool {}", pool.address());
         }
     }
 

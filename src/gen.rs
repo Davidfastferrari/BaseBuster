@@ -1,6 +1,5 @@
 use alloy::sol;
 
-
 // define our flash swap contract
 sol!(
     #[derive(Debug)]
@@ -24,7 +23,6 @@ sol!(
     }
 );
 
-
 // State function signatures
 sol! {
     #[sol(rpc)]
@@ -47,7 +45,6 @@ sol! {
         );
     }
 }
-
 
 // Swap function signatures
 sol!(

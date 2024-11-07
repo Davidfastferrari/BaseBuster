@@ -65,10 +65,8 @@ where
     pub fn search_paths(&mut self, paths_tx: Sender<Event>, address_rx: Receiver<Event>) {
         let sim: bool = std::env::var("SIM").unwrap().parse().unwrap();
 
-        println!("Default thread pool size: {}", rayon::current_num_threads());
         // wait for a new single with the pools that have reserved updated
         while let Ok(Event::PoolsTouched(pools, block_number)) = address_rx.recv() {
-
             info!("Searching for arbs in block {}...", block_number);
             let res = Instant::now();
 

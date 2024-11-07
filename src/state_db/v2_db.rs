@@ -15,6 +15,8 @@ lazy_static! {
     static ref U112_MASK: U256 = (U256::from(1) << 112) - U256::from(1);
 }
 
+
+
 /// uniswapv2 db read/write related methods
 impl<T, N, P> BlockStateDB<T, N, P>
 where
@@ -44,7 +46,10 @@ where
     #[inline]
     pub fn get_reserves(&self, pool: &Address) -> (U256, U256) {
         let value = self.storage_ref(*pool, U256::from(8)).unwrap();
-        ((value >> 0) & *U112_MASK, (value >> (112)) & *U112_MASK)
+        let (reserve1, reserve2) = ((value >> 0) & *U112_MASK, (value >> (112)) & *U112_MASK);
+        println!("{:?}, {:?}", reserve1, reserve2);
+        (reserve1, reserve2)
+            
     }
 
     // get token 0
@@ -130,6 +135,7 @@ mod test_db_v2 {
     use alloy::sol_types::{SolCall, SolValue};
     use alloy::transports::http::{Client, Http};
     use alloy_eips::BlockId;
+    use std::sync::RwLock;
     use revm::database_interface::WrapDatabaseAsync;
     use revm::state::{AccountInfo, Bytecode};
     use revm::wiring::result::ExecutionResult;
@@ -137,6 +143,7 @@ mod test_db_v2 {
     use crate::gen::FlashQuoter::{self, SwapStep};
     use log::LevelFilter;
     use revm::primitives::keccak256;
+    use std::str::FromStr;
     use anyhow::anyhow;
 
     use revm::wiring::default::TransactTo;
@@ -144,15 +151,57 @@ mod test_db_v2 {
     use revm::Evm;
     use std::time::Instant;
 
-    type AlloyCacheDB =
-    CacheDB<WrapDatabaseAsync<AlloyDB<Http<Client>, Ethereum, RootProvider<Http<Client>>>>>;
+    type QuoteEvm<'a> = Evm<
+        'a,
+        EthereumWiring<
+            &'a mut BlockStateDB<Http<Client>, Ethereum, RootProvider<Http<Client>>>,
+            (),
+        >,
+    >;
+    type AlloyCacheDB = CacheDB<WrapDatabaseAsync<AlloyDB<Http<Client>, Ethereum, RootProvider<Http<Client>>>>>;
 
+
+    fn uni_v2_weth_usdc() -> UniswapV2Pool {
+        UniswapV2Pool {
+            address: address!("88A43bbDF9D098eEC7bCEda4e2494615dfD9bB9C"),
+            token0: address!("4200000000000000000000000000000000000006"),
+            token1: address!("833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
+            token0_name: "WETH".to_string(),
+            token1_name: "USDC".to_string(),
+            token0_decimals: 18,
+            token1_decimals: 6,
+            token0_reserves: U256::from(409844320018255314839_u128),
+            token1_reserves: U256::from(94038111875_u128),
+            stable: None,
+            fee: None,
+        }
+    }
+
+    fn sushi_v2_weth_usdc() -> UniswapV2Pool {
+        UniswapV2Pool {
+            address: address!("2F8818D1B0f3e3E295440c1C0cDDf40aAA21fA87"),
+            token0: address!("4200000000000000000000000000000000000006"),
+            token1: address!("833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
+            token0_name: "WETH".to_string(),
+            token1_name: "USDC".to_string(),
+            token0_decimals: 18,
+            token1_decimals: 6,
+            token0_reserves: U256::from(678659086524752413_u128),
+            token1_reserves: U256::from(1649070661),
+            stable: None,
+            fee: None,
+        }
+    }
+
+    // Make sure we can insert a pool and get the proper pool addresses
+    // and reserves back
     #[tokio::test(flavor = "multi_thread")]
     pub async fn test_insert_pool_and_retrieve() {
         env_logger::Builder::new()
             .filter_module("BaseBuster", LevelFilter::Info)
             .init();
         dotenv::dotenv().ok();
+
         let url = std::env::var("FULL").unwrap().parse().unwrap();
         let provider = ProviderBuilder::new().on_http(url);
         let mut db = BlockStateDB::new(provider).unwrap();
@@ -161,31 +210,18 @@ mod test_db_v2 {
         let token0 = address!("A0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48");
         let token1 = address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
 
-        // construct and insert pool
-        let pool = UniswapV2Pool {
-            address: pool_addr,
-            token0,
-            token1,
-            token0_name: "USDC".to_string(),
-            token1_name: "WETH".to_string(),
-            token0_decimals: 6,
-            token1_decimals: 18,
-            token0_reserves: U256::ZERO,
-            token1_reserves: U256::ZERO,
-            stable: None,
-            fee: None,
-        };
+        let pool = uni_v2_weth_usdc();
         db.insert_v2(pool);
         db.insert_reserves(pool_addr, U256::from(10), U256::from(20));
         let (res0, res1) = db.get_reserves(&pool_addr);
 
-        // asserts
         assert_eq!(db.get_token0(pool_addr), token0, "");
         assert_eq!(db.get_token1(pool_addr), token1);
         assert_eq!(res0, U256::from(10));
         assert_eq!(res1, U256::from(20));
     }
 
+    // Make sure out BlockStateDB can fetch the state
     #[tokio::test(flavor = "multi_thread")]
     pub async fn test_fetch_pool_data() {
         dotenv::dotenv().ok();
@@ -225,6 +261,8 @@ mod test_db_v2 {
         );
     }
 
+
+    // try a get amounts out call 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_get_amounts_out() {
         sol!(
@@ -240,7 +278,7 @@ mod test_db_v2 {
             .init();
         let url = std::env::var("FULL").unwrap().parse().unwrap();
         let provider = ProviderBuilder::new().on_http(url);
-        let mut db = BlockStateDB::new(provider.clone()).unwrap();
+        let db = BlockStateDB::new(provider.clone()).unwrap();
 
         let weth = address!("4200000000000000000000000000000000000006");
         let usdc = address!("833589fCD6eDb6E08f4c7C32D4f71b54bdA02913");
@@ -276,106 +314,8 @@ mod test_db_v2 {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn test_flashquote_onchain_pool() {
-        dotenv::dotenv().ok();
-        env_logger::Builder::new()
-            .filter_module("BaseBuster", LevelFilter::Info)
-            .init();
-        sol!(
-            #[derive(Debug)]
-            contract Approval {
-                function approve(address spender, uint256 amount) external returns (bool);
-                function deposit(uint256 amount) external;
-            }
-        );
-
-        // accounts 
-        let account = address!("0250f06fc76297Fe28D0981F0566F1c0445B3cFE");
-        let weth = std::env::var("WETH").unwrap().parse().unwrap();
-        let quoter: Address = address!("0000000000000000000000000000000000001000");
-
-        // setup the database
-        let url = std::env::var("FULL").unwrap().parse().unwrap();
-        let provider = ProviderBuilder::new().on_http(url);
-        let mut db = BlockStateDB::new(provider.clone()).unwrap();
-
-        // give the account some weth
-        let one_ether = U256::from(1_000_000_000_000_000_000u128);
-        let hashed_acc_balance_slot = keccak256((account, U256::from(3)).abi_encode());
-        let _ = db.insert_account_storage(
-            weth,
-            hashed_acc_balance_slot.into(),
-            one_ether,
-            InsertionType::OnChain
-        );
-
-        // insert the quoter bytecode
-        let quoter_bytecode = FlashQuoter::DEPLOYED_BYTECODE.clone();
-        let quoter_acc_info = AccountInfo {
-            nonce: 0_u64,
-            balance: U256::ZERO,
-            code_hash: keccak256(&quoter_bytecode),
-            code: Some(Bytecode::new_raw(quoter_bytecode)),
-        };
-        db.insert_account_info(quoter, quoter_acc_info, InsertionType::Custom);
-
-        let mut evm = Evm::<EthereumWiring<BlockStateDB<Http<Client>, Ethereum, RootProvider<Http<Client>>>, ()>>::builder()
-            .with_db(db)
-            .with_default_ext_ctx()
-            .modify_tx_env(|tx| {
-                tx.caller = account;
-            })
-            .build();
-        evm.cfg_mut().disable_nonce_check = true;
-
-        // approve quoter to spend the eth
-        let approve_calldata = Approval::approveCall {
-            spender: quoter,
-            amount: U256::from(1e18),
-        }
-        .abi_encode();
-        evm.tx_mut().data = approve_calldata.into();
-        evm.tx_mut().transact_to = TransactTo::Call(weth);
-        let res = evm.transact_commit().unwrap();
-        println!("{:?}", res);
-
-        // setup call address for quotes
-        evm.tx_mut().transact_to = TransactTo::Call(quoter);
-        let quote_path = vec![
-            SwapStep {
-                poolAddress: address!("88A43bbDF9D098eEC7bCEda4e2494615dfD9bB9C"),
-                tokenIn: address!("4200000000000000000000000000000000000006"),
-                tokenOut: address!("833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
-                protocol: 0,
-                fee: 0.try_into().unwrap(),
-            },
-            SwapStep {
-                poolAddress: address!("88A43bbDF9D098eEC7bCEda4e2494615dfD9bB9C"),
-                tokenIn: address!("833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
-                tokenOut: address!("4200000000000000000000000000000000000006"),
-                protocol: 0,
-                fee: 0.try_into().unwrap(),
-            },
-        ];
-
-        let quote_calldata = FlashQuoter::quoteArbitrageCall {
-            steps: quote_path,
-            amount: U256::from(1e15),
-        }
-        .abi_encode();
-        evm.tx_mut().data = quote_calldata.into();
-
-        // transact
-        let ref_tx = evm.transact().unwrap();
-        let result = ref_tx.result;
-        let output = result.output().unwrap();
-        let decoded_outputs = <Vec<U256>>::abi_decode(output, false).unwrap();
-        println!("{:#?}", decoded_outputs);
-    }
-
-
-    #[tokio::test(flavor = "multi_thread")]
     async fn test_flashquote_offchain_pool() {
+        // initiation
         dotenv::dotenv().ok();
         env_logger::Builder::new()
             .filter_module("BaseBuster", LevelFilter::Trace)
@@ -388,50 +328,25 @@ mod test_db_v2 {
             }
         );
 
-        // accounts 
+        // Accounts
         let account = address!("0250f06fc76297Fe28D0981F0566F1c0445B3cFE");
         let weth = address!("4200000000000000000000000000000000000006");
-        let usdc = address!("833589fCD6eDb6E08f4c7C32D4f71b54bdA02913");
-        let pool = address!("88A43bbDF9D098eEC7bCEda4e2494615dfD9bB9C");
         let quoter: Address = address!("0000000000000000000000000000000000001000");
 
-        // setup the database
-        let url = std::env::var("FULL").unwrap().parse().unwrap();
-        let provider = ProviderBuilder::new().on_http(url);
-        let mut db = BlockStateDB::new(provider.clone()).unwrap();
+        // Set up the database with a provide backend
+        let rpc_url = std::env::var("FULL").unwrap().parse().unwrap();
 
+        let client = ProviderBuilder::new().on_http(rpc_url);
+        let alloy = WrapDatabaseAsync::new(AlloyDB::new(client, BlockId::latest())).unwrap();
+        let mut db = CacheDB::new(alloy);
+        //let provider = ProviderBuilder::new().on_http(url);
+        //let mut db = BlockStateDB::new(provider.clone()).unwrap();
 
-        // construct and insert pool
-        let pool = UniswapV2Pool {
-            address: pool,
-            token0: weth,
-            token1: usdc,
-            token0_name: "WETH".to_string(),
-            token1_name: "USDC".to_string(),
-            token0_decimals: 18,
-            token1_decimals: 6,
-            token0_reserves: U256::from(409844320018255314839_u128),
-            token1_reserves: U256::from(94038111875_u128),
-            stable: None,
-            fee: None,
-        };
-        db.insert_v2(pool);
-
-        let pool = UniswapV2Pool {
-            address: address!("2F8818D1B0f3e3E295440c1C0cDDf40aAA21fA87"),
-            token0: weth,
-            token1: usdc,
-            token0_name: "WETH".to_string(),
-            token1_name: "USDC".to_string(),
-            token0_decimals: 6,
-            token1_decimals: 18,
-            token0_reserves: U256::from(678659086524752413_u128),
-            token1_reserves: U256::from(1649070661),
-            stable: None,
-            fee: None,
-        };
-        db.insert_v2(pool);
-
+        // insert some pools 
+        //let uni_pool = uni_v2_weth_usdc();
+        //db.insert_v2(uni_pool);
+        //let sushi_pool = sushi_v2_weth_usdc();
+        //db.insert_v2(sushi_pool);
 
         // give the account some weth
         let one_ether = U256::from(1_000_000_000_000_000_000u128);
@@ -439,8 +354,8 @@ mod test_db_v2 {
         let _ = db.insert_account_storage(
             weth,
             hashed_acc_balance_slot.into(),
-            one_ether,
-            InsertionType::OnChain
+            one_ether//,
+            //InsertionType::OnChain
         );
 
         // insert the quoter bytecode
@@ -451,10 +366,11 @@ mod test_db_v2 {
             code_hash: keccak256(&quoter_bytecode),
             code: Some(Bytecode::new_raw(quoter_bytecode)),
         };
-        db.insert_account_info(quoter, quoter_acc_info, InsertionType::Custom);
+        db.insert_account_info(quoter, quoter_acc_info);//, InsertionType::Custom);
 
-        let mut evm = Evm::<EthereumWiring<BlockStateDB<Http<Client>, Ethereum, RootProvider<Http<Client>>>, ()>>::builder()
-            .with_db(db)
+        //let mut evm = Evm::<EthereumWiring<&mut BlockStateDB<Http<Client>, Ethereum, RootProvider<Http<Client>>>, ()>>::builder()
+        let mut evm = Evm::<EthereumWiring<&mut AlloyCacheDB, ()>>::builder()
+            .with_db(&mut db)
             .with_default_ext_ctx()
             .modify_tx_env(|tx| {
                 tx.caller = account;
@@ -470,45 +386,67 @@ mod test_db_v2 {
         .abi_encode();
         evm.tx_mut().data = approve_calldata.into();
         evm.tx_mut().transact_to = TransactTo::Call(weth);
-        let res = evm.transact_commit().unwrap();
-        println!("{:?}", res);
+        evm.transact_commit().unwrap();
+
+        // drop the evm so we can access the db again
+        drop(evm);
 
         // setup call address for quotes
-        evm.tx_mut().transact_to = TransactTo::Call(quoter);
+        //let mut db = RwLock::new(db);
+        //evm.tx_mut().transact_to = TransactTo::Call(quoter);
         let quote_path = vec![
             SwapStep {
-                poolAddress: address!("88A43bbDF9D098eEC7bCEda4e2494615dfD9bB9C"),
-                tokenIn: weth,
-                tokenOut: usdc,
+                poolAddress: address!("377feeed4820b3b28d1ab429509e7a0789824fca"),
+                tokenIn: address!("4200000000000000000000000000000000000006"),
+                tokenOut: address!("9a26f5433671751c3276a065f57e5a02d2817973"),
                 protocol: 0,
                 fee: 0.try_into().unwrap(),
             },
             SwapStep {
-                poolAddress: address!("2F8818D1B0f3e3E295440c1C0cDDf40aAA21fA87"),
-                tokenIn: usdc,
-                tokenOut: weth,
+                poolAddress: address!("55a49e01d4f7fde54a1d0522bc0b907687ed38dd"),
+                tokenIn: address!("9a26f5433671751c3276a065f57e5a02d2817973"),
+                tokenOut: address!("4ed4e862860bed51a9570b96d89af5e1b0efefed"),
                 protocol: 0,
                 fee: 0.try_into().unwrap(),
             },
+            //SwapStep {
+                //poolAddress: address!("7c327d692b72f60b28aecedbcc1ba784712fe7b2"),
+                //tokenIn: address!("4ed4e862860bed51a9570b96d89af5e1b0efefed"),
+                //tokenOut: address!("4200000000000000000000000000000000000006"),
+                //protocol: 0,
+                //fee: 0.try_into().unwrap(),
+            //},
         ];
 
         let quote_calldata = FlashQuoter::quoteArbitrageCall {
             steps: quote_path,
-            amount: U256::from(1e15),
+            amount: U256::from(1e14),
         }
         .abi_encode();
+
+        //let mut guard = db.write().unwrap();
+        //let mut evm: QuoteEvm = Evm::builder()
+        let mut evm = Evm::<EthereumWiring<&mut AlloyCacheDB, ()>>::builder()
+            .with_db(&mut db)
+            .with_default_ext_ctx()
+            .build();
+        evm.cfg_mut().disable_nonce_check = true;
+        evm.tx_mut().caller = account;
+        evm.tx_mut().transact_to =
+        TransactTo::Call(address!("0000000000000000000000000000000000001000"));
         evm.tx_mut().data = quote_calldata.into();
 
+
         // transact
-        let start = Instant::now();
         let ref_tx = evm.transact().unwrap();
         let result = ref_tx.result;
-        let output = result.output().unwrap();
-        let decoded_outputs = <Vec<U256>>::abi_decode(output, false).unwrap();
-        println!("First time took {:?}", start.elapsed());
-        println!("{:#?}", decoded_outputs);
-        let start = Instant::now();
+        println!("{:?}", result);
+        //let decoded_outputs = <Vec<U256>>::abi_decode(output, false).unwrap();
+        //println!("First time took {:?}", start.elapsed());
+        //println!("{:#?}", decoded_outputs);
+        //let start = Instant::now();
 
+        /* 
         let pool_addr = address!("88A43bbDF9D098eEC7bCEda4e2494615dfD9bB9C");
         evm.db_mut().insert_reserves(pool_addr, U256::from(4098445218255314839_u128), U256::from(94038111875_u128));
 
@@ -519,6 +457,7 @@ mod test_db_v2 {
         let decoded_outputs = <Vec<U256>>::abi_decode(output, false).unwrap();
         println!("Second time took {:?}", start.elapsed());
         println!("{:#?}", decoded_outputs);
+        */
     }
 
 

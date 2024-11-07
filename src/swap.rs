@@ -100,7 +100,6 @@ impl SwapStep {
             PoolType::MaverickV2 => 18,
             PoolType::CurveTwoCrypto => 19,
             PoolType::CurveTriCrypto => 20,
-            _ => 16,
         }
     }
 }

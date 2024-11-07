@@ -79,6 +79,7 @@ where
 
         for swap_step in &path.steps {
             let pool_address = swap_step.pool_address;
+            println!("calculating path {}", swap_step.pool_address);
             let output_amount = self.compute_amount_out(
                 amount,
                 pool_address,

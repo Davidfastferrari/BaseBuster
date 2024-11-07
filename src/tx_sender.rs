@@ -1,20 +1,20 @@
+use crate::events::Event;
+use crate::gen::FlashSwap::FlashSwapInstance;
 use alloy::hex;
+use alloy::network::Ethereum;
 use alloy::network::EthereumWallet;
 use alloy::providers::fillers::BlobGasFiller;
 use alloy::providers::fillers::{
     ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller, WalletFiller,
 };
+use alloy::providers::RootProvider;
 use alloy::providers::{Identity, Provider, ProviderBuilder};
 use alloy::signers::k256::SecretKey;
 use alloy::signers::local::PrivateKeySigner;
+use alloy::transports::http::{Client, Http};
 use log::{info, warn};
 use std::sync::mpsc::Receiver;
 use std::sync::Arc;
-use crate::events::Event;
-use crate::gen::FlashSwap::FlashSwapInstance;
-use alloy::network::Ethereum;
-use alloy::providers::RootProvider;
-use alloy::transports::http::{Client, Http};
 
 use crate::gen::FlashSwap;
 
@@ -92,7 +92,8 @@ impl TransactionSender {
     }
     pub async fn send_transactions(&self, tx_receiver: Receiver<Event>) {
         // wait for a new transaction that has passed simulation
-        while let Ok(Event::ArbPath((arb_path, optimized_input, block_number))) = tx_receiver.recv() {
+        while let Ok(Event::ArbPath((arb_path, optimized_input, block_number))) = tx_receiver.recv()
+        {
             info!("Sending path...");
             // convert from seacher format into swapper format
             let converted_path: Vec<FlashSwap::SwapStep> = arb_path.clone().into();

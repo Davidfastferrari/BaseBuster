@@ -299,10 +299,19 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> Database for BlockStat
                     address,
                     index
                 );
+
+                let res = value.value;
+                if index == U256::from(8) {
+                    let U112_MASK: U256 = (U256::from(1) << 112) - U256::from(1);
+                    let (reserve1, reserve2) = ((res >> 0) & U112_MASK, (res >> (112)) & U112_MASK);
+
+                    println!("the reserves for {} are {} {}", address, reserve1, reserve2);
+                }
                 // The slot is in storage. If it is custom, there is no corresponding onchain state
                 // to update it with, just return the value
                 //if value.insertion_type == InsertionType::Custom {
-                    return Ok(value.value);
+                    //return Ok(value.value);
+                    return Ok(res);
                 //}
                 // The account exists and the slot is onchain, continue on so it is fetched and updated
             }
@@ -373,10 +382,11 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> DatabaseRef for BlockS
 
     // Get basic account information
     fn basic_ref(&self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
-        trace!("Database BasicRef: Looking for account {}", address);
+        trace!("Database Basic Ref: Looking for account {}", address);
         if let Some(account) = self.accounts.get(&address) {
+            trace!("Database Basic Ref: Account {} found in database", address);
+            return Ok(Some(account.info.clone()));
             //if account.insertion_type == InsertionType::Custom {
-                return Ok(Some(account.info.clone()));
            // }
         }
 
@@ -454,9 +464,12 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> DatabaseRef for BlockS
         );
         if let Some(account) = self.accounts.get(&address) {
             if let Some(value) = account.storage.get(&index) {
-                //if value.insertion_type == InsertionType::Custom {
-                    return Ok(value.value);
-                //}
+                trace!(
+                    "Database Storage Ref: Storage for address {}, slot {} found in database",
+                    address,
+                    index
+                );
+                return Ok(value.value);
             }
         }
 
@@ -467,6 +480,7 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> DatabaseRef for BlockS
         );
         let f = self.provider.get_storage_at(address, index);
         let slot_val = self.runtime.block_on(f.into_future())?;
+        trace!("Database Storage Ref: Fetched slot {} with value {} for account {} from provider", index, slot_val, address);
         Ok(slot_val)
     }
 

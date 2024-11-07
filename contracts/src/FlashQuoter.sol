@@ -247,32 +247,50 @@ contract FlashQuoter {
     }
 
     function _swapV2(SwapStep memory step, uint256 amountIn) private returns (uint256) {
+        address[] memory path = new address[](2);
+        path[0] = step.tokenIn;
+        path[1] = step.tokenOut;
+        uint256[] memory amounts = IUniswapV2Router(_getRouter(step.protocol)).swapExactTokensForTokens(
+            amountIn, 0, path, address(this), block.timestamp
+        );
+        require(amounts.length > 1, "Invalid swap result");
+        return amounts[1];
+    }
+
+/*
+    function _swapV2(SwapStep memory step, uint256 amountIn) private returns (uint256) {
         IUniswapV2Pair pair = IUniswapV2Pair(step.poolAddress);
         (uint112 reserve0, uint112 reserve1,) = pair.getReserves();
-        
         address token0 = pair.token0();
-        uint amount0Out;
-        uint amount1Out;
-        uint amountOut;
+        
+        // First transfer the tokens to the pair
+        IERC20(step.tokenIn).transfer(step.poolAddress, amountIn);
+        
+        uint256 amountOut;
+        uint256 amount0Out;
+        uint256 amount1Out;
         
         if (step.tokenIn == token0) {
-            amount1Out = _getAmountOut(amountIn, reserve0, reserve1);
+            amountOut = _getAmountOut(amountIn, uint256(reserve0), uint256(reserve1));
             amount0Out = 0;
-            amountOut = amount1Out;
-            // Transfer token0 to pair
-            IERC20(token0).transfer(step.poolAddress, amountIn);
+            amount1Out = amountOut;
         } else {
-            amount0Out = _getAmountOut(amountIn, reserve1, reserve0);
+            amountOut = _getAmountOut(amountIn, uint256(reserve1), uint256(reserve0));
+            amount0Out = amountOut;
             amount1Out = 0;
-            amountOut = amount0Out;
-            // Transfer token1 to pair
-            IERC20(step.tokenIn).transfer(step.poolAddress, amountIn);
         }
 
-        pair.swap(amount0Out, amount1Out, address(this), "");
-        
+        // Perform the swap
+        pair.swap(
+            amount0Out,
+            amount1Out,
+            address(this),
+            new bytes(0)
+        );
+
         return amountOut;
     }
+    */
 
     function _swapV3(SwapStep memory step, uint256 amountIn) private returns (uint256) {
         if (step.protocol <= 10 ) {
@@ -364,11 +382,13 @@ contract FlashQuoter {
         require(balance > 0, "No tokens to rescue");
         IERC20(token).transfer(msg.sender, balance);
     }
+
+
     function _getAmountOut(uint256 amountIn, uint256 reserveIn, uint256 reserveOut) internal pure returns (uint256) {
         require(amountIn > 0, 'INSUFFICIENT_INPUT_AMOUNT');
         require(reserveIn > 0 && reserveOut > 0, 'INSUFFICIENT_LIQUIDITY');
         
-        uint256 amountInWithFee = amountIn * 997; // 0.3% fee
+        uint256 amountInWithFee = amountIn * 997;
         uint256 numerator = amountInWithFee * reserveOut;
         uint256 denominator = (reserveIn * 1000) + amountInWithFee;
         

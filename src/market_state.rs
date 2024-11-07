@@ -1,36 +1,32 @@
 use alloy::network::Network;
 use alloy::primitives::{address, Address, U256};
-use alloy::providers::{Provider, ProviderBuilder, RootProvider, WsConnect, IpcConnect};
-use alloy::rpc::types::trace::geth::AccountState;
-use revm::wiring::default::TransactTo;
-use revm::Evm;
-use std::str::FromStr;
+use alloy::providers::{IpcConnect, Provider, ProviderBuilder, RootProvider};
 use alloy::rpc::types::BlockNumberOrTag;
-use std::time::Instant;
+use alloy::sol_types::{SolCall, SolValue};
 use alloy::transports::http::{Client, Http};
 use alloy::transports::Transport;
 use anyhow::Result;
 use futures::StreamExt;
-use alloy::sol_types::{SolCall, SolValue};
 use log::{debug, error, info};
 use pool_sync::Pool;
-use std::collections::{BTreeMap, HashSet};
+use pool_sync::PoolInfo;
+use revm::primitives::keccak256;
+use revm::state::{AccountInfo, Bytecode};
+use revm::wiring::default::TransactTo;
 use revm::wiring::EthereumWiring;
+use revm::Evm;
+use std::collections::HashSet;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 use std::sync::RwLock;
-use revm::primitives::keccak256;
-use revm::state::{AccountInfo, Bytecode};
-use pool_sync::PoolInfo;
-use alloy::network::Ethereum;
+use std::time::Instant;
 
-use crate::swap::SwapStep;
 use crate::events::Event;
+use crate::gen::ERC20Token;
 use crate::gen::FlashQuoter;
 use crate::state_db::{BlockStateDB, InsertionType};
 use crate::tracing::debug_trace_block;
-
-type StateDB = BlockStateDB<Http<Client>, Ethereum, RootProvider<Http<Client>>>;
+use crate::AMOUNT;
 
 // Internal representation of the current state of the blockchain
 pub struct MarketState<T, N, P>
@@ -60,8 +56,8 @@ where
 
         // construct, warm up, and populate the db
         let mut db = BlockStateDB::new(provider).unwrap();
-        Self::populate_db_with_pools(pools.clone(), &mut db);
         Self::warm_up_database(&pools, &mut db);
+        Self::populate_db_with_pools(pools.clone(), &mut db);
 
         // init the market state with the db
         let market_state = Arc::new(Self {
@@ -93,7 +89,6 @@ where
         // fast block times mean we can fall behind while initializing
         // catch up to the head to we are not missing any state
         let mut current_block = http.get_block_number().await.unwrap();
-        println!("Last synced block {}", last_synced_block);
 
         while last_synced_block < current_block {
             debug!(
@@ -124,9 +119,9 @@ where
             if block_number <= last_synced_block {
                 continue;
             }
-            debug!("Processing block {block_number}");
 
             // update the state and get the list of updated pools
+            debug!("Processing block {block_number}");
             let updated_pools = self.update_state(http.clone(), block_number).await;
             debug!("Processed the block {block_number}");
 
@@ -148,27 +143,14 @@ where
         provider: Arc<RootProvider<Http<Client>>>,
         block_num: u64,
     ) -> HashSet<Address> {
+        // all of the pools that were updated in this block
+        let mut updated_pools: HashSet<Address> = HashSet::new();
+
         // trace the block to get all post state changes
         let updates = debug_trace_block(provider, BlockNumberOrTag::Number(block_num), true).await;
 
-        // update the db based on teh traces
-        let updated_pools = self.process_block_trace(updates);
-        info!("Got {} updates in block {}", updated_pools.len(), block_num);
-        updated_pools
-    }
-
-    // process the block trace and update all pools that were affected
-    #[inline]
-    fn process_block_trace(
-        &self,
-        updates: Vec<BTreeMap<Address, AccountState>>,
-    ) -> HashSet<Address> {
-        let mut updated_pools: HashSet<Address> = HashSet::new();
-
-        // aquire write access so we can update the db
+        // aquire write access so we can update the db and go over all updates
         let mut db = self.db.write().unwrap();
-
-        // iterate over the updates
         for (address, account_state) in updates.iter().flat_map(|btree_map| btree_map.iter()) {
             if db.tracking_pool(address) {
                 debug!("Updating state for pool {address}");
@@ -177,6 +159,8 @@ where
                 updated_pools.insert(*address);
             }
         }
+
+        info!("Got {} updates in block {}", updated_pools.len(), block_num);
         updated_pools
     }
 
@@ -186,23 +170,24 @@ where
             if pool.is_v2() {
                 db.insert_v2(pool.get_v2().unwrap().clone());
             } else if pool.is_v3() {
-                db.insert_v3(pool.get_v3().unwrap().clone());
+                db.insert_v3(pool.get_v3().unwrap().clone()).unwrap();
             }
         }
     }
 
     // this function will insert any approvals/balances we need and also
-    // fetch extraneous contracts/values needed for simulation swaps and 
+    // fetch extraneous contracts/values needed for simulation swaps and
     // insert into the db
     fn warm_up_database(pools: &Vec<Pool>, db: &mut BlockStateDB<T, N, P>) {
+        // state addresses
         let account = address!("d8da6bf26964af9d7eed9e03e53415d37aa96045");
         let quoter: Address = address!("0000000000000000000000000000000000001000");
 
-        // insert some default state into the db
-        let ten_units  = U256::from(10_000_000_000_000_000_000u128);
+        // how many tokens we want to insert and ERC20 balance slot
+        let ten_units = U256::from(10_000_000_000_000_000_000u128);
         let balance_slot = keccak256((account, U256::from(3)).abi_encode());
 
-        // insert the quoter bytecode
+        // insert the quoter bytecode so we can make calles to it
         let quoter_bytecode = FlashQuoter::DEPLOYED_BYTECODE.clone();
         let quoter_acc_info = AccountInfo {
             nonce: 0_u64,
@@ -213,35 +198,37 @@ where
         db.insert_account_info(quoter, quoter_acc_info, InsertionType::Custom);
 
 
-        // insert the approval
-
-
-
+        // go over all the pools and try to simulate a swap.
+        // we have already filtered all of these pools, so we can assume 
+        // that these are good to go and load up db with info
         for pool in pools {
-            db
-                .insert_account_storage(
-                    pool.token0_address(),
-                    balance_slot.into(),
-                    ten_units,
-                    InsertionType::OnChain,
-                )
-                .unwrap();
+            // give some balance of the input token
+            db.insert_account_storage(
+                pool.token0_address(),
+                balance_slot.into(),
+                ten_units,
+                InsertionType::OnChain,
+            )
+            .unwrap();
 
-            let approval_slot = U256::from_str("53551240413156709338371707309964053842040084443999429982803562122921478029054").unwrap();
-            let _ = db.insert_account_storage(pool.token0_address(), approval_slot, U256::from(1e20), InsertionType::OnChain);
-
-            // construct the evm and do basic swaps to warm it up
+            // approve the quoter to spend the input token
+            let approve_calldata = ERC20Token::approveCall {
+                spender: quoter,
+                amount: U256::from(1e18),
+            }.abi_encode();
             let mut evm = Evm::<EthereumWiring<&mut BlockStateDB<T, N, P>, ()>>::builder()
                 .with_db(db)
                 .with_default_ext_ctx()
                 .modify_tx_env(|tx| {
                     tx.caller = account;
-                    tx.transact_to = TransactTo::Call(quoter);
+                    tx.data = approve_calldata.into();
+                    tx.transact_to = TransactTo::Call(pool.token0_address());
                 })
                 .build();
             evm.cfg_mut().disable_nonce_check = true;
+            evm.transact_commit().unwrap();
 
-            // do a v2 swap
+            // Try to do the swap from input to output token
             let quote_path = vec![
                 FlashQuoter::SwapStep {
                     poolAddress: pool.address(),
@@ -250,29 +237,18 @@ where
                     protocol: 0,
                     fee: 0.try_into().unwrap(),
                 },
-                FlashQuoter::SwapStep {
-                    poolAddress: pool.address(),
-                    tokenIn: pool.token1_address(),
-                    tokenOut: pool.token0_address(),
-                    protocol: 0,
-                    fee: 0.try_into().unwrap(),
-                },
             ];
 
             let quote_calldata = FlashQuoter::quoteArbitrageCall {
                 steps: quote_path,
-                amount: U256::from(1e15),
-            }.abi_encode();
+                amount: *AMOUNT,
+            }.abi_encode()
+            .abi_encode();
             evm.tx_mut().data = quote_calldata.into();
+            evm.tx_mut().transact_to = TransactTo::Call(quoter);
 
             // transact
-            let ref_tx = evm.transact().unwrap();
-            //let result = ref_tx.result;
-            //let output = result.output().unwrap();
-            //let decoded_outputs = <Vec<U256>>::abi_decode(output, false).unwrap();
-            //println!("{:#?}", decoded_outputs);
+            evm.transact().unwrap();
         }
-
-
     }
 }

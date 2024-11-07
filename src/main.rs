@@ -44,7 +44,7 @@ async fn main() -> Result<()> {
         .add_pools(&[
             //PoolType::Aerodrome
             PoolType::UniswapV2,
-            //PoolType::SushiSwapV2,
+            PoolType::SushiSwapV2,
             //PoolType::PancakeSwapV2,
             //PoolType::Aerodrome,
             //PoolType::Slipstream,

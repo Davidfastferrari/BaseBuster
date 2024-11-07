@@ -8,6 +8,7 @@ use alloy::rpc::types::trace::geth::GethDebugTracerType::BuiltInTracer;
 use alloy::rpc::types::trace::geth::*;
 use alloy::rpc::types::BlockNumberOrTag;
 use alloy::transports::Transport;
+use log::warn;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -35,11 +36,10 @@ pub async fn debug_trace_block<T: Transport + Clone, N: Network, P: Provider<T, 
     for trace_result in results.into_iter() {
         if let TraceResult::Success { result, .. } = trace_result {
             match result {
-                GethTrace::PreStateTracer(geth_trace_frame) => match geth_trace_frame {
-                    PreStateFrame::Diff(diff_frame) => post.push(diff_frame.post),
-                    _ => println!("failed"),
-                },
-                _ => println!("failed"),
+                GethTrace::PreStateTracer(PreStateFrame::Diff(diff_frame)) => {
+                    post.push(diff_frame.post)
+                }
+                _ => warn!("Invalid trace"),
             }
         }
     }

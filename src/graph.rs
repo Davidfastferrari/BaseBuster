@@ -20,7 +20,7 @@ impl ArbGraph {
             .node_indices()
             .find(|node| graph[*node] == token)
             .unwrap();
-        let cycles = ArbGraph::find_all_arbitrage_paths(&graph, start_node, 4);
+        let cycles = ArbGraph::find_all_arbitrage_paths(&graph, start_node, 2);
 
         // form our swappaths
         let swappaths: Vec<SwapPath> = cycles

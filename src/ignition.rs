@@ -47,7 +47,11 @@ pub async fn start_workers(pools: Vec<Pool>, last_synced_block: u64) {
 
     // start the simulator
     info!("Starting the simulator...");
-    tokio::spawn(simulate_paths(profitable_sender, paths_receiver, market_state.clone()));
+    tokio::spawn(simulate_paths(
+        profitable_sender,
+        paths_receiver,
+        market_state.clone(),
+    ));
 
     // start the searcher
     info!("Starting arbitrage searcher...");
