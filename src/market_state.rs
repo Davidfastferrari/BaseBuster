@@ -16,7 +16,8 @@ use revm::wiring::default::TransactTo;
 use revm::wiring::EthereumWiring;
 use revm::Evm;
 use std::collections::HashSet;
-use std::sync::mpsc::{Receiver, Sender};
+use std::sync::mpsc::Sender;
+use tokio::sync::broadcast::Receiver;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::time::Instant;
@@ -78,7 +79,7 @@ where
     // task to retrieve new blockchain state and update our db
     async fn state_updater(
         self: Arc<Self>,
-        block_rx: Receiver<Event>,
+        mut block_rx: Receiver<Event>,
         address_tx: Sender<Event>,
         mut last_synced_block: u64,
     ) {
@@ -103,22 +104,18 @@ where
             current_block = http.get_block_number().await.unwrap();
         }
 
-        // start the stream
-        //let ws_url = WsConnect::new(std::env::var("WS").unwrap());
-        //let ws = Arc::new(ProviderBuilder::new().on_ws(ws_url).await.unwrap());
-        let ipc_conn = IpcConnect::new(std::env::var("IPC").unwrap());
-        let ipc = ProviderBuilder::new().on_ipc(ipc_conn).await.unwrap();
-
-        let sub = ipc.subscribe_blocks().await.unwrap();
-        let mut stream = sub.into_stream();
 
         // stream in new blocks
-        while let Some(block) = stream.next().await {
+        while let Ok(Event::NewBlock(block)) = block_rx.recv().await {
             let start = Instant::now();
             let block_number = block.header.number;
+
+            // make sure we dont reprocess blocks we caught up with
             if block_number <= last_synced_block {
+                debug!("Already processed block {}. Skipping", block_number);
                 continue;
             }
+            info!("Got new block: {block_number}");
 
             // update the state and get the list of updated pools
             debug!("Processing block {block_number}");
