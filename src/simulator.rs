@@ -81,6 +81,8 @@ pub async fn simulate_paths(
                         );
                         */
 
+                        info!("Sim successful... Expected output: {}, Block {}", expected_out, block_number);
+
                         // send the optimize path to the tx sender
                         let optimized_input = *AMOUNT;
                         match tx_sender.send(Event::ArbPath((arb_path, optimized_input, block_number))) {
@@ -90,7 +92,7 @@ pub async fn simulate_paths(
                     }
                 }
                 Err(quote_err) => {
-                    warn!("Failed to simulate quote {}, {:#?} ", quote_err, arb_path);
+                    warn!("Failed to simulate quote {}, {:#?} ", quote_err, arb_path.hash);
                     blacklisted_paths.insert(arb_path.hash);
                 }
             }

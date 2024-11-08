@@ -6,6 +6,7 @@ use pool_sync::PoolType;
 use serde::{Deserialize, Serialize};
 use std::convert::From;
 use std::hash::Hash;
+use std::fmt;
 
 // A full representation of a path that we can swap along with its hash
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -101,5 +102,25 @@ impl SwapStep {
             PoolType::CurveTwoCrypto => 19,
             PoolType::CurveTriCrypto => 20,
         }
+    }
+}
+
+impl fmt::Display for SwapPath {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "SwapPath:")?;
+        for (i, step) in self.steps.iter().enumerate() {
+            writeln!(f, "  Step {}: {}", i + 1, step)?;
+        }
+        writeln!(f, "  Hash: {}", self.hash)
+    }
+}
+
+impl fmt::Display for SwapStep {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Pool Address: {}, Token In: {}, Token Out: {}, Protocol: {:?}, Fee: {}",
+            self.pool_address, self.token_in, self.token_out, self.protocol, self.fee
+        )
     }
 }

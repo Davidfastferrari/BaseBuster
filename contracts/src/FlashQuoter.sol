@@ -12,7 +12,9 @@ interface IUniswapV2Pair {
     function token0() external view returns (address);
     function token1() external view returns (address);
     function swap(uint amount0Out, uint amount1Out, address to, bytes calldata data) external;
+    function factory() external view returns (address);
 }
+
 
 
 interface IWETH is IERC20 {
@@ -246,6 +248,7 @@ contract FlashQuoter {
         }
     }
 
+/*
     function _swapV2(SwapStep memory step, uint256 amountIn) private returns (uint256) {
         address[] memory path = new address[](2);
         path[0] = step.tokenIn;
@@ -256,12 +259,31 @@ contract FlashQuoter {
         require(amounts.length > 1, "Invalid swap result");
         return amounts[1];
     }
+    */
 
-/*
     function _swapV2(SwapStep memory step, uint256 amountIn) private returns (uint256) {
         IUniswapV2Pair pair = IUniswapV2Pair(step.poolAddress);
         (uint112 reserve0, uint112 reserve1,) = pair.getReserves();
         address token0 = pair.token0();
+        address factory = pair.factory();
+
+        uint256 fee = 0;
+
+        if (factory == 0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6) {
+            fee = 9970;
+        } else if (factory == 0x71524B4f93c58fcbF659783284E38825f0622859) {
+            fee = 9970;
+        } else if (factory == 0x02a84c1b3BBD7401a5f7fa98a384EBC70bB5749E) {
+            fee = 9975;
+        } else if (factory == 0x04C9f118d21e8B767D2e50C946f0cC9F6C367300) {
+            fee = 9970;
+        } else if (factory == 0xFDa619b6d20975be80A10332cD39b9a4b0FAa8BB) {
+            fee = 9975;
+        } else if (factory == 0x591f122D1df761E616c13d265006fcbf4c6d6551) {
+            fee = 9975;
+        } else if (factory == 0x3E84D913803b02A4a7f027165E8cA42C14C0FdE7) {
+            fee = 9984;
+        }
         
         // First transfer the tokens to the pair
         IERC20(step.tokenIn).transfer(step.poolAddress, amountIn);
@@ -271,11 +293,11 @@ contract FlashQuoter {
         uint256 amount1Out;
         
         if (step.tokenIn == token0) {
-            amountOut = _getAmountOut(amountIn, uint256(reserve0), uint256(reserve1));
+            amountOut = _getAmountOut(amountIn, uint256(reserve0), uint256(reserve1), fee);
             amount0Out = 0;
             amount1Out = amountOut;
         } else {
-            amountOut = _getAmountOut(amountIn, uint256(reserve1), uint256(reserve0));
+            amountOut = _getAmountOut(amountIn, uint256(reserve1), uint256(reserve0), fee);
             amount0Out = amountOut;
             amount1Out = 0;
         }
@@ -290,7 +312,6 @@ contract FlashQuoter {
 
         return amountOut;
     }
-    */
 
     function _swapV3(SwapStep memory step, uint256 amountIn) private returns (uint256) {
         if (step.protocol <= 10 ) {
@@ -384,13 +405,13 @@ contract FlashQuoter {
     }
 
 
-    function _getAmountOut(uint256 amountIn, uint256 reserveIn, uint256 reserveOut) internal pure returns (uint256) {
+    function _getAmountOut(uint256 amountIn, uint256 reserveIn, uint256 reserveOut, uint256 fee) internal pure returns (uint256) {
         require(amountIn > 0, 'INSUFFICIENT_INPUT_AMOUNT');
         require(reserveIn > 0 && reserveOut > 0, 'INSUFFICIENT_LIQUIDITY');
         
-        uint256 amountInWithFee = amountIn * 997;
+        uint256 amountInWithFee = amountIn * fee;
         uint256 numerator = amountInWithFee * reserveOut;
-        uint256 denominator = (reserveIn * 1000) + amountInWithFee;
+        uint256 denominator = (reserveIn * 10000) + amountInWithFee;
         
         return numerator / denominator;
     }

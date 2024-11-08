@@ -315,11 +315,12 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
 
         // we now have some of the input token and we have approved the router to spend it
         // try a swap to see if if it is valid
+        let amt = U256::from(1e17);
 
         // setup calldata based on the swap type
         let calldata = match swap_type {
             SwapType::V2Basic => V2Swap::swapExactTokensForTokensCall {
-                amountIn: U256::from(1e16),
+                amountIn: amt,
                 amountOutMin: U256::ZERO,
                 path: vec![pool.token0_address(), pool.token1_address()],
                 to: account,
@@ -333,7 +334,7 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
                     tokenOut: pool.token1_address(),
                     fee: swap_fee.try_into().unwrap(),
                     recipient: account,
-                    amountIn: U256::from(1e16),
+                    amountIn: amt,
                     amountOutMinimum: U256::ZERO,
                     sqrtPriceLimitX96: U160::ZERO,
                 };
@@ -346,7 +347,7 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
                     tokenOut: pool.token1_address(),
                     fee: swap_fee.try_into().unwrap(),
                     recipient: account,
-                    amountIn: U256::from(1e16),
+                    amountIn: amt,
                     deadline: U256::MAX,
                     amountOutMinimum: U256::ZERO,
                     sqrtPriceLimitX96: U160::ZERO,
@@ -362,7 +363,7 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
                     factory: Address::ZERO,
                 }];
                 V2Aerodrome::swapExactTokensForTokensCall {
-                    amountIn: U256::from(1e16),
+                    amountIn: amt,
                     amountOutMin: U256::ZERO,
                     routes: route,
                     to: account,
@@ -378,7 +379,7 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
                     tickSpacing: tick_spacing.try_into().unwrap(),
                     recipient: account,
                     deadline: U256::MAX,
-                    amountIn: U256::from(1e16),
+                    amountIn: amt,
                     amountOutMinimum: U256::ZERO,
                     sqrtPriceLimitX96: U160::ZERO,
                 };

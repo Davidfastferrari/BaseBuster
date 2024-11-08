@@ -19,6 +19,7 @@ mod events;
 mod filter;
 mod gen;
 mod market_state;
+mod estimator;
 mod quoter;
 mod searcher;
 mod state_db;
@@ -35,7 +36,7 @@ async fn main() -> Result<()> {
     // init dots and logger
     dotenv::dotenv().ok();
     env_logger::Builder::new()
-        .filter_module("BaseBuster", LevelFilter::Trace)
+        .filter_module("BaseBuster", LevelFilter::Info)
         .init();
 
     // Load in all the pools
@@ -45,7 +46,12 @@ async fn main() -> Result<()> {
             //PoolType::Aerodrome
             PoolType::UniswapV2,
             PoolType::SushiSwapV2,
-            //PoolType::PancakeSwapV2,
+            PoolType::PancakeSwapV2,
+            PoolType::AlienBaseV2,
+            PoolType::SwapBasedV2,
+            PoolType::DackieSwapV2,
+            PoolType::BaseSwapV2,
+
             //PoolType::Aerodrome,
             //PoolType::Slipstream,
             //PoolType::UniswapV3,

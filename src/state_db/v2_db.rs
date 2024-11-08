@@ -46,10 +46,7 @@ where
     #[inline]
     pub fn get_reserves(&self, pool: &Address) -> (U256, U256) {
         let value = self.storage_ref(*pool, U256::from(8)).unwrap();
-        let (reserve1, reserve2) = ((value >> 0) & *U112_MASK, (value >> (112)) & *U112_MASK);
-        println!("{:?}, {:?}", reserve1, reserve2);
-        (reserve1, reserve2)
-            
+        ((value >> 0) & *U112_MASK, (value >> (112)) & *U112_MASK)
     }
 
     // get token 0

@@ -60,7 +60,6 @@ where
         let db_read = self.market_state.db.read().unwrap();
         let zero_to_one = db_read.zero_to_one(pool_address, *token_in).unwrap();
         let (reserve0, reserve1) = db_read.get_reserves(pool_address);
-        println!("{} has reserves {} {}", pool_address, reserve0, reserve1);
 
         // verify that we do have the correct reserve amounts
         #[cfg(feature = "verification")]

@@ -1,8 +1,9 @@
+use alloy::dyn_abi::abi::token;
 use alloy::network::Network;
 use alloy::primitives::{Address, U256};
 use alloy::providers::Provider;
 use alloy::transports::Transport;
-use pool_sync::PoolType;
+use pool_sync::{PoolType, Pool};
 use std::collections::HashSet;
 use std::sync::Arc;
 
@@ -79,7 +80,6 @@ where
 
         for swap_step in &path.steps {
             let pool_address = swap_step.pool_address;
-            println!("calculating path {}", swap_step.pool_address);
             let output_amount = self.compute_amount_out(
                 amount,
                 pool_address,
@@ -92,6 +92,16 @@ where
         }
 
         path_calc
+    }
+
+    pub fn compute_pool_output(&self, pool_addr: Address, token_in: Address, protocol: PoolType, fee: u32) -> U256 {
+        self.compute_amount_out(
+            *AMOUNT,
+            pool_addr,
+            token_in,
+            protocol,
+            fee
+        )
     }
 
     // calculate the ratio for the pool

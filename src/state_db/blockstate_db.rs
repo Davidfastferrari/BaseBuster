@@ -299,21 +299,7 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> Database for BlockStat
                     address,
                     index
                 );
-
-                let res = value.value;
-                if index == U256::from(8) {
-                    let U112_MASK: U256 = (U256::from(1) << 112) - U256::from(1);
-                    let (reserve1, reserve2) = ((res >> 0) & U112_MASK, (res >> (112)) & U112_MASK);
-
-                    println!("the reserves for {} are {} {}", address, reserve1, reserve2);
-                }
-                // The slot is in storage. If it is custom, there is no corresponding onchain state
-                // to update it with, just return the value
-                //if value.insertion_type == InsertionType::Custom {
-                    //return Ok(value.value);
-                    return Ok(res);
-                //}
-                // The account exists and the slot is onchain, continue on so it is fetched and updated
+                return Ok(value.value);
             }
         }
 
