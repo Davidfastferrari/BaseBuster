@@ -94,9 +94,9 @@ where
         path_calc
     }
 
-    pub fn compute_pool_output(&self, pool_addr: Address, token_in: Address, protocol: PoolType, fee: u32) -> U256 {
+    pub fn compute_pool_output(&self, pool_addr: Address, token_in: Address, protocol: PoolType, fee: u32, input: U256) -> U256 {
         self.compute_amount_out(
-            *AMOUNT,
+            input,
             pool_addr,
             token_in,
             protocol,

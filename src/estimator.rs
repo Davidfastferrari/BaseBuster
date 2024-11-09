@@ -1,15 +1,17 @@
 use pool_sync::{Pool, PoolInfo};
 use alloy::primitives::{Address, U256};
-use std::collections::HashMap;
 use alloy::providers::Provider;
 use alloy::network::Network;
 use alloy::transports::Transport;
 use std::sync::Arc;
+use std::collections::{HashSet, HashMap};
 
 use crate::AMOUNT;
 use crate::calculation::Calculator;
 use crate::market_state::MarketState;
 use crate::swap::SwapPath;
+
+const RATE_SCALE: u32 = 18; // 18 decimals for rate precision
 
 // Handles initial estimation of path profitability before moving onto
 // precise calculations and simulation
@@ -49,6 +51,8 @@ where
     // Given an initial set of filtered pools, estimate the exchange rates 
     pub fn process_pools(&mut self, pools: Vec<Pool>) {
         let weth: Address = std::env::var("WETH").unwrap().parse().unwrap();
+        let mut alt_tokens: HashSet<Address> = HashSet::new();
+        let mut weth_alt_cnt: HashMap<Address, u32> = HashMap::new();
 
         // amount is our arb input, this is to generalize the exchange rates to 
         // whatever we are trying to initially arb with
@@ -57,80 +61,106 @@ where
         // calcualte the rate for all pools with weth as a base/quote, we are very confident in these quotes
         for pool in pools.iter().filter(|p| p.token0_address() == weth || p.token1_address() == weth) {
             self.weth_based.insert(pool.address(), true);
-            self.process_eth_pool(pool, weth, eth_input);
+            self.process_eth_pool(pool, weth, eth_input, &mut alt_tokens, &mut weth_alt_cnt);
         }
 
+        // update the alt rates
+        for token in alt_tokens {
+            let aggregated_rate = self.aggregated_weth_rate.get(&token).unwrap();
+            let averaged_rate = *aggregated_rate / U256::from(*weth_alt_cnt.get(&token).unwrap());
+            *self.aggregated_weth_rate.get_mut(&token).unwrap() = averaged_rate;
+        }
+
+        // calculate the ratio for all pools that weth is neither a base/quote, this will use
+        // an averaged input from the corresponding weth pair  
+        for pool in pools.iter().filter(|p| p.token0_address() != weth && p.token1_address() != weth) {
+            self.process_nonweth_pool(pool, eth_input);
+        }
         // calculate every pool that is 
     }
 
+
     // Estimate the output from the rates for a swappath
-    pub fn estimate_output(&self, input: U256, swap_path: &SwapPath) -> U256 {
+    pub fn is_positive(&self, input: U256, swap_path: &SwapPath) -> bool {
         let mut rate = U256::from(1);
+        todo!()
         // calculate the output rate of the path
-        for swap in &swap_path.steps {
-            // aggreagate the rate
-            rate *= self.rates[&swap.pool_address][&swap.token_in]
-        }
-        rate * input
     }
 
 
     // Calculate the rate for an weth based pool
-    fn process_eth_pool(&mut self, pool: &Pool, weth: Address, input: U256) {
+    fn process_eth_pool(
+        &mut self, 
+        pool: &Pool, 
+        weth: Address, 
+        input: U256, 
+        alt_tokens: &mut HashSet<Address>,
+        weth_alt_cnt: &mut HashMap<Address, u32>
+    ) {
+        let pool_address = pool.address();
+        let token0 = pool.token0_address();
+        let token1 = pool.token1_address();
+
         // Get which token is weth and which is the quote token
-        let (weth_is_token0, quote_token) = if pool.token0_address() == weth {
-            (true, pool.token1_address())
+        let (weth, alt) = if token0 == weth {
+            (token0, token1)
         } else {
-            (false, pool.token0_address())
+            (token1, token0)
         };
+        alt_tokens.insert(alt);
 
-        // Calculate output for the weth -> quote direction
+        // get the output quote and then determine the rates
         let output = self.calculator.compute_pool_output(
-            pool.address(),
-            if weth_is_token0 { pool.token0_address() } else { pool.token1_address() },
+            pool_address,
+            weth,
             pool.pool_type(),
-            pool.fee()
+            pool.fee(),
+            input
         );
+        let zero_one_rate = output / input;
+        let one_zero_rate =  input / output;
 
-        // Normalize to 18 decimals (multiply up if decimals < 18)
-        let quote_decimals = pool.token1_decimals() as u8;
-        let normalized_output = output * U256::from(10).pow(U256::from(18 - quote_decimals));
-
-        // Calculate rates with 18 decimal precision
-        let precision = U256::from(10).pow(U256::from(18));
+        // Initialize inner HashMap if it doesn't exist
+        self.rates.entry(pool_address).or_insert_with(HashMap::new);
         
-        // weth -> quote rate
-        let weth_to_quote_rate = (normalized_output * precision) / input;
-        // quote -> weth rate (inverse)
-        let quote_to_weth_rate = (input * precision) / normalized_output;
+        // Insert the rates
+        self.rates.get_mut(&pool_address).unwrap()
+            .insert(token0, zero_one_rate);
+        self.rates.get_mut(&pool_address).unwrap()
+            .insert(token1, one_zero_rate);
 
-        // Store both rates in the hashmap
-        let mut rates = HashMap::new();
-        rates.insert(weth, weth_to_quote_rate);
-        rates.insert(quote_token, quote_to_weth_rate);
-        self.rates.insert(pool.address(), rates);
+        // update the aggregate
+        if weth == token0 {
+            *self.aggregated_weth_rate.entry(alt).or_insert(U256::ZERO) += zero_one_rate;
+        } else {
+            *self.aggregated_weth_rate.entry(alt).or_insert(U256::ZERO) += one_zero_rate;
+        }
+        *weth_alt_cnt.entry(alt).or_insert(0) += 1
     }
 
+    fn process_nonweth_pool(&mut self, pool: &Pool, input: U256) {
+        let pool_address = pool.address();
+        let token0 = pool.token0_address();
+        let token1 = pool.token1_address();
 
+        let input = self.aggregated_weth_rate.get(&token0).unwrap();
+        let output = self.calculator.compute_pool_output(
+            pool_address,
+            token0,
+            pool.pool_type(),
+            pool.fee(),
+            *input
+        );
+        let zero_one_rate = output / input;
+        let one_zero_rate =  input / output;
+        // Initialize inner HashMap if it doesn't exist
+        self.rates.entry(pool_address).or_insert_with(HashMap::new);
+        
+        // Insert the rates
+        self.rates.get_mut(&pool_address).unwrap()
+            .insert(token0, zero_one_rate);
+        self.rates.get_mut(&pool_address).unwrap()
+            .insert(token1, one_zero_rate);
+    }
 
 }
-
-
-
-
-// so, the funciton of this is to estimate the exchange rate of a pool so that we can calculate quotes much much rater
-// for example, lets assume eth/usdc 1 eth = 1000usdc, then usdc/eth on sushi is 1 eth = 900 usdc
-// the rate is 1000 usdc = 1 eth and 1 usdc = .00111111 eth. /
-// if we have input of 1 eth, the output is 1 * 1000 * .00111111 which gives a positive arbitrage path.
-// this makes sense, and now we need to genearlize it to many differnt pools, and many differnt paths
-// if there is eth as a quote/base in the pool, this is easy. we will assume a constant input amount of .5 eth. 
-// so something like eth/usdc is east because we quote it eith .5 eth to get the exchange rate.
-// this gets harder with indermediate bools where we dont ahve eth as a base/quote. amms have non uniform price curves
-// so we have to find a input amount that is general enough to get us a reaonsle output amount. we just want a very good estimate her
-// for example, if .5 eth = 10,000,000 bonk, we are not going to uqote 1 bonk = x usdc since inputting 1 bonk and 10,000,000 bonk is going to result
-// in a completely different price. At the same time, there might be different quotes bot bonk. on uni .5 eth might be 11,000,000 bonk and on 
-// sushi .5 eth is 10,000,000 bonk, and for these pools where its bonk and something like pepe, we need a good input amount so we have resaonble estimates. 
-// im thinking concurrent hashmap where the key is the pool address and then it has a inner struce with teh zero token first, that exchange erate,
-// and another for the one token first, that exchange rate, and doing this for every pool, the problem is given n pools, I need to be ablet o ppoulate this map algorithmically
-// and determine everything here from exchange rates to everythinge else, on each reserve update/state update, I will also update these exchange rates.so many I need to store something
-// like what I am using as the input for the quote. 

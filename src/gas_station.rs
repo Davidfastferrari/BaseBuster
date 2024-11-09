@@ -5,12 +5,12 @@ use alloy::eips::eip1559::BaseFeeParams;
 use alloy::eips::calc_next_block_base_fee;
 use crate::events::Event;
 
+// Handles all gas state and calculations
 pub struct GasStation {
     base_fee: AtomicU64,
     priority_fee: AtomicU64
 }
 
-// Handles all gas state and calculations
 impl GasStation {
     pub fn new() -> Self {
         Self {
@@ -18,9 +18,6 @@ impl GasStation {
             priority_fee: AtomicU64::new(40000000),
         }
     }
-
-
-
 
     // Get the max fee and priority fee to use for this block
     pub fn get_gas_fees(&self) -> (u128, u128) {

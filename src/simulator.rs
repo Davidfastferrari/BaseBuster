@@ -1,22 +1,16 @@
 use alloy::network::Ethereum;
-use alloy::primitives::{Address, U256};
-use alloy::providers::ProviderBuilder;
-use alloy::providers::{Provider, RootProvider};
+use alloy::providers::RootProvider;
 use alloy::transports::http::{Client, Http};
-use anyhow::{anyhow, Result};
-use futures::executor::block_on;
 use log::{debug, info, warn};
-use pool_sync::PoolType;
 use std::collections::HashSet;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::Arc;
 
 use crate::calculation::Calculator;
 use crate::events::Event;
-use crate::gen::{FlashQuoter, V2State, V3State};
+use crate::gen::FlashQuoter;
 use crate::market_state::MarketState;
 use crate::quoter::Quoter;
-use crate::swap::SwapPath;
 use crate::AMOUNT;
 
 // recieve a stream of potential arbitrage paths from the searcher and

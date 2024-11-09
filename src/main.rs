@@ -25,7 +25,6 @@ mod searcher;
 mod state_db;
 mod swap;
 mod gas_station;
-mod types;
 mod tracing;
 
 // initial amount we are trying to arb over

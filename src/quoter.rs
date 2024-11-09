@@ -5,7 +5,6 @@ use alloy::sol_types::SolCall;
 use alloy::sol_types::SolValue;
 use alloy::transports::http::{Client, Http};
 use anyhow::{anyhow, Result};
-use revm::database_interface::WrapDatabaseRef;
 use revm::wiring::default::TransactTo;
 use revm::wiring::result::ExecutionResult;
 use revm::wiring::EthereumWiring;
