@@ -1,1 +1,4 @@
 ZdV77akqmHhUtg73kh40oG8gOyK60NVc
+
+mainnet-sequencer.base.org:172.64.147.103
+this can be faster if sending directly

@@ -29,16 +29,7 @@ use std::str::FromStr;
 // Blacklisted tokens we dont want to consider
 lazy_static! {
     static ref BLACKLIST: Vec<Address> = vec![
-        //address!("60a3E35Cc302bFA44Cb288Bc5a4F316Fdb1adb42"),
-        //address!("04D5ddf5f3a8939889F11E97f8c4BB48317F1938"),
-        //address!("fde4C96c8593536E31F229EA8f37b2ADa2699bb2"),
-        ////address!("d9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA"),
-        //address!("B79DD08EA68A908A97220C76d19A6aA9cBDE4376"),
-        ////address!("2Ae3F1Ec7F1F5012CFEab0185bfc7aa3cf0DEc22"),
-        //address!("2416092f143378750bb29b79eD961ab195CcEea5"),
-        //address!("50c5725949A6F0c72E6C4a641F24049A917DB0Cb"),
-        //address!("833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
-        //address!("b56d0839998fd79efcd15c27cf966250aa58d6d3")
+        address!("be5614875952b1683cb0a2c20e6509be46d353a4")
     ];
 }
 

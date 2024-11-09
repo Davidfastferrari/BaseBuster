@@ -19,6 +19,9 @@ impl GasStation {
         }
     }
 
+
+
+
     // Get the max fee and priority fee to use for this block
     pub fn get_gas_fees(&self) -> (u128, u128) {
         let base_fee = self.base_fee.load(Ordering::Relaxed) as u128;

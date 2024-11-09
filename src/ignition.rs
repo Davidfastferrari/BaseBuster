@@ -74,6 +74,6 @@ pub async fn start_workers(pools: Vec<Pool>, last_synced_block: u64) {
 
     // start the tx sender
     info!("Starting transaction sender...");
-    let tx_sender = TransactionSender::new(gas_station.clone()).await;
+    let mut tx_sender = TransactionSender::new(gas_station.clone()).await;
     tokio::spawn(async move { tx_sender.send_transactions(profitable_receiver).await });
 }

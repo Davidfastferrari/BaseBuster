@@ -35,5 +35,7 @@ rustc-hash = "2.0.0"
 alloy-eips = "0.4.2"
 chrono = "0.4.38"
 hyper = { version = "1.5.0", features = ["client"] }
-hyper-tls = "0.6.0"
-hyper-util = "0.1.10"
+hyper-tls = { version = "0.6.0", features = ["alpn"] }
+hyper-util = { version = "0.1.10", features = ["client", "client-legacy", "http1", "http2"] }
+http-body-util = "0.1.2"
+bytes = "1.8.0"

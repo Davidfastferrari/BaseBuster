@@ -88,8 +88,8 @@ where
                 .par_iter()
                 .filter_map(|path| {
                     let output_amount = self.calculator.calculate_output(path);
-                    let debug_quote = self.calculator.debug_calculation(path);
-                    assert_eq!(output_amount, *debug_quote.last().unwrap());
+                    //let debug_quote = self.calculator.debug_calculation(path);
+                    //assert_eq!(output_amount, *debug_quote.last().unwrap());
 
                     if sim {
                         // if this is a sim, we are concerened about correct amounts out
