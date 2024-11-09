@@ -10,7 +10,7 @@ use alloy::providers::Identity;
 use alloy::transports::http::{Client, Http};
 use std::sync::Arc;
 
-pub type WalletProvider = Arc<
+pub type ProviderWallet = Arc<
     FillProvider<
         JoinFill<
             JoinFill<

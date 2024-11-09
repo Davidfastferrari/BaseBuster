@@ -30,7 +30,7 @@ mod tracing;
 
 // initial amount we are trying to arb over
 lazy_static! {
-    pub static ref AMOUNT: U256 = U256::from(1e15); //0.1eth
+    pub static ref AMOUNT: U256 = U256::from(1e16); //0.1eth
 }
 
 #[tokio::main]
@@ -39,6 +39,17 @@ async fn main() -> Result<()> {
     dotenv::dotenv().ok();
     env_logger::Builder::new()
         .filter_module("BaseBuster", LevelFilter::Info)
+        .format(|buf, record| {
+            use std::io::Write;
+            let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
+            writeln!(
+                buf,
+                "{} {} - {}",
+                timestamp,
+                record.level(),
+                record.args()
+            )
+        })
         .init();
 
     // Load in all the pools

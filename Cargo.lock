@@ -9,10 +9,14 @@ dependencies = [
  "alloy 0.4.2",
  "alloy-eips 0.4.2",
  "anyhow",
+ "chrono",
  "dashmap 6.1.0",
  "dotenv",
  "env_logger",
  "futures",
+ "hyper",
+ "hyper-tls",
+ "hyper-util",
  "lazy_static",
  "log",
  "node-db",
@@ -4482,9 +4486,9 @@ dependencies = [
 
 [[package]]
 name = "hyper-util"
-version = "0.1.9"
+version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "41296eb09f183ac68eec06e03cdbea2e759633d4067b2f6552fc2e009bcad08b"
+checksum = "df2dcfbe0677734ab2f3ffa7fa7bfd4706bfdc1ef393f2ee30184aed67e631b4"
 dependencies = [
  "bytes",
  "futures-channel",

@@ -1,27 +1,41 @@
-use crate::events::Event;
 use alloy::hex;
-use alloy::network::EthereumWallet;
-use alloy::providers::{Provider, ProviderBuilder};
+use alloy::network::{EthereumWallet, TransactionBuilder};
+use alloy::primitives::Bytes as AlloyBytes;
+use hyper::body::Bytes as HyperBytes;
+use alloy::sol_types::SolCall;
+use tokio::runtime::Handle;
+use alloy::rpc::types::TransactionRequest;
 use alloy::signers::k256::SecretKey;
 use alloy::signers::local::PrivateKeySigner;
+use alloy::primitives::Address;
+use hyper_tls::HttpsConnector;
 use std::time::Instant;
-use log::{info, warn};
+use log::info;
 use std::sync::mpsc::Receiver;
 use std::sync::Arc;
-
+use alloy::eips::eip2718::Encodable2718;
+use hyper::client::conn;
+use hyper::client::conn::http2::SendRequest;
+use hyper::Request;
+use hyper::body::{Body, Incoming};
+use tokio::net::TcpStream;
+use hyper::client::conn::http2::handshake;
 use crate::gen::FlashSwap;
-use crate::types::{WalletProvider, FlashSwapContract};
 use crate::gas_station::GasStation;
+use crate::events::Event;
+use hyper_util::rt::{TokioExecutor, TokioIo};
+use hyper::rt::{Read, Write};
+
 
 pub struct TransactionSender {
-    wallet_provider: WalletProvider,
-    contract: FlashSwapContract,
-    gas_station: Arc<GasStation>
-    //recent_transactions: Mutex<HashSet<Vec<u8>>>,
+    wallet: EthereumWallet,
+    gas_station: Arc<GasStation>,
+    contract_address: Address,
+    sequencer_connection: SendRequest<Incoming>,
 }
 
 impl TransactionSender {
-    pub fn new(gas_station: Arc<GasStation>) -> Self {
+    pub async fn new(gas_station: Arc<GasStation>) -> Self {
         // construct a wallet
         let key = std::env::var("PRIVATE_KEY").unwrap();
         let key_hex = hex::decode(key).unwrap();
@@ -29,64 +43,76 @@ impl TransactionSender {
         let signer = PrivateKeySigner::from(key);
         let wallet = EthereumWallet::from(signer);
 
-        // construct a signing provider
-        //let url = std::env::var("FULL").unwrap().parse().unwrap();
-        let url = "https://mempool.merkle.io/rpc/base/pk_mbs_323cf6b720ba9734112249c7eff2b88d"
-            .parse()
-            .unwrap();
-        let wallet_provider = Arc::new(
-            ProviderBuilder::new()
-                .with_recommended_fillers()
-                .wallet(wallet)
-                .on_http(url),
-        );
+        let stream = TcpStream::connect(("mainnet-sequencer.base.org", 443)).await.unwrap();
+        let io = TokioIo::new(stream);
+        let executor = TokioExecutor::new();
+        //let runtime = Handle::current();
+        let (sender, conn) = handshake(executor, io).await.unwrap();
 
-        // instantiate the swap contract
-        let contract_address = std::env::var("SWAP_CONTRACT").unwrap();
-        let contract = FlashSwap::new(contract_address.parse().unwrap(), wallet_provider.clone());
+        tokio::task::spawn(async move {
+            if let Err(e) = conn.await {
+                println!("Error: {:?}", e);
+            }
+        });
 
         Self {
-            wallet_provider,
-            contract,
-            gas_station
-            //recent_transactions: Mutex::new(HashSet::new()),
+            wallet,
+            gas_station,
+            contract_address: std::env::var("SWAP_CONTRACT").unwrap().parse().unwrap(),
+            sequencer_connection: sender
         }
     }
     pub async fn send_transactions(&self, tx_receiver: Receiver<Event>) {
+
+
         // wait for a new transaction that has passed simulation
         while let Ok(Event::ArbPath((arb_path, optimized_input, block_number))) = tx_receiver.recv()
         {
             info!("Sending path...");
             let start = Instant::now();
-            // convert from seacher format into swapper format
+
+            // construct the calldata/input
             let converted_path: Vec<FlashSwap::SwapStep> = arb_path.clone().into();
+            let calldata = FlashSwap::executeArbitrageCall {
+                steps: converted_path,
+                amount: optimized_input
+            }.abi_encode();//.into();
 
-            // Construct the transaction
+            // Construct, sign, and encode transaction
             let (max_fee, priority_fee) = self.gas_station.get_gas_fees();
-            let tx = self
-                .contract
-                .executeArbitrage(converted_path, optimized_input)
-                .max_fee_per_gas(max_fee)
-                .max_priority_fee_per_gas(priority_fee)
-                .chain_id(8453)
-                // Increase gas limit to ensure it doesn't fail
-                .gas(4_000_000)
-                .into_transaction_request();
-            info!("Took {:?} to create and sign tx, sending...", start.elapsed());
+            let tx = TransactionRequest::default()
+                .with_to(self.contract_address)
+                .with_nonce(1)
+                .with_gas_limit(2_000_000)
+                .with_chain_id(8543)
+                .with_max_fee_per_gas(max_fee)
+                .with_max_priority_fee_per_gas(priority_fee)
+                .with_input(AlloyBytes::from(calldata));
 
-            // send the transaction
-            match self.wallet_provider.send_transaction(tx).await {
-                Ok(tx_result) => match tx_result.get_receipt().await {
-                    Ok(receipt) => {
-                        //let current_block = self.wallet_provider.get_block_number().await.unwrap();
-                        info!("landed {:#?}", receipt);
-                    }
-                    Err(e) => {
-                        warn!("Failed to get transaction receipt: {:?}", e);
-                    }
-                },
-                Err(e) => warn!("Transaction failed: {:?}", e),
-            }
+            let tx_envelope = tx.build(&self.wallet).await.unwrap();
+            let mut encoded_tx = vec![];
+            tx_envelope.encode_2718(&mut encoded_tx);
+            let rlp_hex = hex::encode_prefixed(encoded_tx);
+
+            let json = serde_json::json!({
+                "jsonrpc": "2.0",
+                "method": "eth_sendRawTransaction",
+                "params": [rlp_hex],
+                "id": 1
+            });
+
+            // setup and send http request
+            let req = Request::builder()
+                .method("POST")
+                .uri("https://mainnet-sequencer.base.org")
+                .header("content-type", "application/json")
+                .version(hyper::Version::HTTP_2)
+                .body(HyperBytes::from(json.to_string()))  
+                .unwrap();
+            let res = self.sequencer_connection.send_request(req).await.unwrap();
+
+            info!("Took {:?} to create and sign tx, sending at block {}...", start.elapsed(), block_number);
+            // spawn a task to see if it landed
         }
     }
 }
@@ -98,6 +124,7 @@ mod tx_signing_tests {
     use pool_sync::PoolType;
     use alloy::primitives::{address, U256};
     use std::time::Instant;
+    use alloy::providers::{ProviderBuilder, Provider};
     use crate::swap::{SwapPath, SwapStep};
 
     use super::*;
@@ -182,3 +209,50 @@ mod tx_signing_tests {
         println!("Total time {:?}", total_time.elapsed());
     }
 }
+
+
+        // construct a signing provider
+        //let url = std::env::var("FULL").unwrap().parse().unwrap();
+        //let url = "https://mempool.merkle.io/rpc/base/pk_mbs_323cf6b720ba9734112249c7eff2b88d"
+         //   .parse()
+          //  .unwrap();
+        //let wallet_provider = Arc::new//(
+        /* 
+            ProviderBuilder::new()
+                .with_recommended_fillers()
+                .wallet(wallet)
+                .on_http(url),
+        );
+    */
+
+        // instantiate the swap contract
+        //let contract_address = std::env::var("SWAP_CONTRACT").unwrap();
+        //let contract = FlashSwap::new(contract_address.parse().unwrap(), wallet_provider.clone());
+
+            /* 
+            let tx = self
+                .contract
+                .executeArbitrage(converted_path, optimized_input)
+                .max_fee_per_gas(max_fee)
+                .max_priority_fee_per_gas(priority_fee)
+                .chain_id(8453)
+                // Increase gas limit to ensure it doesn't fail
+                .gas(4_000_000)
+                .into_transaction_request();
+            */
+
+            /* 
+            // send the transaction
+            match self.wallet_provider.send_transaction(tx).await {
+                Ok(tx_result) => match tx_result.get_receipt().await {
+                    Ok(receipt) => {
+                        //let current_block = self.wallet_provider.get_block_number().await.unwrap();
+                        info!("landed {:#?}", receipt);
+                    }
+                    Err(e) => {
+                        warn!("Failed to get transaction receipt: {:?}", e);
+                    }
+                },
+                Err(e) => warn!("Transaction failed: {:?}", e),
+            }
+            */

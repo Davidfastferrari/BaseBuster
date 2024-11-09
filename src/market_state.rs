@@ -122,11 +122,12 @@ where
             let updated_pools = self.update_state(http.clone(), block_number).await;
             debug!("Processed the block {block_number}");
 
+
             // send the updated pools
+            info!("Block processed {} updates and sent in {:?}", updated_pools.len(), start.elapsed());
             if let Err(e) = address_tx.send(Event::PoolsTouched(updated_pools, block_number)) {
                 error!("Failed to send updated pools: {}", e);
             } else {
-                info!("Block processed and send in {:?}", start.elapsed());
                 debug!("Sent updated addresses for block {}", block_number);
             }
 
@@ -157,7 +158,6 @@ where
             }
         }
 
-        info!("Got {} updates in block {}", updated_pools.len(), block_num);
         updated_pools
     }
 
