@@ -64,7 +64,6 @@ where
             db: RwLock::new(db),
         });
 
-        /* 
         // start the state updater
         tokio::spawn(Self::state_updater(
             market_state.clone(),
@@ -72,7 +71,6 @@ where
             address_tx,
             last_synced_block,
         ));
-        */
 
         Ok(market_state)
     }
@@ -166,9 +164,9 @@ where
     fn populate_db_with_pools(pools: Vec<Pool>, db: &mut BlockStateDB<T, N, P>) {
         for pool in pools {
             if pool.is_v2() {
-                db.insert_v2(pool.get_v2().unwrap().clone());
+                db.insert_v2(pool);
             } else if pool.is_v3() {
-                db.insert_v3(pool.get_v3().unwrap().clone()).unwrap();
+                db.insert_v3(pool).unwrap();
             }
         }
     }

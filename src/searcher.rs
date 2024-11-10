@@ -14,6 +14,7 @@ use crate::events::Event;
 use crate::market_state::MarketState;
 use crate::swap::SwapPath;
 use crate::AMOUNT;
+use crate::estimator::Estimator;
 
 // top level sercher struct
 // contains the calculator and all path information
@@ -24,6 +25,7 @@ where
     P: Provider<T, N>,
 {
     calculator: Calculator<T, N, P>,
+    estimator: Estimator<T, N, P>,
     path_index: HashMap<Address, Vec<usize>>,
     cycles: Vec<SwapPath>,
     min_profit: U256,
@@ -36,7 +38,7 @@ where
     P: Provider<T, N>,
 {
     // Construct the searcher with the calculator and all the swap paths
-    pub fn new(cycles: Vec<SwapPath>, market_state: Arc<MarketState<T, N, P>>) -> Self {
+    pub fn new(cycles: Vec<SwapPath>, market_state: Arc<MarketState<T, N, P>>, estimator: Estimator<T, N, P>) -> Self {
         let calculator = Calculator::new(market_state);
 
         // make our path mapper for easily getting touched paths
@@ -56,6 +58,7 @@ where
 
         Self {
             calculator,
+            estimator,
             cycles,
             path_index: index,
             min_profit,
@@ -70,9 +73,11 @@ where
             info!("Searching for arbs in block {}...", block_number);
             let res = Instant::now();
 
-            // invalidate all updated pools in the cache
+            // update all the rates for the pools that were touched
+            self.estimator.update_rates(&pools);
 
-            //self.calculator.invalidate_cache(&pools);
+            // invalidate all updated pools in the cache
+            self.calculator.invalidate_cache(&pools);
 
             // from the updated pools, get all paths that we want to recheck
             let affected_paths: HashSet<&SwapPath> = pools
@@ -87,20 +92,17 @@ where
             let profitable_paths: Vec<(SwapPath, U256)> = affected_paths
                 .par_iter()
                 .filter_map(|path| {
-                    let output_amount = self.calculator.calculate_output(path);
-                    //let debug_quote = self.calculator.debug_calculation(path);
-                    //assert_eq!(output_amount, *debug_quote.last().unwrap());
-
-                    if sim {
-                        // if this is a sim, we are concerened about correct amounts out
-                        Some((path.clone().clone(), output_amount))
-                    } else {
-                        // this is not a sim, make sure it is a profitable path
+                    // estimate if the path is profitable
+                    if self.estimator.is_profitable(*path, U256::ZERO) {
+                        // get the exact output to double check
+                        let output_amount = self.calculator.calculate_output(path);
                         if output_amount >= self.min_profit {
                             Some((path.clone().clone(), output_amount))
                         } else {
                             None
                         }
+                    } else {
+                        None
                     }
                 })
                 .collect();
@@ -117,3 +119,18 @@ where
         }
     }
 }
+
+                    //let debug_quote = self.calculator.debug_calculation(path);
+                    //assert_eq!(output_amount, *debug_quote.last().unwrap());
+
+                    //if sim {
+                        // if this is a sim, we are concerened about correct amounts out
+                     //   Some((path.clone().clone(), output_amount))
+                    //} else {
+                        // this is not a sim, make sure it is a profitable path
+                     //   if output_amount >= self.min_profit {
+                      //      Some((path.clone().clone(), output_amount))
+                       // } else {
+                        //    None
+                        //}
+                    //}

@@ -5,9 +5,8 @@ use alloy::providers::Provider;
 use alloy::transports::Transport;
 use lazy_static::lazy_static;
 use log::trace;
-use pool_sync::{PoolType, UniswapV2Pool};
+use pool_sync::{Pool, PoolInfo};
 use revm::DatabaseRef;
-use revm::database_interface::Database;
 use zerocopy::IntoBytes;
 use crate::state_db::blockstate_db::{InsertionType, BlockStateDBSlot};
 
@@ -25,16 +24,21 @@ where
     P: Provider<T, N>,
 {
     // insert a new uniswapv2 pool into the database
-    pub fn insert_v2(&mut self, pool: UniswapV2Pool) {
-        trace!("Adding new v2 pool {}", pool.address);
-        let address = pool.address;
-        let token0 = pool.token0;
-        let token1 = pool.token1;
-        let reserve0 = U256::from(pool.token0_reserves);
-        let reserve1 = U256::from(pool.token1_reserves);
+    pub fn insert_v2(&mut self, pool: Pool) {
+        trace!("Adding new v2 pool {}", pool.address());
+        let address = pool.address();
+        let token0 = pool.token0_address();
+        let token1 = pool.token1_address();
 
         // track the pool
-        self.add_pool(address, token0, token1, PoolType::UniswapV2);
+        self.add_pool(pool.clone());
+
+
+        // get v2 info
+        let v2_pool = pool.get_v2().unwrap();
+        let reserve0 = U256::from(v2_pool.token0_reserves);
+        let reserve1 = U256::from(v2_pool.token1_reserves);
+
 
         // create account and insert storage values
         self.insert_reserves(address, reserve0, reserve1);
@@ -60,19 +64,19 @@ where
         Address::from_word(token1.into())
     }
 
-    pub fn get_decimals(&self, pool: &Address) -> (u8, u8) {
+    pub fn get_decimals(&self, _pool: &Address) -> (u8, u8) {
         todo!()
     }
 
-    pub fn get_fee(&self, pool: &Address) -> U256 {
+    pub fn get_fee(&self, _pool: &Address) -> U256 {
         todo!()
     }
 
-    pub fn get_stable(&self, pool: &Address) -> bool {
+    pub fn get_stable(&self, _pool: &Address) -> bool {
         todo!()
     }
 
-    pub fn get_tokens(&self, pool: &Address) -> (Address, Address) {
+    pub fn get_tokens(&self, _pool: &Address) -> (Address, Address) {
         todo!()
     }
 
@@ -125,28 +129,24 @@ where
 mod test_db_v2 {
     use super::*;
     use alloy::network::Ethereum;
-    use alloy::primitives::{address, U128};
+    use alloy::primitives::address;
     use alloy::providers::ProviderBuilder;
     use alloy::providers::RootProvider;
     use alloy::sol;
     use alloy::sol_types::{SolCall, SolValue};
     use alloy::transports::http::{Client, Http};
     use alloy_eips::BlockId;
-    use std::sync::RwLock;
     use revm::database_interface::WrapDatabaseAsync;
     use revm::state::{AccountInfo, Bytecode};
-    use revm::wiring::result::ExecutionResult;
     use revm_database::{AlloyDB, CacheDB};
     use crate::gen::FlashQuoter::{self, SwapStep};
     use log::LevelFilter;
     use revm::primitives::keccak256;
-    use std::str::FromStr;
-    use anyhow::anyhow;
+    use pool_sync::UniswapV2Pool;
 
     use revm::wiring::default::TransactTo;
     use revm::wiring::EthereumWiring;
     use revm::Evm;
-    use std::time::Instant;
 
     type QuoteEvm<'a> = Evm<
         'a,
@@ -208,7 +208,7 @@ mod test_db_v2 {
         let token1 = address!("C02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2");
 
         let pool = uni_v2_weth_usdc();
-        db.insert_v2(pool);
+        db.insert_v2(Pool::UniswapV2(pool));
         db.insert_reserves(pool_addr, U256::from(10), U256::from(20));
         let (res0, res1) = db.get_reserves(&pool_addr);
 

@@ -7,7 +7,7 @@ use alloy::transports::Transport;
 use anyhow::Result;
 use lazy_static::lazy_static;
 use log::trace;
-use pool_sync::{PoolType, UniswapV3Pool};
+use pool_sync::{Pool, PoolInfo};
 use revm::DatabaseRef;
 use std::ops::{BitAnd, Shl, Shr};
 use crate::state_db::blockstate_db::{InsertionType, BlockStateDBSlot};
@@ -51,26 +51,29 @@ where
     P: Provider<T, N>,
 {
     // Insert a new uniswapv3 pool into the database
-    pub fn insert_v3(&mut self, pool: UniswapV3Pool) -> Result<()> {
-        let address = pool.address;
-        let token0 = pool.token0;
-        let token1 = pool.token1;
+    pub fn insert_v3(&mut self, pool: Pool) -> Result<()> {
+        trace!("Adding new v3 pool {}", pool.address());
+        let address = pool.address();
 
-        // Add the pool to our working set
-        self.add_pool(address, token0, token1, PoolType::UniswapV3);
+        // track the pool
+        self.add_pool(pool.clone());
+
+        // extract the v3 pool
+        let v3_pool = pool.get_v3().unwrap();
+
 
         // Insert slot, liquidity, tick spacing
-        self.insert_slot0(address, U160::from(pool.sqrt_price), pool.tick)?;
-        self.insert_liquidity(address, pool.liquidity)?;
-        self.insert_tick_spacing(address, pool.tick_spacing)?;
+        self.insert_slot0(address, U160::from(v3_pool.sqrt_price), v3_pool.tick)?;
+        self.insert_liquidity(address, v3_pool.liquidity)?;
+        self.insert_tick_spacing(address, v3_pool.tick_spacing)?;
 
         // Insert tick-related data
-        for (tick, liquidity_net) in pool.ticks {
+        for (tick, liquidity_net) in v3_pool.ticks.clone() {
             self.insert_tick_liquidity_net(address, tick, liquidity_net.liquidity_net)?;
         }
 
         // Insert tick bitmap
-        for (word_pos, bitmap) in pool.tick_bitmap {
+        for (word_pos, bitmap) in v3_pool.tick_bitmap.clone() {
             self.insert_tick_bitmap(address, word_pos, bitmap)?;
         }
 
@@ -276,7 +279,7 @@ mod v3_db_test {
     use alloy::primitives::address;
     use alloy::primitives::aliases::I24;
     use alloy::providers::ProviderBuilder;
-    use pool_sync::TickInfo;
+    use pool_sync::{TickInfo, UniswapV3Pool};
     use std::collections::HashMap;
 
     fn create_test_pool() -> UniswapV3Pool {
@@ -330,7 +333,7 @@ mod v3_db_test {
         let expected_sqrt_price = U160::from(pool.sqrt_price);
         let expected_tick = I24::try_from(pool.tick).unwrap();
 
-        db.insert_v3(pool)?;
+        db.insert_v3(Pool::UniswapV3(pool))?;
 
         // Test slot0 values
         let slot0 = db.slot0(pool_addr).unwrap();

@@ -5,16 +5,16 @@ use alloy::rpc::types::trace::geth::AccountState as GethAccountState;
 use alloy::rpc::types::BlockId;
 use alloy::transports::{Transport, TransportError};
 use anyhow::Result;
-use log::{debug, info, trace, warn};
-use pool_sync::PoolType;
+use log::{debug, trace, warn};
+use pool_sync::PoolInfo;
 use revm::primitives::{Log, KECCAK_EMPTY};
 use revm::state::{Account, AccountInfo, Bytecode};
 use revm::{Database, DatabaseCommit, DatabaseRef};
 use revm_database::AccountState;
-use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::future::IntoFuture;
+use pool_sync::Pool;
 use tokio::runtime::{Handle, Runtime};
 
 #[derive(Debug)]
@@ -37,13 +37,6 @@ impl HandleOrRuntime {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct PoolInformation {
-    pub token0: Address,
-    pub token1: Address,
-    pub pool_type: PoolType,
-}
-
 #[derive(Debug)]
 pub struct BlockStateDB<T: Transport + Clone, N: Network, P: Provider<T, N>> {
     // All of the accounts
@@ -59,7 +52,7 @@ pub struct BlockStateDB<T: Transport + Clone, N: Network, P: Provider<T, N>> {
     // The pools that are in our working set
     pub pools: HashSet<Address>,
     //
-    pub pool_info: HashMap<Address, PoolInformation>,
+    pub pool_info: HashMap<Address, Pool>,
     // provider for fetching information
     provider: P,
     runtime: HandleOrRuntime,
@@ -70,7 +63,7 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> BlockStateDB<T, N, P> 
     // Construct a new BlockStateDB
     pub fn new(provider: P) -> Option<Self> {
         debug!("Creating new BlockStateDB");
-        let mut contracts = HashMap::new();
+        let contracts = HashMap::new();
         //contracts.insert(KECCAK_EMPTY, Bytecode::default());
         //contracts.insert(B256::ZERO, Bytecode::default());
 
@@ -99,34 +92,33 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> BlockStateDB<T, N, P> 
     // Record a new pool in our working set
     pub fn add_pool(
         &mut self,
-        pool: Address,
-        token0: Address,
-        token1: Address,
-        pool_type: PoolType,
+        pool: Pool
     ) {
-        trace!("Adding pool {} to database", pool);
+
+        let pool_address = pool.address();
+        trace!("Adding pool {} to database", pool_address);
 
         // track the pool and the pool information
-        self.pools.insert(pool);
-        self.pool_info.insert(
-            pool,
-            PoolInformation {
-                token0,
-                token1,
-                pool_type,
-            },
-        );
+        self.pools.insert(pool_address);
+        self.pool_info.insert(pool_address, pool);
 
         // fetch the onchain pool account and insert it into database
         // this is onchain because it has onchain state, the slots will be custom
-        let pool_account = <Self as DatabaseRef>::basic_ref(self, pool);
+        let pool_account = <Self as DatabaseRef>::basic_ref(self, pool_address);
         let new_db_account = BlockStateDBAccount {
             info: pool_account.unwrap().unwrap(),
             insertion_type: InsertionType::OnChain,
             ..Default::default()
         };
-        self.accounts.insert(pool, new_db_account);
+        self.accounts.insert(pool_address, new_db_account);
     }
+
+
+    // Get a pool corresponding to an address
+    pub fn get_pool(&self, pool_address: &Address) -> &Pool {
+        self.pool_info.get(pool_address).unwrap()
+    }
+
 
     // Check if we are tracking the pool. This is our working set
     #[inline]
@@ -137,7 +129,7 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> BlockStateDB<T, N, P> 
     // Compute zero to one for amount out computations
     #[inline]
     pub fn zero_to_one(&self, pool: &Address, token_in: Address) -> Option<bool> {
-        self.pool_info.get(pool).map(|info| info.token0 == token_in)
+        self.pool_info.get(pool).map(|info| info.token0_address() == token_in)
     }
 
     // Go through a block trace and update all relevant slots

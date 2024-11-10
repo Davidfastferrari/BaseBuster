@@ -14,6 +14,7 @@ use crate::simulator::simulate_paths;
 use crate::stream::stream_new_blocks;
 use crate::tx_sender::TransactionSender;
 use crate::gas_station::GasStation;
+use crate::estimator::Estimator;
 
 /// Start all of the workers
 pub async fn start_workers(pools: Vec<Pool>, last_synced_block: u64) {
@@ -39,9 +40,9 @@ pub async fn start_workers(pools: Vec<Pool>, last_synced_block: u64) {
         async move { gas_station.update_gas(block_rx).await }
     });
 
-
     // Initialize our market state, this is a wrapper over the REVM database with all our pool state
     // then start the updater
+    info!("Initializing market state...");
     let http_url = std::env::var("FULL").unwrap().parse().unwrap();
     let provider = ProviderBuilder::new().on_http(http_url);
     let market_state = MarketState::init_state_and_start_stream(
@@ -52,7 +53,15 @@ pub async fn start_workers(pools: Vec<Pool>, last_synced_block: u64) {
         provider,
     )
     .await
-    .unwrap(); // add something to reeiver blocks, this the state will be updated here
+    .unwrap();
+    info!("Initialized market state!");
+        
+
+    // Construct and populate the estimator
+    info!("Calculating initial rates in estimator...");
+    let mut estimator = Estimator::new(market_state.clone());
+    estimator.process_pools(pools.clone());
+    info!("Calculated initial rates!");
 
     // generate the graph
     info!("Generating cycles...");
@@ -69,7 +78,7 @@ pub async fn start_workers(pools: Vec<Pool>, last_synced_block: u64) {
 
     // start the searcher
     info!("Starting arbitrage searcher...");
-    let mut searcher = Searchoor::new(cycles, market_state.clone());
+    let mut searcher = Searchoor::new(cycles, market_state.clone(), estimator);
     thread::spawn(move || searcher.search_paths(paths_sender, address_receiver));
 
     // start the tx sender
