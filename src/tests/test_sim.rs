@@ -1,21 +1,21 @@
+/* 
 use revm::db::CacheDB;
 //use crate::db::RethDB;
+use crate::db::RethDB;
+use crate::FlashSwap;
+use alloy::primitives::{address, Address, U256};
+use alloy::providers::{Provider, ProviderBuilder};
+use alloy::sol;
 use alloy::sol_types::SolCall;
 use pool_sync::PoolType;
-use alloy::primitives::{Address, address, U256};
-use crate::FlashSwap;
-use alloy::providers::{ProviderBuilder, Provider };
-use revm::primitives::Bytecode;
 use revm::primitives::AccountInfo;
-    use revm::primitives::TransactTo;
+use revm::primitives::Bytecode;
+use revm::primitives::TransactTo;
 use revm::Evm;
-use alloy::sol;
-use crate::db::RethDB;
 
-use std::sync::Arc;
 use alloy::{signers::local::PrivateKeySigner, sol_types::SolValue};
 use revm::primitives::{keccak256, Bytes};
-
+use std::sync::Arc;
 
 sol!(
     #[derive(Debug)]
@@ -31,7 +31,6 @@ sol!(
     FlashQuoter,
     "src/abi/FlashQuoter.json"
 );
-
 
 sol!(
     #[derive(Debug)]
@@ -62,7 +61,6 @@ sol!(
     }
 );
 
-
 #[cfg(test)]
 mod test_sim {
 
@@ -78,7 +76,7 @@ mod test_sim {
         let account = address!("c9034c3E7F58003E6ae0C8438e7c8f4598d5ACAA");
         let weth = address!("4200000000000000000000000000000000000006");
         let usdc = address!("833589fCD6eDb6E08f4c7C32D4f71b54bdA02913");
-        let router_address = address!("cF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43"); 
+        let router_address = address!("cF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43");
 
         // Set up EVM
         let mut evm = Evm::builder()
@@ -87,7 +85,8 @@ mod test_sim {
                 tx.caller = account;
                 tx.transact_to = TransactTo::Call(router_address);
                 tx.value = U256::ZERO;
-            }).build();
+            })
+            .build();
 
         // Prepare swap parameters
         let amount_in = U256::from(1e18); // 1 WETH
@@ -107,14 +106,15 @@ mod test_sim {
             routes: vec![route],
             to: account,
             deadline: U256::MAX,
-        }.abi_encode();
+        }
+        .abi_encode();
         evm.tx_mut().data = calldata.into();
 
         // Execute the swap
         let result = evm.transact();
         println!("{:?}", result);
 
-        /* 
+        /*
         match result.result {
             ExecutionResult::Success { output, .. } => {
                 let amounts: Vec<U256> = Vec::<U256>::abi_decode(&output.data(), false).unwrap();
@@ -124,7 +124,6 @@ mod test_sim {
         }
         */
     }
-
 
     #[tokio::test(flavor = "multi_thread")]
     pub async fn full_quote() {
@@ -140,7 +139,7 @@ mod test_sim {
         let hashed_acc_balance_slot = keccak256((account, weth_balance_slot).abi_encode());
         db.insert_account_storage(weth, hashed_acc_balance_slot.into(), one_ether)
             .unwrap();
-    
+
         let acc_info = AccountInfo {
             nonce: 0_u64,
             balance: one_ether,
@@ -148,7 +147,7 @@ mod test_sim {
             code: None,
         };
         db.insert_account_info(account, acc_info);
-    
+
         // Insert quoter bytecode
         let quoter_bytecode = FlashQuoter::DEPLOYED_BYTECODE.clone();
         let quoter_acc_info = AccountInfo {
@@ -165,32 +164,33 @@ mod test_sim {
                 tx.caller = account;
                 tx.transact_to = TransactTo::Call(weth);
                 tx.value = U256::ZERO;
-            }).build();
+            })
+            .build();
 
         let approve_calldata = Approval::approveCall {
             spender: quoter,
-            amount: U256::from(1e18)
-        }.abi_encode();
+            amount: U256::from(1e18),
+        }
+        .abi_encode();
 
         evm.tx_mut().data = approve_calldata.into();
 
         let ref_tx = evm.transact_commit().unwrap();
 
         let start = std::time::Instant::now();
-        let path = vec![
-            FlashQuoter::SwapStep {
-                poolAddress: address!("3548029694fbB241D45FB24Ba0cd9c9d4E745f16"),
-                tokenIn: address!("4200000000000000000000000000000000000006"),
-                tokenOut: address!("833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
-                protocol: 15, 
-                fee: 0.try_into().unwrap(),
-            },
-        ];
+        let path = vec![FlashQuoter::SwapStep {
+            poolAddress: address!("3548029694fbB241D45FB24Ba0cd9c9d4E745f16"),
+            tokenIn: address!("4200000000000000000000000000000000000006"),
+            tokenOut: address!("833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
+            protocol: 15,
+            fee: 0.try_into().unwrap(),
+        }];
 
         let calldata = FlashQuoter::quoteArbitrageCall {
             steps: path,
-            amount: U256::from(1e16)
-        }.abi_encode();
+            amount: U256::from(1e16),
+        }
+        .abi_encode();
 
         evm.tx_mut().data = calldata.into();
         evm.tx_mut().transact_to = TransactTo::Call(quoter);
@@ -198,26 +198,18 @@ mod test_sim {
         let ref_tx = evm.transact().unwrap();
         let result = ref_tx.result;
         match result {
-            ExecutionResult::Success {
-                output: value,
-                ..
-            } => {
+            ExecutionResult::Success { output: value, .. } => {
                 let a = match <U256>::abi_decode(&value.data(), false) {
                     Ok(a) => a,
-                    Err(_) => U256::ZERO
+                    Err(_) => U256::ZERO,
                 };
                 println!("Profit: {:#?}", a);
                 let duration = start.elapsed();
                 println!("Time taken: {:?}", duration);
             }
-            _=> println!("{:#?}", result),
-    
-    
+            _ => println!("{:#?}", result),
         }
     }
-
-
-
 
     #[tokio::test(flavor = "multi_thread")]
     pub async fn contract_sim() {
@@ -238,18 +230,12 @@ mod test_sim {
         let weth = address!("4200000000000000000000000000000000000006");
         let quoter = address!("0000000000000000000000000000000000001000"); // Replace with actual quoter address
 
-
-        let quoter_contract = FlashQuoter::deploy(provider.clone()).await.unwrap();;
+        let quoter_contract = FlashQuoter::deploy(provider.clone()).await.unwrap();
         let weth = WETH::new(weth, provider.clone());
 
-        weth.approve(quoter_contract.address().clone(), U256::from(1e18)).send().await;
-
-
-
-
-
+        weth.approve(quoter_contract.address().clone(), U256::from(1e18))
+            .send()
+            .await;
     }
-
 }
-
-
+*/

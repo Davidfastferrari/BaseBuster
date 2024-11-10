@@ -10,11 +10,11 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use crate::calculation::Calculator;
+use crate::estimator::Estimator;
 use crate::events::Event;
 use crate::market_state::MarketState;
 use crate::swap::SwapPath;
 use crate::AMOUNT;
-use crate::estimator::Estimator;
 
 // top level sercher struct
 // contains the calculator and all path information
@@ -38,7 +38,11 @@ where
     P: Provider<T, N>,
 {
     // Construct the searcher with the calculator and all the swap paths
-    pub fn new(cycles: Vec<SwapPath>, market_state: Arc<MarketState<T, N, P>>, estimator: Estimator<T, N, P>) -> Self {
+    pub fn new(
+        cycles: Vec<SwapPath>,
+        market_state: Arc<MarketState<T, N, P>>,
+        estimator: Estimator<T, N, P>,
+    ) -> Self {
         let calculator = Calculator::new(market_state);
 
         // make our path mapper for easily getting touched paths
@@ -93,7 +97,8 @@ where
                 .par_iter()
                 .filter_map(|path| {
                     // estimate if the path is profitable
-                    if self.estimator.is_profitable(*path, U256::ZERO) {
+                    if self.estimator.is_profitable(path, U256::ZERO) {
+                        println!("profitable");
                         // get the exact output to double check
                         let output_amount = self.calculator.calculate_output(path);
                         if output_amount >= self.min_profit {
@@ -119,18 +124,3 @@ where
         }
     }
 }
-
-                    //let debug_quote = self.calculator.debug_calculation(path);
-                    //assert_eq!(output_amount, *debug_quote.last().unwrap());
-
-                    //if sim {
-                        // if this is a sim, we are concerened about correct amounts out
-                     //   Some((path.clone().clone(), output_amount))
-                    //} else {
-                        // this is not a sim, make sure it is a profitable path
-                     //   if output_amount >= self.min_profit {
-                      //      Some((path.clone().clone(), output_amount))
-                       // } else {
-                        //    None
-                        //}
-                    //}

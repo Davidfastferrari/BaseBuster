@@ -58,7 +58,6 @@ where
         }
     }
 
-
     // If a pools reserves were touched, update the exchange rate
     pub fn update_rates(&mut self, pool_addrs: &HashSet<Address>) {
         // get all pools corresponding to updated pool addresses
@@ -66,10 +65,8 @@ where
         let pools: Vec<Pool> = pool_addrs.iter().map(|p| db.get_pool(p).clone()).collect();
         drop(db);
 
-
         self.process_pools(pools);
     }
-
 
     // Given a swappath, estimate if it is profitable based on calculated rates
     pub fn is_profitable(&self, swap_path: &SwapPath, min_profit_ratio: U256) -> bool {
@@ -90,6 +87,7 @@ where
                 return false;
             }
         }
+        println!("{:?}", cumulative_rate);
         // Check if rate exceeds 1.0 + min_profit_ratio
         cumulative_rate > (*RATE_SCALE_VALUE + min_profit_ratio)
     }
@@ -158,7 +156,6 @@ where
         }
         // calculate every pool that is
     }
-
 
     // Calculate the rate for an weth based pool
     fn process_eth_pool(
@@ -277,8 +274,6 @@ mod estimator_tests {
     use std::sync::mpsc;
     use tokio::sync::broadcast;
 
-
-
     // Create mock uniswapv2 weth/usdc pool
     fn uni_v2_weth_usdc() -> Pool {
         let pool = UniswapV2Pool {
@@ -308,7 +303,7 @@ mod estimator_tests {
             token0_decimals: 18,
             token1_decimals: 6,
             token0_reserves: U256::from(324239280299976672116_u128),
-            token1_reserves: U256::from(1016689282374_u128),         
+            token1_reserves: U256::from(1016689282374_u128),
             stable: None,
             fee: None,
         };
@@ -336,8 +331,7 @@ mod estimator_tests {
         Estimator::new(market_state)
     }
 
-
-    // Test that we can properly scale values to a desired precision 
+    // Test that we can properly scale values to a desired precision
     #[tokio::test(flavor = "multi_thread")]
     async fn test_scale_to_rate() {
         let estimator = mock_estimator().await;
@@ -353,8 +347,7 @@ mod estimator_tests {
         assert_eq!(scaled, U256::from(1e18));
     }
 
-
-    // Test that we compute the correct rate for a given input/output 
+    // Test that we compute the correct rate for a given input/output
     #[tokio::test(flavor = "multi_thread")]
     async fn test_calculate_rate() {
         let estimator = mock_estimator().await;
@@ -367,7 +360,6 @@ mod estimator_tests {
         // Expected rate: 0.5 * 1e18 (representing 0.5 in fixed point)
         assert_eq!(rate, U256::from(500_000_000_000_000_000u128));
     }
-
 
     // Test if we can find a profitable path via rate estimation
     #[tokio::test(flavor = "multi_thread")]
@@ -424,4 +416,3 @@ mod estimator_tests {
         assert!(profit);
     }
 }
-

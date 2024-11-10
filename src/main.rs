@@ -5,27 +5,26 @@ use lazy_static::lazy_static;
 use log::{info, LevelFilter};
 use pool_sync::*;
 
-mod calculation;
-mod graph;
-mod ignition;
-//mod market;
-mod simulator;
-mod stream;
-mod tx_sender;
-//mod tests;
 mod bytecode;
 mod cache;
+mod calculation;
+mod estimator;
 mod events;
 mod filter;
+mod gas_station;
 mod gen;
+mod graph;
+mod ignition;
 mod market_state;
-mod estimator;
 mod quoter;
 mod searcher;
+mod simulator;
 mod state_db;
+mod stream;
 mod swap;
-mod gas_station;
+mod tests;
 mod tracing;
+mod tx_sender;
 
 // initial amount we are trying to arb over
 lazy_static! {
@@ -37,17 +36,11 @@ async fn main() -> Result<()> {
     // init dots and logger
     dotenv::dotenv().ok();
     env_logger::Builder::new()
-        .filter_module("BaseBuster", LevelFilter::Info)
+        .filter_module("BaseBuster", LevelFilter::Debug)
         .format(|buf, record| {
             use std::io::Write;
             let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
-            writeln!(
-                buf,
-                "{} {} - {}",
-                timestamp,
-                record.level(),
-                record.args()
-            )
+            writeln!(buf, "{} {} - {}", timestamp, record.level(), record.args())
         })
         .init();
 
@@ -58,14 +51,13 @@ async fn main() -> Result<()> {
             PoolType::UniswapV2,
             PoolType::SushiSwapV2,
             PoolType::PancakeSwapV2,
-            PoolType::AlienBaseV2,
-            PoolType::SwapBasedV2,
-            PoolType::DackieSwapV2,
-            PoolType::BaseSwapV2,
+            //PoolType::AlienBaseV2,
+            //PoolType::SwapBasedV2,
+            //PoolType::DackieSwapV2,
+            //PoolType::BaseSwapV2,
             //PoolType::Slipstream,
             //PoolType::UniswapV3,
-            //PoolType::SushiSwapV3, 
-
+            //PoolType::SushiSwapV3,
         ])
         .chain(Chain::Base)
         .rate_limit(1000)

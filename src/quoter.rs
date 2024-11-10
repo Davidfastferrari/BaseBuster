@@ -18,10 +18,7 @@ use crate::state_db::BlockStateDB;
 // type to make our life easier
 type QuoteEvm<'a> = Evm<
     'a,
-    EthereumWiring<
-        &'a mut BlockStateDB<Http<Client>, Ethereum, RootProvider<Http<Client>>>,
-        (),
-    >,
+    EthereumWiring<&'a mut BlockStateDB<Http<Client>, Ethereum, RootProvider<Http<Client>>>, ()>,
 >;
 
 // Quoter. This is used to get a simulation quote before sending off a transaction.

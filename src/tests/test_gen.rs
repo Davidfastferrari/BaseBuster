@@ -138,6 +138,13 @@ sol!(
 
 sol!(
     #[sol(rpc)]
+    contract Aerodrome {
+        function getAmountOut(uint256 amountIn, address tokenIn) external view returns (uint256);
+    }
+);
+
+sol!(
+    #[sol(rpc)]
     contract Curve {
         function get_dy(uint256 i, uint256 j, uint256 dx) external view returns (uint256);
     }
@@ -162,3 +169,4 @@ sol! {
         function tickSpacing() external view returns (int24);
     }
 }
+
