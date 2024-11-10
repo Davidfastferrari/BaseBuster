@@ -62,8 +62,8 @@ async fn main() -> Result<()> {
             //PoolType::SwapBasedV2,
             //PoolType::DackieSwapV2,
             //PoolType::BaseSwapV2,
-            PoolType::Slipstream,
-            PoolType::UniswapV3,
+            //PoolType::Slipstream,
+            //PoolType::UniswapV3,
             //PoolType::SushiSwapV3, 
 
         ])

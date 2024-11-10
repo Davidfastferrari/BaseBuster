@@ -64,6 +64,7 @@ where
             db: RwLock::new(db),
         });
 
+        /* 
         // start the state updater
         tokio::spawn(Self::state_updater(
             market_state.clone(),
@@ -71,6 +72,7 @@ where
             address_tx,
             last_synced_block,
         ));
+        */
 
         Ok(market_state)
     }
