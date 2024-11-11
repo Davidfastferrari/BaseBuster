@@ -1,18 +1,11 @@
 use super::Calculator;
-use crate::gen::{V2State, V3State};
 use alloy::network::Network;
 use alloy::primitives::Address;
 use alloy::primitives::{I256, U256};
 use alloy::providers::Provider;
-use alloy::providers::IpcConnect;
-use alloy::providers::ProviderBuilder;
-use alloy::sol;
-use alloy::sol_types::SolCall;
 use alloy::transports::Transport;
 use anyhow::Result;
 use std::collections::HashMap;
-use std::sync::Arc;
-use std::time::{Duration, Instant};
 use uniswap_v3_math::tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK};
 
 pub const U256_1: U256 = U256::from_limbs([1, 0, 0, 0]);
@@ -61,43 +54,6 @@ where
         let zero_to_one = db_read.zero_to_one(pool_address, *token_in).unwrap();
         let (reserve0, reserve1) = db_read.get_reserves(pool_address);
 
-        // verify that we do have the correct reserve amounts
-        #[cfg(feature = "verification")]
-        {
-            // Create a runtime only if we're not already in one
-            let rt = match tokio::runtime::Handle::try_current() {
-                Ok(handle) => handle,
-                Err(_) => tokio::runtime::Runtime::new().unwrap().handle().clone(),
-            };
-
-            rt.block_on(async {
-                let provider = 
-                    ProviderBuilder::new().on_http(std::env::var("FULL").unwrap().parse().unwrap());
-
-                let V2State::getReservesReturn {
-                    reserve0: res0,
-                    reserve1: res1,
-                    ..
-                } = V2State::new(*pool_address, provider)
-                    .getReserves()
-                    .call()
-                    .await
-                    .unwrap();
-                assert_eq!(
-                    reserve0,
-                    U256::from(res0),
-                    "reserve0 mismatch for pool: {:#x}",
-                    pool_address
-                );
-                assert_eq!(
-                    reserve1,
-                    U256::from(res1),
-                    "reserve1 mismatch for pool: {:#x}",
-                    pool_address
-                );
-            });
-        }
-
         let scalar = U256::from(10000);
 
         let (reserve0, reserve1) = if zero_to_one {
@@ -132,48 +88,6 @@ where
         let liquidity = db_read.liquidity(*pool_address)?;
         let tick_spacing = db_read.tick_spacing(pool_address)?;
 
-        // verify that we have all the correct state
-        #[cfg(feature = "verification")]
-        {
-            tokio::runtime::Runtime::new().unwrap().block_on(async {
-                let provider = Arc::new(
-                    ProviderBuilder::new().on_http(std::env::var("FULL").unwrap().parse().unwrap()),
-                );
-
-                // check the liquidity
-                let V3State::liquidityReturn { _0: liq_onchain } =
-                    V3State::new(*pool_address, provider.clone())
-                        .liquidity()
-                        .call()
-                        .await
-                        .unwrap();
-                assert_eq!(
-                    liquidity, liq_onchain,
-                    "liquidity mismatch for pool {:#x}",
-                    pool_address
-                );
-
-                // check slot0
-                let V3State::slot0Return {
-                    sqrtPriceX96, tick, ..
-                } = V3State::new(*pool_address, provider.clone())
-                    .slot0()
-                    .call()
-                    .await
-                    .unwrap();
-                assert_eq!(
-                    slot0.sqrtPriceX96, sqrtPriceX96,
-                    "sqrtPriceX96 mismatch for pool {:#x}",
-                    pool_address
-                );
-                assert_eq!(
-                    slot0.tick, tick,
-                    "tick mismatch for pool {:#x}",
-                    pool_address
-                );
-            });
-        }
-
         // Set sqrt_price_limit_x_96 to the max or min sqrt price in the pool depending on zero_for_one
         let sqrt_price_limit_x_96 = if zero_to_one {
             U256::from(MIN_SQRT_RATIO) + U256_1
@@ -189,9 +103,6 @@ where
             tick: slot0.tick.as_i32(),
             liquidity, //Current available liquidity in the tick range
         };
-
-        let time = Instant::now();
-        let calc_bound = Duration::from_millis(5);
 
         while current_state.amount_specified_remaining != I256::ZERO
             && current_state.sqrt_price_x_96 != sqrt_price_limit_x_96

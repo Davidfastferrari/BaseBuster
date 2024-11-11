@@ -1,8 +1,18 @@
-pub mod test_utils;
-pub mod test_quotes;
-pub mod test_sim;
-pub mod onchain_quote;
+#[cfg(test)]
+pub use test_utils::test_utils as utils;
+#[cfg(test)]
+pub use onchain_quote::onchain_quote as onchain;
+#[cfg(test)]
+pub use offchain_quote::offchain_quote as offchain;
+#[cfg(test)]
+mod test_utils;
+#[cfg(test)]
+mod test_quotes;
+#[cfg(test)]
+mod onchain_quote;
+#[cfg(test)]
 mod test_gen;
+#[cfg(test)]
 mod offchain_quote;
 
 

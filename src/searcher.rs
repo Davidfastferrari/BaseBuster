@@ -70,7 +70,7 @@ where
     }
 
     pub fn search_paths(&mut self, paths_tx: Sender<Event>, address_rx: Receiver<Event>) {
-        let sim: bool = std::env::var("SIM").unwrap().parse().unwrap();
+        let _sim: bool = std::env::var("SIM").unwrap().parse().unwrap();
 
         // wait for a new single with the pools that have reserved updated
         while let Ok(Event::PoolsTouched(pools, block_number)) = address_rx.recv() {
@@ -102,7 +102,7 @@ where
                         // get the exact output to double check
                         let output_amount = self.calculator.calculate_output(path);
                         if output_amount >= self.min_profit {
-                            Some((path.clone().clone(), output_amount))
+                            Some(((*path).clone(), output_amount))
                         } else {
                             None
                         }

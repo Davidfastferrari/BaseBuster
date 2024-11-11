@@ -1,9 +1,8 @@
-use alloy::dyn_abi::abi::token;
 use alloy::network::Network;
 use alloy::primitives::{Address, U256};
 use alloy::providers::Provider;
 use alloy::transports::Transport;
-use pool_sync::{PoolType, Pool};
+use pool_sync::PoolType;
 use std::collections::HashSet;
 use std::sync::Arc;
 
@@ -136,8 +135,7 @@ where
             PoolType::Aerodrome => self.aerodrome_out(input_amount, token_in, pool_address),
             PoolType::MaverickV1 | PoolType::MaverickV2 => todo!(),
             PoolType::BalancerV2 => todo!(),
-            PoolType::CurveTwoCrypto | PoolType::CurveTriCrypto => todo!(),
-            _ => U256::ZERO,
+            PoolType::CurveTwoCrypto | PoolType::CurveTriCrypto => todo!()
         }
     }
 

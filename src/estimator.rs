@@ -162,7 +162,7 @@ where
         &mut self,
         pool: &Pool,
         weth: Address,
-        input: U256,
+        _input: U256,
         alt_tokens: &mut HashSet<Address>,
         weth_alt_cnt: &mut HashMap<Address, u32>,
     ) {
@@ -225,12 +225,12 @@ where
         *weth_alt_cnt.entry(alt).or_insert(0) += 1;
     }
 
-    fn process_nonweth_pool(&mut self, pool: &Pool, input: U256) {
+    fn process_nonweth_pool(&mut self, pool: &Pool, _input: U256) {
         let pool_address = pool.address();
         let token0 = pool.token0_address();
         let token1 = pool.token1_address();
 
-        if let Some(&input_rate) = self.aggregated_weth_rate.get(&token0) {
+        if let Some(&_input_rate) = self.aggregated_weth_rate.get(&token0) {
             let token0_decimals = self.token_decimals.get(&token0).unwrap_or(&18);
             let scaled_input = U256::from(10u128).pow(U256::from(*token0_decimals));
 

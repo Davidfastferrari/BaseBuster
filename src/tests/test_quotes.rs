@@ -1,15 +1,14 @@
 
-use super::test_utils::{load_and_filter_pools, construct_market, construct_pool_map};
-use super::offchain_quote::offchain_quote;
-use super::onchain_quote::onchain_quote;
-use crate::events::Event;
 
 // All offchain calculation tests
 #[cfg(test)]
 mod offchain_calculations {
+    use super::super::utils::{load_and_filter_pools, construct_market, construct_pool_map};
+    use super::super::offchain::offchain_quote;
+    use super::super::onchain::onchain_quote;
+    use crate::events::Event;
 
     use pool_sync::PoolType;
-    use super::*;
 
     macro_rules! test_pool_out {
         ($test_name:ident, $pool_type:ident) => {

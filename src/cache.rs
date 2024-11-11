@@ -63,15 +63,6 @@ impl Cache {
     }
 
     #[inline]
-    pub fn set(&self, amount_in: U256, pool_address: Address, output_amount: U256) {
-        let key = CacheKey {
-            pool_address,
-            amount_in,
-        };
-        self.entries.insert(key, CacheEntry { output_amount });
-    }
-
-    #[inline]
     pub fn invalidate(&self, pool_address: Address) {
         self.entries
             .retain(|key, _| key.pool_address != pool_address);

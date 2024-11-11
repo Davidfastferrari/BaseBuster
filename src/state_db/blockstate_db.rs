@@ -15,12 +15,11 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::future::IntoFuture;
 use pool_sync::Pool;
-use tokio::runtime::{Handle, Runtime};
+use tokio::runtime::Handle;
 
 #[derive(Debug)]
 pub enum HandleOrRuntime {
     Handle(Handle),
-    Runtime(Runtime),
 }
 
 impl HandleOrRuntime {
@@ -32,7 +31,7 @@ impl HandleOrRuntime {
     {
         match self {
             Self::Handle(handle) => tokio::task::block_in_place(move || handle.block_on(f)),
-            Self::Runtime(rt) => rt.block_on(f),
+            //Self::Runtime(rt) => rt.block_on(f),
         }
     }
 }
@@ -45,7 +44,7 @@ pub struct BlockStateDB<T: Transport + Clone, N: Network, P: Provider<T, N>> {
     // The contracts that this database holds
     pub contracts: HashMap<B256, Bytecode>,
     // Logs??
-    pub logs: Vec<Log>,
+    pub _logs: Vec<Log>,
     // Block hashs???
     pub block_hashes: HashMap<BlockNumber, B256>,
 
@@ -79,7 +78,7 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> BlockStateDB<T, N, P> 
         Some(Self {
             accounts: HashMap::new(),
             contracts,
-            logs: Vec::new(),
+            _logs: Vec::new(),
             block_hashes: HashMap::new(),
             pools: HashSet::new(),
             pool_info: HashMap::new(),
@@ -570,6 +569,7 @@ pub struct BlockStateDBAccount {
     pub info: AccountInfo,
     pub state: AccountState,
     pub storage: HashMap<U256, BlockStateDBSlot>,
+    #[warn(dead_code)]
     pub insertion_type: InsertionType,
 }
 

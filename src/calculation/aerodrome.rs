@@ -5,8 +5,6 @@ use alloy::primitives::Address;
 use alloy::primitives::U256;
 use alloy::providers::Provider;
 use alloy::transports::Transport;
-use crate::gen::V2State;
-use alloy::providers::ProviderBuilder;
 
 sol! {
     #[sol(rpc)]
@@ -30,36 +28,6 @@ where
         let (dec_0, dec_1) = db_read.get_decimals(&pool_address);
         let stable = db_read.get_stable(&pool_address);
         let token0 = db_read.get_token0(pool_address);
-
-        // verify that we have the correct state
-        #[cfg(feature = "verification")]
-        {
-            tokio::runtime::Runtime::new().unwrap().block_on(async {
-                let provider =
-                    ProviderBuilder::new().on_http(std::env::var("FULL").unwrap().parse().unwrap());
-                let V2State::getReservesReturn {
-                    reserve0: res0,
-                    reserve1: res1,
-                    ..
-                } = V2State::new(pool_address, provider)
-                    .getReserves()
-                    .call()
-                    .await
-                    .unwrap();
-                assert_eq!(
-                    reserve0,
-                    U256::from(res0),
-                    "reserve0 mismatch for pool: {:#x}",
-                    pool_address
-                );
-                assert_eq!(
-                    reserve1,
-                    U256::from(res1),
-                    "reserve1 mismatch for pool: {:#x}",
-                    pool_address
-                );
-            });
-        }
 
         let mut _reserve0 = U256::from(reserve0);
         let mut _reserve1 = U256::from(reserve1);

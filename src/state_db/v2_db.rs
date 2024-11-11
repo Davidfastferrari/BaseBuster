@@ -59,6 +59,7 @@ where
         Address::from_word(token0.into())
     }
 
+    #[warn(dead_code)]
     pub fn get_token1(&self, pool: Address) -> Address {
         let token1 = self.storage_ref(pool, U256::from(7)).unwrap();
         Address::from_word(token1.into())
@@ -76,6 +77,7 @@ where
         todo!()
     }
 
+    #[warn(dead_code)]
     pub fn get_tokens(&self, _pool: &Address) -> (Address, Address) {
         todo!()
     }

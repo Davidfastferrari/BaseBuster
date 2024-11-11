@@ -66,17 +66,7 @@ pub async fn simulate_paths(
                             );
                         }
                     } else {
-                        /*
-                        let (optimized_input, optimized_output) =
-                            quoter.optimize_input(converted_path.clone()).unwrap();
-                        info!(
-                            "Optimized input... Optimal amount in {}, Optimized Amount out {}",
-                            optimized_input, optimized_output
-                        );
-                        */
-
                         info!("Sim successful... Expected output: {}, Block {}", expected_out, block_number);
-
                         // send the optimize path to the tx sender
                         let optimized_input = *AMOUNT;
                         match tx_sender.send(Event::ArbPath((arb_path, optimized_input, block_number))) {
