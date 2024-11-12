@@ -28,7 +28,7 @@ mod tx_sender;
 
 // initial amount we are trying to arb over
 lazy_static! {
-    pub static ref AMOUNT: U256 = U256::from(1e16); //0.1eth
+    pub static ref AMOUNT: U256 = U256::from(1e15); 
 }
 
 #[tokio::main]
@@ -51,13 +51,6 @@ async fn main() -> Result<()> {
             PoolType::UniswapV2,
             PoolType::SushiSwapV2,
             PoolType::PancakeSwapV2,
-            //PoolType::AlienBaseV2,
-            //PoolType::SwapBasedV2,
-            //PoolType::DackieSwapV2,
-            //PoolType::BaseSwapV2,
-            //PoolType::Slipstream,
-            //PoolType::UniswapV3,
-            //PoolType::SushiSwapV3,
         ])
         .chain(Chain::Base)
         .rate_limit(1000)

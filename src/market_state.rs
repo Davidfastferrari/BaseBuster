@@ -16,10 +16,10 @@ use revm::wiring::EthereumWiring;
 use revm::Evm;
 use std::collections::HashSet;
 use std::sync::mpsc::Sender;
-use tokio::sync::broadcast::Receiver;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::time::Instant;
+use tokio::sync::broadcast::Receiver;
 
 use crate::events::Event;
 use crate::gen::ERC20Token;
@@ -103,7 +103,6 @@ where
             current_block = http.get_block_number().await.unwrap();
         }
 
-
         // stream in new blocks
         while let Ok(Event::NewBlock(block)) = block_rx.recv().await {
             let start = Instant::now();
@@ -121,9 +120,12 @@ where
             let updated_pools = self.update_state(http.clone(), block_number).await;
             debug!("Processed the block {block_number}");
 
-
             // send the updated pools
-            info!("Block processed {} updates and sent in {:?}", updated_pools.len(), start.elapsed());
+            info!(
+                "Block processed {} updates and sent in {:?}",
+                updated_pools.len(),
+                start.elapsed()
+            );
             if let Err(e) = address_tx.send(Event::PoolsTouched(updated_pools, block_number)) {
                 error!("Failed to send updated pools: {}", e);
             } else {
@@ -193,9 +195,8 @@ where
         };
         db.insert_account_info(quoter, quoter_acc_info, InsertionType::Custom);
 
-
         // go over all the pools and try to simulate a swap.
-        // we have already filtered all of these pools, so we can assume 
+        // we have already filtered all of these pools, so we can assume
         // that these are good to go and load up db with info
         for pool in pools {
             // give some balance of the input token
@@ -211,7 +212,8 @@ where
             let approve_calldata = ERC20Token::approveCall {
                 spender: quoter,
                 amount: U256::from(1e18),
-            }.abi_encode();
+            }
+            .abi_encode();
             let mut evm = Evm::<EthereumWiring<&mut BlockStateDB<T, N, P>, ()>>::builder()
                 .with_db(db)
                 .with_default_ext_ctx()
@@ -225,20 +227,19 @@ where
             evm.transact_commit().unwrap();
 
             // Try to do the swap from input to output token
-            let quote_path = vec![
-                FlashQuoter::SwapStep {
-                    poolAddress: pool.address(),
-                    tokenIn: pool.token0_address(),
-                    tokenOut: pool.token1_address(),
-                    protocol: 0,
-                    fee: 0.try_into().unwrap(),
-                },
-            ];
+            let quote_path = vec![FlashQuoter::SwapStep {
+                poolAddress: pool.address(),
+                tokenIn: pool.token0_address(),
+                tokenOut: pool.token1_address(),
+                protocol: 0,
+                fee: 0.try_into().unwrap(),
+            }];
 
             let quote_calldata = FlashQuoter::quoteArbitrageCall {
                 steps: quote_path,
                 amount: *AMOUNT,
-            }.abi_encode()
+            }
+            .abi_encode()
             .abi_encode();
             evm.tx_mut().data = quote_calldata.into();
             evm.tx_mut().transact_to = TransactTo::Call(quoter);

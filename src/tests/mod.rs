@@ -7,13 +7,17 @@ pub use offchain_quote::offchain_quote as offchain;
 #[cfg(test)]
 mod test_utils;
 #[cfg(test)]
-mod test_quotes;
+mod test_estimation;
 #[cfg(test)]
 mod onchain_quote;
 #[cfg(test)]
 mod test_gen;
 #[cfg(test)]
 mod offchain_quote;
+#[cfg(test)]
+mod test_quotes;
+//#[cfg(test)]
+//mod state;
 
 
 // Tests breakdown 

@@ -104,10 +104,11 @@ where
             liquidity, //Current available liquidity in the tick range
         };
 
-        while current_state.amount_specified_remaining != I256::ZERO
-            && current_state.sqrt_price_x_96 != sqrt_price_limit_x_96
+        let exact_input = true; // We're always doing exact input when calculating output
+        
+        while current_state.amount_specified_remaining != I256::ZERO 
+            && current_state.sqrt_price_x_96 != sqrt_price_limit_x_96 
         {
-
             // Initialize a new step struct to hold the dynamic state of the pool at each step
             let mut step = StepComputations {
                 // Set the sqrt_price_start_x_96 to the current sqrt_price_x_96
@@ -153,58 +154,45 @@ where
             };
 
             // Compute swap step and update the current state
-            (
-                current_state.sqrt_price_x_96,
-                step.amount_in,
-                step.amount_out,
-                step.fee_amount,
-            ) = uniswap_v3_math::swap_math::compute_swap_step(
-                current_state.sqrt_price_x_96,
-                swap_target_sqrt_ratio,
-                current_state.liquidity,
-                current_state.amount_specified_remaining,
-                fee,
-            )?;
+            let (sqrt_price_next_x96, amount_in, amount_out, fee_amount) = 
+                uniswap_v3_math::swap_math::compute_swap_step(
+                    current_state.sqrt_price_x_96,
+                    swap_target_sqrt_ratio,
+                    current_state.liquidity,
+                    current_state.amount_specified_remaining,
+                    fee,
+                )?;
 
-            // Decrement the amount remaining to be swapped and amount received from the step
-            current_state.amount_specified_remaining = current_state
-                .amount_specified_remaining
-                .overflowing_sub(I256::from_raw(
-                    step.amount_in.overflowing_add(step.fee_amount).0,
-                ))
-                .0;
+            // Update state using exact input logic from on-chain code
+            current_state.amount_specified_remaining -= I256::from_raw(
+                amount_in.overflowing_add(fee_amount).0
+            );
+            current_state.amount_calculated -= I256::from_raw(amount_out);
+            current_state.sqrt_price_x_96 = sqrt_price_next_x96;
 
-            current_state.amount_calculated -= I256::from_raw(step.amount_out);
-
-            // If the price moved all the way to the next price, recompute the liquidity change for the next iteration
+            // Update tick and liquidity only if needed for next iteration
             if current_state.sqrt_price_x_96 == step.sqrt_price_next_x96 {
                 if step.initialized {
-                    let mut liquidity_net: i128 =
+                    let mut liquidity_net: i128 = 
                         db_read.ticks_liquidity_net(*pool_address, step.tick_next)?;
-
-                    // we are on a tick boundary, and the next tick is initialized, so we must charge a protocol fee
+                    
                     if zero_to_one {
                         liquidity_net = -liquidity_net;
                     }
-
+                    
                     current_state.liquidity = if liquidity_net < 0 {
-                        if current_state.liquidity < (-liquidity_net as u128) {
-                            return Ok(U256::ZERO); // this orignally returned an error
-                        } else {
-                            current_state.liquidity - (-liquidity_net as u128)
-                        }
+                        current_state.liquidity.checked_sub(-liquidity_net as u128)
+                            .ok_or_else(|| anyhow::anyhow!("Insufficient liquidity"))?
                     } else {
-                        current_state.liquidity + (liquidity_net as u128)
+                        current_state.liquidity.checked_add(liquidity_net as u128)
+                            .ok_or_else(|| anyhow::anyhow!("Liquidity overflow"))?
                     };
                 }
-                // Increment the current tick
                 current_state.tick = if zero_to_one {
-                    step.tick_next.wrapping_sub(1)
+                    step.tick_next - 1
                 } else {
                     step.tick_next
-                }
-                // If the current_state sqrt price is not equal to the step sqrt price, then we are not on the same tick.
-                // Update the current_state.tick to the tick at the current_state.sqrt_price_x_96
+                };
             } else if current_state.sqrt_price_x_96 != step.sqrt_price_start_x_96 {
                 current_state.tick = uniswap_v3_math::tick_math::get_tick_at_sqrt_ratio(
                     current_state.sqrt_price_x_96,
@@ -212,8 +200,6 @@ where
             }
         }
 
-        let amount_out = (-current_state.amount_calculated).into_raw();
-
-        Ok(amount_out)
+        Ok((-current_state.amount_calculated).into_raw())
     }
 }

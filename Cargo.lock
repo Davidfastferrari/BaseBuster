@@ -6217,7 +6217,7 @@ dependencies = [
 
 [[package]]
 name = "pool-sync"
-version = "2.0.1"
+version = "3.0.0"
 dependencies = [
  "alloy 0.3.6",
  "alloy-node-bindings 0.1.4",

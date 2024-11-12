@@ -68,13 +68,11 @@ pub mod test_utils {
         evm
     }
 
-    pub async fn load_and_filter_pools(pool_type: PoolType) -> (Vec<Pool>, u64) {
+    pub async fn load_and_filter_pools(pool_type: Vec<PoolType>) -> (Vec<Pool>, u64) {
         dotenv::dotenv().ok();
 
         let pool_sync = PoolSync::builder()
-            .add_pools(&[
-                pool_type
-            ])
+            .add_pools(&pool_type)
             .chain(pool_sync::Chain::Base)
             .rate_limit(1000)
             .build()

@@ -300,7 +300,7 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
 
         // we now have some of the input token and we have approved the router to spend it
         // try a swap to see if if it is valid
-        let amt = U256::from(1e17);
+        let amt = U256::from(2e18);
 
         // setup calldata based on the swap type
         let calldata = match swap_type {

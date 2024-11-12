@@ -1,11 +1,8 @@
-
-
-// All offchain calculation tests
 #[cfg(test)]
 mod offchain_calculations {
-    use super::super::utils::{load_and_filter_pools, construct_market, construct_pool_map};
     use super::super::offchain::offchain_quote;
     use super::super::onchain::onchain_quote;
+    use super::super::utils::{construct_market, construct_pool_map, load_and_filter_pools};
     use crate::events::Event;
 
     use pool_sync::PoolType;
@@ -16,7 +13,7 @@ mod offchain_calculations {
             pub async fn $test_name() {
                 dotenv::dotenv().ok();
                 // load and filter pools
-                let (pools, last_synced_block) = load_and_filter_pools(PoolType::$pool_type).await;
+                let (pools, last_synced_block) = load_and_filter_pools(vec![PoolType::$pool_type]).await;
                 // Pool map for references
                 let pool_map = construct_pool_map(pools.clone());
                 // init a market state with the new relevant pools
@@ -36,7 +33,7 @@ mod offchain_calculations {
         };
     }
 
-    test_pool_out!(test_uniswapv2_out,UniswapV2);
+    test_pool_out!(test_uniswapv2_out, UniswapV2);
     test_pool_out!(test_sushiswapv2_out, SushiSwapV2);
     test_pool_out!(test_pancakeswapv2_out, PancakeSwapV2);
     test_pool_out!(test_baseswapv2_out, BaseSwapV2);
@@ -52,5 +49,5 @@ mod offchain_calculations {
     test_pool_out!(test_baseswapv3_out, BaseSwapV3);
     test_pool_out!(test_slipstream_out, Slipstream);
     test_pool_out!(test_aerodrome_out, Aerodrome);
-
 }
+
