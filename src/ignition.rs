@@ -4,6 +4,8 @@ use pool_sync::{Chain, Pool};
 use std::sync::mpsc;
 use std::thread;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering::Relaxed;
 
 use crate::events::Event;
 use crate::filter::filter_pools;
@@ -40,6 +42,9 @@ pub async fn start_workers(pools: Vec<Pool>, last_synced_block: u64) {
         async move { gas_station.update_gas(block_rx).await }
     });
 
+    // Signal for it the blocks are caught up
+    let caught_up = Arc::new(AtomicBool::new(false));
+
     // Initialize our market state, this is a wrapper over the REVM database with all our pool state
     // then start the updater
     info!("Initializing market state...");
@@ -51,15 +56,18 @@ pub async fn start_workers(pools: Vec<Pool>, last_synced_block: u64) {
         address_sender,
         last_synced_block,
         provider,
+        caught_up.clone()
     )
     .await
     .unwrap();
     info!("Initialized market state!");
         
-
     // Construct and populate the estimator
+    // wait until we have caught up to all the blocks before we start estimating the rates
     info!("Calculating initial rates in estimator...");
     let mut estimator = Estimator::new(market_state.clone());
+    // spin why we are not caught up, then calculate rates for the updates pools
+    while !caught_up.load(Relaxed) {}
     estimator.process_pools(pools.clone());
     info!("Calculated initial rates!");
 

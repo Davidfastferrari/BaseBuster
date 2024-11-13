@@ -38,8 +38,8 @@ impl TransactionSender {
         // Create persisent http client
         let client = Client::builder()
             .pool_max_idle_per_host(10)
-            .pool_idle_timeout(Duration::from_secs(90))
-            .tcp_keepalive(Duration::from_secs(60))
+            .pool_idle_timeout(None)
+            .tcp_keepalive(Duration::from_secs(10))
             .tcp_nodelay(true)
             .timeout(Duration::from_secs(10))
             .connect_timeout(Duration::from_secs(5))
@@ -123,6 +123,7 @@ impl TransactionSender {
                 .await
                 .unwrap();
             info!("Time to send {:?}, {}", start.elapsed(), block_number);
+            println!("Time to send {:?}, {}", start.elapsed(), block_number);
             let body = res.text().await.unwrap();
             println!("Response: {}", body);
         }
@@ -219,8 +220,9 @@ mod tx_signing_tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_send_tx() {
-        env_logger::init();
         // init environment
+        env_logger::builder()  
+            .filter_level(log::LevelFilter::Info);
         dotenv::dotenv().ok();
 
         // Create gas station

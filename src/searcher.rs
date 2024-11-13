@@ -79,6 +79,7 @@ where
 
             // update all the rates for the pools that were touched
             self.estimator.update_rates(&pools);
+            info!("Updated estimations");
 
             // invalidate all updated pools in the cache
             self.calculator.invalidate_cache(&pools);
@@ -107,17 +108,15 @@ where
                 .collect();
 
             info!("{:?} elapsed calculating paths", res.elapsed());
-            info!("{} profitable paths", profitable_paths.len());
+            info!("{} estimated profitable paths", profitable_paths.len());
 
-            // get the best path and send it to the simulator
             if !profitable_paths.is_empty() {
-                let best_path = profitable_paths
-                    .iter()
-                    .max_by_key(|(_, amt)| amt)
-                    .unwrap();
-                // confirm this path is still in profit
+                // get the best estimated quote and confirm that it is actual in profit
+                let best_path = profitable_paths.iter().max_by_key(|(_, amt)| amt).unwrap();
                 let calculated_out = self.calculator.calculate_output(&best_path.0);
+
                 if calculated_out >= self.min_profit {
+                    info!("{} expected profit from path", calculated_out);
                     match paths_tx.send(Event::ArbPath((
                         best_path.0.clone(),
                         calculated_out,

@@ -6,6 +6,7 @@ pub mod utils {
     use alloy::transports::http::{Client, Http};
     use pool_sync::*;
     use revm::wiring::default::TransactTo;
+    use std::sync::atomic::AtomicBool;
     use std::sync::Arc;
     use alloy::sol_types::SolValue;
     use std::collections::HashMap;
@@ -97,6 +98,7 @@ pub mod utils {
         // Start the block stream
         tokio::task::spawn(stream_new_blocks(block_sender));
 
+        let is_caught_up = Arc::new(AtomicBool::new(false));
         // Initialize market state with pools and channels
         let market_state = MarketState::init_state_and_start_stream(
             pools,
@@ -104,6 +106,7 @@ pub mod utils {
             address_sender,
             last_synced_block,
             provider,
+            is_caught_up.clone()
         )
         .await
         .unwrap();

@@ -91,7 +91,6 @@ where
         current_amount
     }
 
-
     // Given a swappath, estimate if it is profitable based on calculated rates
     pub fn is_profitable(&self, swap_path: &SwapPath, min_profit_ratio: U256) -> bool {
         let mut cumulative_rate = *RATE_SCALE_VALUE; // Start with 1.0 in our scaled format
@@ -312,6 +311,9 @@ mod estimator_tests {
     use pool_sync::UniswapV2Pool;
     use std::sync::mpsc;
     use tokio::sync::broadcast;
+    use std::sync::Arc;
+    use std::sync::atomic::AtomicBool;
+    use std::sync::atomic::Ordering;
 
     // Create mock uniswapv2 weth/usdc pool
     fn uni_v2_weth_usdc() -> Pool {
@@ -363,10 +365,13 @@ mod estimator_tests {
 
         let provider = ProviderBuilder::new().on_http(endpoint);
         let block = provider.get_block_number().await.unwrap();
+
+        let is_caught_up = Arc::new(AtomicBool::new(false));
         let market_state =
-            MarketState::init_state_and_start_stream(pools, block_rx, address_tx, block, provider)
+            MarketState::init_state_and_start_stream(pools, block_rx, address_tx, block, provider, is_caught_up.clone())
                 .await
                 .unwrap();
+        while is_caught_up.load(Ordering::Relaxed) == false {}
         Estimator::new(market_state)
     }
 

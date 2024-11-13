@@ -50,20 +50,6 @@ pub async fn simulate_paths(
                             // get a full debug quote path
                             let calculator = Calculator::new(market_state.clone());
                             let output = calculator.debug_calculation(&arb_path);
-
-                            info!(
-                                "\nPath Comparison (Hash: {})\n\
-                                ----------------------------------------\n\
-                                Initial Output {}\n\
-                                Debug Output: {:#?}\n\
-                                Actual Quote:   {:#?}\n\
-                                Path Steps:     {:#?}\n",
-                                arb_path.hash,
-                                expected_out,
-                                output,
-                                quote,
-                                converted_path,
-                            );
                         }
                     } else {
                         info!("Sim successful... Estimated output: {}, Block {}", expected_out, block_number);

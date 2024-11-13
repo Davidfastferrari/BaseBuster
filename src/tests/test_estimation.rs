@@ -132,7 +132,7 @@ mod estimation {
         estimator.process_pools(pools.clone());
 
         let calc = calculator.calculate_output(&path);
-        let est = estimator.estimate_output_amount(&path).unwrap();
+        let est = estimator.estimate_output_amount(&path);
         let is_profit = estimator.is_profitable(&path, U256::ZERO);
         println!("{} {} {}", calc, est, is_profit);
     }

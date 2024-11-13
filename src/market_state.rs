@@ -20,6 +20,8 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use std::time::Instant;
 use tokio::sync::broadcast::Receiver;
+use std::sync::atomic::Ordering;
+use std::sync::atomic::AtomicBool;
 
 use crate::events::Event;
 use crate::gen::ERC20Token;
@@ -51,6 +53,7 @@ where
         address_tx: Sender<Event>, // sender for touched addresses in a block
         last_synced_block: u64,    // the last block that was synced too
         provider: P,
+        caught_up: Arc<AtomicBool>
     ) -> Result<Arc<Self>> {
         debug!("Populating the db with {} pools", pools.len());
 
@@ -70,6 +73,7 @@ where
             block_rx,
             address_tx,
             last_synced_block,
+            caught_up,
         ));
 
         Ok(market_state)
@@ -81,6 +85,7 @@ where
         mut block_rx: Receiver<Event>,
         address_tx: Sender<Event>,
         mut last_synced_block: u64,
+        caught_up: Arc<AtomicBool>
     ) {
         // setup a provider for tracing
         let http_url = std::env::var("FULL").unwrap().parse().unwrap();
@@ -102,6 +107,9 @@ where
             last_synced_block = current_block;
             current_block = http.get_block_number().await.unwrap();
         }
+
+        // signal that we are caught up
+        caught_up.store(true, Ordering::Relaxed);
 
         // stream in new blocks
         while let Ok(Event::NewBlock(block)) = block_rx.recv().await {
