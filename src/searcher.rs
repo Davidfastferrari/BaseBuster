@@ -54,11 +54,11 @@ where
         }
 
         // calculate the min profit percentage
-        let flash_loan_fee: U256 = U256::from(9) / U256::from(10000); // 0.09% flash loan fee
-        let min_profit_percentage: U256 = U256::from(2) / U256::from(100); // 2% minimum profit
-        let initial_amount: U256 = *AMOUNT;
-        let repayment_amount = initial_amount + (initial_amount * flash_loan_fee);
-        let min_profit = repayment_amount + (initial_amount * min_profit_percentage);
+        let initial_amount = *AMOUNT;
+        let flash_loan_fee = (initial_amount * U256::from(9)) / U256::from(10000);
+        let repayment_amount = initial_amount + flash_loan_fee;
+        let min_profit_percentage = (initial_amount * U256::from(1)) / U256::from(100);
+        let min_profit = repayment_amount + min_profit_percentage;
 
         Self {
             calculator,
@@ -97,15 +97,9 @@ where
                 .par_iter()
                 .filter_map(|path| {
                     // estimate if the path is profitable
-                    if self.estimator.is_profitable(path, U256::ZERO) {
-                        println!("profitable");
-                        // get the exact output to double check
-                        let output_amount = self.calculator.calculate_output(path);
-                        if output_amount >= self.min_profit {
-                            Some(((*path).clone(), output_amount))
-                        } else {
-                            None
-                        }
+                    let output_est = self.estimator.estimate_output_amount(path);
+                    if output_est >= self.min_profit {
+                        Some(((*path).clone(), output_est))
                     } else {
                         None
                     }
@@ -115,10 +109,23 @@ where
             info!("{:?} elapsed calculating paths", res.elapsed());
             info!("{} profitable paths", profitable_paths.len());
 
-            for path in profitable_paths {
-                match paths_tx.send(Event::ArbPath((path.0, path.1, block_number))) {
-                    Ok(_) => debug!("Sent path"),
-                    Err(_) => warn!("Failed to send path"),
+            // get the best path and send it to the simulator
+            if !profitable_paths.is_empty() {
+                let best_path = profitable_paths
+                    .iter()
+                    .max_by_key(|(_, amt)| amt)
+                    .unwrap();
+                // confirm this path is still in profit
+                let calculated_out = self.calculator.calculate_output(&best_path.0);
+                if calculated_out >= self.min_profit {
+                    match paths_tx.send(Event::ArbPath((
+                        best_path.0.clone(),
+                        calculated_out,
+                        block_number,
+                    ))) {
+                        Ok(_) => debug!("Sent path"),
+                        Err(_) => warn!("Failed to send path"),
+                    }
                 }
             }
         }

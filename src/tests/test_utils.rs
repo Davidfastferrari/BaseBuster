@@ -1,5 +1,5 @@
 #[cfg(test)]
-pub mod test_utils {
+pub mod utils {
     use alloy::network::Ethereum;
     use alloy::providers::{ProviderBuilder, RootProvider};
     use alloy::sol_types::SolCall;

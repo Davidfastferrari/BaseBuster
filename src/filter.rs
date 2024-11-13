@@ -22,9 +22,7 @@ use std::str::FromStr;
 
 // Blacklisted tokens we dont want to consider
 lazy_static! {
-    static ref BLACKLIST: Vec<Address> = vec![
-        address!("be5614875952b1683cb0a2c20e6509be46d353a4")
-    ];
+    static ref BLACKLIST: Vec<Address> = vec![address!("be5614875952b1683cb0a2c20e6509be46d353a4")];
 }
 
 // Serialializtion/Deserialization Structs
@@ -188,7 +186,7 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
     // state
     let account = address!("0000000000000000000000000000000000000001");
     let balance_slot = keccak256((account, U256::from(3)).abi_encode());
-    let ten_units = U256::from(10_000_000_000_000_000_000u128);
+    let ten_units = U256::from(10e18);
 
     // construct the db
     let database_path = std::env::var("DB_PATH").unwrap();

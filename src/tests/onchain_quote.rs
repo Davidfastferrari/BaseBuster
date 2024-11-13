@@ -8,7 +8,7 @@ pub mod onchain_quote {
     use revm::wiring::default::TransactTo;
 
     use crate::AMOUNT;
-    use super::super::test_utils::test_utils::evm_with_balance_and_approval;
+    use super::super::test_utils::utils::evm_with_balance_and_approval;
     use super::super::test_gen::*;
 
     type ProviderType = RootProvider<Http<Client>>;

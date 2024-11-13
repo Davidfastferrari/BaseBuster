@@ -1,16 +1,16 @@
 // All offchain calculation tests
 #[cfg(test)]
-mod test_estimation {
-    use super::super::offchain::offchain_quote;
-    use super::super::utils::{construct_market, construct_pool_map, load_and_filter_pools};
+mod estimation {
+    use super::super::offchain_quote::offchain_quote::offchain_quote;
+    use super::super::test_utils::utils::{construct_market, construct_pool_map, load_and_filter_pools};
     use crate::calculation::Calculator;
-    use crate::events::Event;
     use crate::estimator::Estimator;
-    use crate::swap::{SwapPath, SwapStep};
+    use crate::events::Event;
     use crate::graph::ArbGraph;
+    use crate::swap::{SwapPath, SwapStep};
 
     use alloy::primitives::{address, U256};
-    use pool_sync::{PoolType, Pool, UniswapV2Pool};
+    use pool_sync::{Pool, PoolType, UniswapV2Pool};
 
     macro_rules! test_pool_estimation {
         ($test_name:ident, $pool_type:ident) => {
@@ -18,12 +18,8 @@ mod test_estimation {
             pub async fn $test_name() {
                 dotenv::dotenv().ok();
                 // load and filter pools
-                let (pools, last_synced_block) = load_and_filter_pools(
-                    vec![
-                    PoolType::UniswapV2,
-                    PoolType::UniswapV3
-                    ]
-                ).await;
+                let (pools, last_synced_block) =
+                    load_and_filter_pools(vec![PoolType::UniswapV2, PoolType::UniswapV3]).await;
                 // get all the cycles
                 let cycles = ArbGraph::generate_cycles(pools.clone()).await;
                 // Pool map for references
@@ -47,7 +43,7 @@ mod test_estimation {
                         let offchain = calculator.calculate_output(&path.clone());
                         let est = estimator.estimate_output_amount(&path);
                         println!("offchain {:?}, estimation {:?}", offchain, est);
-
+                        println!("");
                     }
 
                     println!("Iteration finished");
@@ -73,8 +69,7 @@ mod test_estimation {
     test_pool_estimation!(test_slipstream_est, Slipstream);
     test_pool_estimation!(test_aerodrome_est, Aerodrome);
 
-
-    // 
+    //
     #[tokio::test(flavor = "multi_thread")]
     async fn test_calculated_to_estimated() {
         dotenv::dotenv().ok();
@@ -94,17 +89,17 @@ mod test_estimation {
             fee: None,
         };
         let sushi_pool = UniswapV2Pool {
-                address: address!("2F8818D1B0f3e3E295440c1C0cDDf40aAA21fA87"),
-                token0: address!("4200000000000000000000000000000000000006"),
-                token1: address!("833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
-                token0_name: "WETH".to_string(),
-                token1_name: "USDC".to_string(),
-                token0_decimals: 18,
-                token1_decimals: 6,
-                token0_reserves: U256::from(324239280299976672116_u128),
-                token1_reserves: U256::from(1016689282374_u128),
-                stable: None,
-                fee: None,
+            address: address!("2F8818D1B0f3e3E295440c1C0cDDf40aAA21fA87"),
+            token0: address!("4200000000000000000000000000000000000006"),
+            token1: address!("833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
+            token0_name: "WETH".to_string(),
+            token1_name: "USDC".to_string(),
+            token0_decimals: 18,
+            token1_decimals: 6,
+            token0_reserves: U256::from(324239280299976672116_u128),
+            token1_reserves: U256::from(1016689282374_u128),
+            stable: None,
+            fee: None,
         };
         let pools = vec![Pool::UniswapV2(uni_pool), Pool::SushiSwapV2(sushi_pool)];
 
@@ -142,25 +137,3 @@ mod test_estimation {
         println!("{} {} {}", calc, est, is_profit);
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

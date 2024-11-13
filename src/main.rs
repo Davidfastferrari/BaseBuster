@@ -28,7 +28,7 @@ mod tx_sender;
 
 // initial amount we are trying to arb over
 lazy_static! {
-    pub static ref AMOUNT: U256 = U256::from(1e15); 
+    pub static ref AMOUNT: U256 = U256::from(1e16); 
 }
 
 #[tokio::main]
@@ -36,7 +36,7 @@ async fn main() -> Result<()> {
     // init dots and logger
     dotenv::dotenv().ok();
     env_logger::Builder::new()
-        .filter_module("BaseBuster", LevelFilter::Debug)
+        .filter_module("BaseBuster", LevelFilter::Info)
         .format(|buf, record| {
             use std::io::Write;
             let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
@@ -49,8 +49,9 @@ async fn main() -> Result<()> {
     let pool_sync = PoolSync::builder()
         .add_pools(&[
             PoolType::UniswapV2,
-            PoolType::SushiSwapV2,
-            PoolType::PancakeSwapV2,
+            PoolType::UniswapV3,
+            //PoolType::SushiSwapV2,
+            //PoolType::PancakeSwapV2,
         ])
         .chain(Chain::Base)
         .rate_limit(1000)

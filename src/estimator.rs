@@ -68,22 +68,8 @@ where
         self.process_pools(pools);
     }
 
-    #[cfg(test)]
-    pub fn get_estimation(&self, pool: &Pool) -> U256 {
-        let mut cumulative_rate = *RATE_SCALE_VALUE;
-        if let Some(pool_rates) = self.rates.get(&pool.address()) {
-            if let Some(&rate) = pool_rates.get(&pool.token0_address()) {
-                cumulative_rate = cumulative_rate
-                    .checked_mul(rate)
-                    .and_then(|v| v.checked_div(*RATE_SCALE_VALUE))
-                    .unwrap_or(U256::ZERO);
-            }
-        }
-        cumulative_rate
-    }
-
-
-    pub fn estimate_output_amount(&self, swap_path: &SwapPath) -> Option<U256> {
+    // Given a path, estimate the output
+    pub fn estimate_output_amount(&self, swap_path: &SwapPath) -> U256 {
         let mut current_amount = *AMOUNT;
 
         // Follow the path and apply rates sequentially
@@ -91,32 +77,7 @@ where
             if let Some(pool_rates) = self.rates.get(&step.pool_address) {
                 if let Some(&rate) = pool_rates.get(&step.token_in) {
                     // Calculate: amount * rate / RATE_SCALE_VALUE
-                    println!("Current amount before {:?}, rate {:?}", current_amount, rate);
                     current_amount = current_amount
-                        .checked_mul(rate)
-                        .and_then(|v| v.checked_div(*RATE_SCALE_VALUE))?;
-                    println!("Current amount before {:?}, rate {:?}", current_amount, rate);
-                } else {
-                    return None;
-                }
-            } else {
-                return None;
-            }
-        }
-        println!("Fianl amount {:?}", current_amount);
-
-        Some(current_amount)
-    }
-
-
-    pub fn amt_out_path(&self, swap_path: &SwapPath, min_profit_ratio: U256) -> U256 {
-        let mut cumulative_rate = *AMOUNT; // Start with 1.0 in our scaled format
-
-        // Calculate the cumulative rate along the path
-        for pool in &swap_path.steps {
-            if let Some(pool_rates) = self.rates.get(&pool.pool_address) {
-                if let Some(&rate) = pool_rates.get(&pool.token_in) {
-                    cumulative_rate = cumulative_rate
                         .checked_mul(rate)
                         .and_then(|v| v.checked_div(*RATE_SCALE_VALUE))
                         .unwrap_or(U256::ZERO);
@@ -127,8 +88,7 @@ where
                 return U256::ZERO;
             }
         }
-        // Check if rate exceeds 1.0 + min_profit_ratio
-        cumulative_rate
+        current_amount
     }
 
 
@@ -261,7 +221,7 @@ where
         let weth_decimals = self.token_decimals.get(&weth).unwrap_or(&18);
         let alt_decimals = self.token_decimals.get(&alt).unwrap_or(&18);
 
-        println!("Alt input is {} for {} {}", alt_output, alt, pool_address);
+        //println!("Alt input is {} for {} {}", alt_output, alt, pool_address);
         let other_output = self.calculator.compute_pool_output(
             pool_address,
             alt,
