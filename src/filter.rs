@@ -1,5 +1,6 @@
 use crate::gen::ERC20Token::approveCall;
 use crate::gen::{V2Aerodrome, V2Swap, V3Swap, V3SwapDeadline, V3SwapDeadlineTick};
+use crate::AMOUNT;
 use alloy::primitives::{address, Address, U160, U256};
 use alloy::sol_types::{SolCall, SolValue};
 use anyhow::Result;
@@ -279,6 +280,7 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
             keccak256((account, U256::from(0)).abi_encode())
         };
 
+
         nodedb
             .insert_account_storage(
                 pool.token0_address(),
@@ -323,7 +325,8 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
 
         // we now have some of the input token and we have approved the router to spend it
         // try a swap to see if if it is valid
-        let amt = U256::from(1e18);
+        //let amt = U256::from(1e18);
+        let amt = *AMOUNT;
         let lower_bound = amt.checked_mul(U256::from(95)).unwrap().checked_div(U256::from(100)).unwrap();
         evm.tx_mut().transact_to = TransactTo::Call(router_address);
 
@@ -331,9 +334,10 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
         let (zero_one_calldata, vec_ret) =
             setup_router_calldata(pool.clone(), account, amt, swap_type, true);
         evm.tx_mut().data = zero_one_calldata.into();
-        let ref_tx = evm.transact_commit().unwrap();
-        let amt = if ref_tx.is_success() {
-            let output = ref_tx.output().unwrap();
+        let ref_tx = evm.transact().unwrap();
+        let result = ref_tx.result;
+        let amt = if let ExecutionResult::Success { .. } = result {
+            let output = result.output().unwrap();
             decode_swap_return(output, vec_ret)
         } else {
             continue;
@@ -354,7 +358,6 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
 
         // confirm that the output amount is within our reasonable error bounds
         if amt >= lower_bound {
-            println!("{}, {}", amt, lower_bound);
             filtered_pools.push(pool.clone());
         }
     }
