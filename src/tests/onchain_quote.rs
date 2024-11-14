@@ -1,15 +1,15 @@
 #[cfg(test)]
-pub mod onchain_quote {
-    use alloy::primitives::{address, U256, U160};
+pub mod onchain {
+    use alloy::primitives::{address, U160, U256};
     use alloy::providers::{ProviderBuilder, RootProvider};
-    use alloy::transports::http::{Client, Http};
-    use pool_sync::{Pool, PoolType, UniswapV2Pool, PoolInfo, UniswapV3Pool};
     use alloy::sol_types::{SolCall, SolValue};
+    use alloy::transports::http::{Client, Http};
+    use pool_sync::{Pool, PoolInfo, PoolType, UniswapV2Pool, UniswapV3Pool};
     use revm::wiring::default::TransactTo;
 
-    use crate::AMOUNT;
-    use super::super::test_utils::utils::evm_with_balance_and_approval;
     use super::super::test_gen::*;
+    use super::super::test_utils::utils::evm_with_balance_and_approval;
+    use crate::AMOUNT;
 
     type ProviderType = RootProvider<Http<Client>>;
 
@@ -17,24 +17,31 @@ pub mod onchain_quote {
     pub async fn onchain_quote(pool: &Pool) -> U256 {
         dotenv::dotenv().ok();
         // construct a provider
-        let provider = ProviderBuilder::new()
-            .on_http(std::env::var("FULL").unwrap().parse().unwrap());
+        let provider =
+            ProviderBuilder::new().on_http(std::env::var("FULL").unwrap().parse().unwrap());
 
         let pool_type = pool.pool_type();
 
         match pool.pool_type() {
-            PoolType::UniswapV2 | PoolType::SushiSwapV2 | PoolType::PancakeSwapV2 |
-            PoolType::AlienBaseV2 | PoolType::BaseSwapV2 | PoolType::SwapBasedV2 | 
-            PoolType::DackieSwapV2 | PoolType::Aerodrome => {
+            PoolType::UniswapV2
+            | PoolType::SushiSwapV2
+            | PoolType::PancakeSwapV2
+            | PoolType::AlienBaseV2
+            | PoolType::BaseSwapV2
+            | PoolType::SwapBasedV2
+            | PoolType::DackieSwapV2
+            | PoolType::Aerodrome => {
                 let pool = pool.get_v2().unwrap();
                 onchain_v2(pool, pool_type, provider).await
             }
-            PoolType::UniswapV3 | PoolType::SushiSwapV3 | PoolType::PancakeSwapV3 |
-            PoolType::Slipstream => {
+            PoolType::UniswapV3
+            | PoolType::SushiSwapV3
+            | PoolType::PancakeSwapV3
+            | PoolType::Slipstream => {
                 let pool = pool.get_v3().unwrap();
                 onchain_v3(pool, pool_type, provider).await
             }
-            _ => todo!()
+            _ => todo!(),
         }
     }
 
@@ -62,16 +69,16 @@ pub mod onchain_quote {
             amount_out
         } else {
             let v2_router = V2Router::new(address, provider);
-            let V2Router::getAmountsOutReturn {amounts} = v2_router.getAmountsOut(
-            *AMOUNT,
-            vec![pool.token0, pool.token1]
-            ).call().await.unwrap();
+            let V2Router::getAmountsOutReturn { amounts } = v2_router
+                .getAmountsOut(*AMOUNT, vec![pool.token0, pool.token1])
+                .call()
+                .await
+                .unwrap();
             *amounts.last().unwrap()
         }
-
     }
 
-    // Quote the amount out for V3 Pool 
+    // Quote the amount out for V3 Pool
     async fn onchain_v3(pool: &UniswapV3Pool, pool_type: PoolType, provider: ProviderType) -> U256 {
         // Get the quoter address
         let address = match pool_type {
@@ -103,7 +110,10 @@ pub mod onchain_quote {
             let V3QuoterSlipstream::quoteExactInputSingleReturn { amountOut, .. } =
                 contract.quoteExactInputSingle(params).call().await.unwrap();
             return amountOut;
-        } else if pool_type == PoolType::PancakeSwapV3 || pool_type == PoolType::UniswapV3 || pool_type == PoolType::SushiSwapV3 {
+        } else if pool_type == PoolType::PancakeSwapV3
+            || pool_type == PoolType::UniswapV3
+            || pool_type == PoolType::SushiSwapV3
+        {
             let params = V3Quoter::QuoteExactInputSingleParams {
                 tokenIn: pool.token0,
                 tokenOut: pool.token1,
@@ -148,7 +158,7 @@ pub mod onchain_quote {
                 PoolType::Slipstream => {
                     todo!()
                 }
-                _ => panic!("Will not reach here")
+                _ => panic!("Will not reach here"),
             };
 
             evm.tx_mut().data = calldata.into();
@@ -159,5 +169,4 @@ pub mod onchain_quote {
             <U256>::abi_decode(output, false).unwrap()
         }
     }
-
 }

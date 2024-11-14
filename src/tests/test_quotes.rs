@@ -1,8 +1,7 @@
 #[cfg(test)]
 mod offchain_calculations {
     use super::super::offchain_quote::offchain_quote::offchain_quote;
-    use super::super::onchain_quote::onchain_quote::onchain_quote;
-    use super::super::onchain_quote::onchain_quote;
+    use super::super::onchain_quote::onchain::onchain_quote;
     use super::super::test_utils::utils::{construct_market, construct_pool_map, load_and_filter_pools};
     use crate::events::Event;
 

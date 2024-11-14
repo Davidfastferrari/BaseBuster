@@ -49,9 +49,9 @@ async fn main() -> Result<()> {
     let pool_sync = PoolSync::builder()
         .add_pools(&[
             PoolType::UniswapV2,
-            PoolType::UniswapV3,
-            //PoolType::SushiSwapV2,
-            //PoolType::PancakeSwapV2,
+            //PoolType::UniswapV3,
+            PoolType::SushiSwapV2,
+            PoolType::PancakeSwapV2,
         ])
         .chain(Chain::Base)
         .rate_limit(1000)

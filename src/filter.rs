@@ -10,6 +10,7 @@ use node_db::{InsertionType, NodeDB};
 use pool_sync::{Chain, Pool, PoolInfo, PoolType};
 use reqwest::header::{HeaderMap, HeaderValue};
 use revm::primitives::keccak256;
+use revm::primitives::Bytes;
 use revm::wiring::default::TransactTo;
 use revm::wiring::result::ExecutionResult;
 use revm::wiring::EthereumWiring;
@@ -23,6 +24,7 @@ use std::str::FromStr;
 // Blacklisted tokens we dont want to consider
 lazy_static! {
     static ref BLACKLIST: Vec<Address> = vec![address!("be5614875952b1683cb0a2c20e6509be46d353a4")];
+    static ref WETH_ADDRESS: Address = address!("4200000000000000000000000000000000000006");
 }
 
 // Serialializtion/Deserialization Structs
@@ -45,6 +47,7 @@ struct Token {
 }
 
 // enum for swap dispatch
+#[derive(Copy, Clone)]
 enum SwapType {
     V2Basic,        // standard univ2 swap
     V2Aerodrome,    // aerodrome swap
@@ -185,8 +188,7 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
 
     // state
     let account = address!("0000000000000000000000000000000000000001");
-    let balance_slot = keccak256((account, U256::from(3)).abi_encode());
-    let ten_units = U256::from(10e18);
+    let lots_of_tokens = U256::from(1e70);
 
     // construct the db
     let database_path = std::env::var("DB_PATH").unwrap();
@@ -263,12 +265,33 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
             _ => panic!("will not reach here"),
         };
 
-        // give ourselves some of the input token, just assume 18 decimal points
+        // Handle token0
+        let token0_slot = if pool.token0_address() == *WETH_ADDRESS {
+            keccak256((account, U256::from(3)).abi_encode())
+        } else {
+            keccak256((account, U256::from(0)).abi_encode())
+        };
+        
+        // Handle token1
+        let token1_slot = if pool.token1_address() == *WETH_ADDRESS {
+            keccak256((account, U256::from(3)).abi_encode())
+        } else {
+            keccak256((account, U256::from(0)).abi_encode())
+        };
+
         nodedb
             .insert_account_storage(
                 pool.token0_address(),
-                balance_slot.into(),
-                ten_units,
+                token0_slot.into(),
+                lots_of_tokens,
+                InsertionType::OnChain,
+            )
+            .unwrap();
+        nodedb
+            .insert_account_storage(
+                pool.token1_address(),
+                token1_slot.into(),
+                lots_of_tokens,
                 InsertionType::OnChain,
             )
             .unwrap();
@@ -286,104 +309,160 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
             })
             .build();
 
-        // setup approval call and transact
+        // approve both the input and output token
         let approve_calldata = approveCall {
             spender: router_address,
-            amount: ten_units,
+            amount: lots_of_tokens,
         }
         .abi_encode();
-        evm.tx_mut().transact_to = TransactTo::Call(pool.token0_address());
         evm.tx_mut().data = approve_calldata.into();
+        evm.tx_mut().transact_to = TransactTo::Call(pool.token0_address());
+        evm.transact_commit().unwrap();
+        evm.tx_mut().transact_to = TransactTo::Call(pool.token1_address());
         evm.transact_commit().unwrap();
 
         // we now have some of the input token and we have approved the router to spend it
         // try a swap to see if if it is valid
-        let amt = U256::from(2e18);
+        let amt = U256::from(1e18);
+        let lower_bound = amt.checked_mul(U256::from(95)).unwrap().checked_div(U256::from(100)).unwrap();
+        evm.tx_mut().transact_to = TransactTo::Call(router_address);
 
-        // setup calldata based on the swap type
-        let calldata = match swap_type {
-            SwapType::V2Basic => V2Swap::swapExactTokensForTokensCall {
-                amountIn: amt,
-                amountOutMin: U256::ZERO,
-                path: vec![pool.token0_address(), pool.token1_address()],
-                to: account,
-                deadline: U256::MAX,
-            }
-            .abi_encode(),
-            SwapType::V3Basic => {
-                let swap_fee = pool.get_v3().unwrap().fee;
-                let params = V3Swap::ExactInputSingleParams {
-                    tokenIn: pool.token0_address(),
-                    tokenOut: pool.token1_address(),
-                    fee: swap_fee.try_into().unwrap(),
-                    recipient: account,
-                    amountIn: amt,
-                    amountOutMinimum: U256::ZERO,
-                    sqrtPriceLimitX96: U160::ZERO,
-                };
-                V3Swap::exactInputSingleCall { params }.abi_encode()
-            }
-            SwapType::V3Deadline => {
-                let swap_fee = pool.get_v3().unwrap().fee;
-                let params = V3SwapDeadline::ExactInputSingleParams {
-                    tokenIn: pool.token0_address(),
-                    tokenOut: pool.token1_address(),
-                    fee: swap_fee.try_into().unwrap(),
-                    recipient: account,
-                    amountIn: amt,
-                    deadline: U256::MAX,
-                    amountOutMinimum: U256::ZERO,
-                    sqrtPriceLimitX96: U160::ZERO,
-                };
-                V3SwapDeadline::exactInputSingleCall { params }.abi_encode()
-            }
-            SwapType::V2Aerodrome => {
-                let is_stable = pool.get_v2().unwrap().stable.unwrap();
-                let route = vec![V2Aerodrome::Route {
-                    from: pool.token0_address(),
-                    to: pool.token1_address(),
-                    stable: is_stable,
-                    factory: Address::ZERO,
-                }];
-                V2Aerodrome::swapExactTokensForTokensCall {
-                    amountIn: amt,
-                    amountOutMin: U256::ZERO,
-                    routes: route,
-                    to: account,
-                    deadline: U256::MAX,
-                }
-                .abi_encode()
-            }
-            SwapType::V3DeadlineTick => {
-                let tick_spacing = pool.get_v3().unwrap().tick_spacing;
-                let params = V3SwapDeadlineTick::ExactInputSingleParams {
-                    tokenIn: pool.token0_address(),
-                    tokenOut: pool.token1_address(),
-                    tickSpacing: tick_spacing.try_into().unwrap(),
-                    recipient: account,
-                    deadline: U256::MAX,
-                    amountIn: amt,
-                    amountOutMinimum: U256::ZERO,
-                    sqrtPriceLimitX96: U160::ZERO,
-                };
-                V3SwapDeadlineTick::exactInputSingleCall { params }.abi_encode()
-            }
+        // setup zero to one and get the amount out to swap for one to zero
+        let (zero_one_calldata, vec_ret) =
+            setup_router_calldata(pool.clone(), account, amt, swap_type, true);
+        evm.tx_mut().data = zero_one_calldata.into();
+        let ref_tx = evm.transact_commit().unwrap();
+        let amt = if ref_tx.is_success() {
+            let output = ref_tx.output().unwrap();
+            decode_swap_return(output, vec_ret)
+        } else {
+            continue;
         };
 
-        // set call to the router
-        evm.tx_mut().transact_to = TransactTo::Call(router_address);
-        evm.tx_mut().data = calldata.into();
-
-        // if we can transact, add it as it is a valid pool. Else ignore it
+        // swap one to zero with the amount from the previous swap
+        let (one_zero_calldata, vec_ret) =
+            setup_router_calldata(pool.clone(), account, amt, swap_type, false);
+        evm.tx_mut().data = one_zero_calldata.into();
         let ref_tx = evm.transact().unwrap();
         let result = ref_tx.result;
-        if let ExecutionResult::Success { .. } = result {
-            trace!("Successful swap for pool {}", pool.address());
-            filtered_pools.push(pool.clone());
+        let amt = if let ExecutionResult::Success { .. } = result {
+            let output = result.output().unwrap();
+            decode_swap_return(output, vec_ret)
         } else {
-            trace!("Unsuccessful swap for pool {}", pool.address());
+            continue;
+        };
+
+        // confirm that the output amount is within our reasonable error bounds
+        if amt >= lower_bound {
+            println!("{}, {}", amt, lower_bound);
+            filtered_pools.push(pool.clone());
         }
     }
 
     filtered_pools
+}
+
+// Swap returns are either an vec of u256, or final u256
+fn decode_swap_return(output: &Bytes, vec_ret: bool) -> U256 {
+    if vec_ret {
+        let decoded_amount = <Vec<U256>>::abi_decode(output, false).unwrap();
+        *decoded_amount.last().unwrap()
+    } else {
+        <U256>::abi_decode(output, false).unwrap()
+    }
+}
+
+// setup the calldata for the router
+fn setup_router_calldata(
+    pool: Pool,
+    account: Address,
+    amt: U256,
+    swap_type: SwapType,
+    zero_to_one: bool,
+) -> (Vec<u8>, bool) {
+    // setup calldata based on the swap type
+    let (token0, token1) = if zero_to_one {
+        (pool.token0_address(), pool.token1_address())
+    } else {
+        (pool.token1_address(), pool.token0_address())
+    };
+
+    match swap_type {
+        SwapType::V2Basic => {
+            let calldata = V2Swap::swapExactTokensForTokensCall {
+                amountIn: amt,
+                amountOutMin: U256::ZERO,
+                path: vec![token0, token1],
+                to: account,
+                deadline: U256::MAX,
+            }
+            .abi_encode();
+            (calldata, true)
+        }
+        SwapType::V3Basic => {
+            let swap_fee = pool.get_v3().unwrap().fee;
+            let params = V3Swap::ExactInputSingleParams {
+                tokenIn: token0,
+                tokenOut: token1,
+                fee: swap_fee.try_into().unwrap(),
+                recipient: account,
+                amountIn: amt,
+                amountOutMinimum: U256::ZERO,
+                sqrtPriceLimitX96: U160::ZERO,
+            };
+            (V3Swap::exactInputSingleCall { params }.abi_encode(), false)
+        }
+        SwapType::V3Deadline => {
+            let swap_fee = pool.get_v3().unwrap().fee;
+            let params = V3SwapDeadline::ExactInputSingleParams {
+                tokenIn: token0,
+                tokenOut: token1,
+                fee: swap_fee.try_into().unwrap(),
+                recipient: account,
+                amountIn: amt,
+                deadline: U256::MAX,
+                amountOutMinimum: U256::ZERO,
+                sqrtPriceLimitX96: U160::ZERO,
+            };
+            (
+                V3SwapDeadline::exactInputSingleCall { params }.abi_encode(),
+                false,
+            )
+        }
+        SwapType::V2Aerodrome => {
+            let is_stable = pool.get_v2().unwrap().stable.unwrap();
+            let route = vec![V2Aerodrome::Route {
+                from: token0,
+                to: token1,
+                stable: is_stable,
+                factory: Address::ZERO,
+            }];
+            let calldata = V2Aerodrome::swapExactTokensForTokensCall {
+                amountIn: amt,
+                amountOutMin: U256::ZERO,
+                routes: route,
+                to: account,
+                deadline: U256::MAX,
+            }
+            .abi_encode();
+            (calldata, true)
+        }
+        SwapType::V3DeadlineTick => {
+            let tick_spacing = pool.get_v3().unwrap().tick_spacing;
+            let params = V3SwapDeadlineTick::ExactInputSingleParams {
+                tokenIn: token0,
+                tokenOut: token1,
+                tickSpacing: tick_spacing.try_into().unwrap(),
+                recipient: account,
+                deadline: U256::MAX,
+                amountIn: amt,
+                amountOutMinimum: U256::ZERO,
+                sqrtPriceLimitX96: U160::ZERO,
+            };
+            (
+                V3SwapDeadlineTick::exactInputSingleCall { params }.abi_encode(),
+                false,
+            )
+        }
+    }
 }

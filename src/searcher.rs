@@ -107,13 +107,14 @@ where
                 })
                 .collect();
 
-            info!("{:?} elapsed calculating paths", res.elapsed());
+            info!("{:?} elapsed estimating paths", res.elapsed());
             info!("{} estimated profitable paths", profitable_paths.len());
 
             if !profitable_paths.is_empty() {
                 // get the best estimated quote and confirm that it is actual in profit
                 let best_path = profitable_paths.iter().max_by_key(|(_, amt)| amt).unwrap();
                 let calculated_out = self.calculator.calculate_output(&best_path.0);
+                info!("Estimated {}. Calculated {}", best_path.1, calculated_out);
 
                 if calculated_out >= self.min_profit {
                     info!("{} expected profit from path", calculated_out);
