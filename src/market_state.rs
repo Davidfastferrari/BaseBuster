@@ -10,9 +10,7 @@ use log::{debug, error, info};
 use pool_sync::Pool;
 use pool_sync::PoolInfo;
 use revm::primitives::keccak256;
-use revm::state::{AccountInfo, Bytecode};
-use revm::wiring::default::TransactTo;
-use revm::wiring::EthereumWiring;
+use revm::primitives::{AccountInfo, Bytecode, TransactTo};
 use revm::Evm;
 use std::collections::HashSet;
 use std::sync::mpsc::Sender;
@@ -112,9 +110,9 @@ where
         caught_up.store(true, Ordering::Relaxed);
 
         // stream in new blocks
-        while let Ok(Event::NewBlock(block)) = block_rx.recv().await {
+        while let Ok(Event::NewBlock(block_header)) = block_rx.recv().await {
             let start = Instant::now();
-            let block_number = block.header.number;
+            let block_number = block_header.inner.number;
 
             // make sure we dont reprocess blocks we caught up with
             if block_number <= last_synced_block {
@@ -222,16 +220,14 @@ where
                 amount: U256::from(1e18),
             }
             .abi_encode();
-            let mut evm = Evm::<EthereumWiring<&mut BlockStateDB<T, N, P>, ()>>::builder()
-                .with_db(db)
-                .with_default_ext_ctx()
+            let mut evm = Evm::builder()
+                .with_db(&mut *db)
                 .modify_tx_env(|tx| {
                     tx.caller = account;
                     tx.data = approve_calldata.into();
                     tx.transact_to = TransactTo::Call(pool.token0_address());
                 })
                 .build();
-            evm.cfg_mut().disable_nonce_check = true;
             evm.transact_commit().unwrap();
 
             // Try to do the swap from input to output token

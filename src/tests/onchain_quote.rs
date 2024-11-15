@@ -5,7 +5,7 @@ pub mod onchain {
     use alloy::sol_types::{SolCall, SolValue};
     use alloy::transports::http::{Client, Http};
     use pool_sync::{Pool, PoolInfo, PoolType, UniswapV2Pool, UniswapV3Pool};
-    use revm::wiring::default::TransactTo;
+    use revm::primitives::TransactTo;
 
     use super::super::test_gen::*;
     use super::super::test_utils::utils::evm_with_balance_and_approval;

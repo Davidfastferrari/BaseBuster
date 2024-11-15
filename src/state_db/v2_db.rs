@@ -135,19 +135,17 @@ mod test_db_v2 {
     use alloy::sol;
     use alloy::sol_types::{SolCall, SolValue};
     use alloy::transports::http::{Client, Http};
-    use alloy_eips::BlockId;
-    use revm::database_interface::WrapDatabaseAsync;
-    use revm::state::{AccountInfo, Bytecode};
-    use revm_database::{AlloyDB, CacheDB};
+    use alloy::eips::BlockId;
+    use revm::primitives::{AccountInfo, Bytecode, TransactTo};
+    use revm::db::{AlloyDB, CacheDB};
     use crate::gen::FlashQuoter::{self, SwapStep};
     use log::LevelFilter;
     use revm::primitives::keccak256;
     use pool_sync::UniswapV2Pool;
 
-    use revm::wiring::default::TransactTo;
-    use revm::wiring::EthereumWiring;
     use revm::Evm;
 
+    /* 
     type QuoteEvm<'a> = Evm<
         'a,
         EthereumWiring<
@@ -155,7 +153,8 @@ mod test_db_v2 {
             (),
         >,
     >;
-    type AlloyCacheDB = CacheDB<WrapDatabaseAsync<AlloyDB<Http<Client>, Ethereum, RootProvider<Http<Client>>>>>;
+    */
+    type AlloyCacheDB = CacheDB<AlloyDB<Http<Client>, Ethereum, RootProvider<Http<Client>>>>;
 
 
     fn uni_v2_weth_usdc() -> UniswapV2Pool {
@@ -287,14 +286,8 @@ mod test_db_v2 {
         }.abi_encode();
 
         // Create EVM instance
-        let mut evm = Evm::<
-            EthereumWiring<
-                BlockStateDB<Http<Client>, Ethereum, RootProvider<Http<Client>>>,
-                (),
-            >,
-        >::builder()
+        let mut evm = Evm::builder()
         .with_db(db)
-        .with_default_ext_ctx()
         .modify_tx_env(|tx| {
             tx.caller = address!("0000000000000000000000000000000000000001");
             tx.transact_to = TransactTo::Call(address!("4752ba5DBc23f44D87826276BF6Fd6b1C372aD24"));
@@ -334,7 +327,7 @@ mod test_db_v2 {
         let rpc_url = std::env::var("FULL").unwrap().parse().unwrap();
 
         let client = ProviderBuilder::new().on_http(rpc_url);
-        let alloy = WrapDatabaseAsync::new(AlloyDB::new(client, BlockId::latest())).unwrap();
+        let alloy = AlloyDB::new(client, BlockId::latest()).unwrap();
         let mut db = CacheDB::new(alloy);
         //let provider = ProviderBuilder::new().on_http(url);
         //let mut db = BlockStateDB::new(provider.clone()).unwrap();
@@ -366,14 +359,12 @@ mod test_db_v2 {
         db.insert_account_info(quoter, quoter_acc_info);//, InsertionType::Custom);
 
         //let mut evm = Evm::<EthereumWiring<&mut BlockStateDB<Http<Client>, Ethereum, RootProvider<Http<Client>>>, ()>>::builder()
-        let mut evm = Evm::<EthereumWiring<&mut AlloyCacheDB, ()>>::builder()
+        let mut evm = Evm::builder()
             .with_db(&mut db)
-            .with_default_ext_ctx()
             .modify_tx_env(|tx| {
                 tx.caller = account;
             })
             .build();
-        evm.cfg_mut().disable_nonce_check = true;
 
         // approve quoter to spend the eth
         let approve_calldata = Approval::approveCall {
@@ -423,9 +414,8 @@ mod test_db_v2 {
 
         //let mut guard = db.write().unwrap();
         //let mut evm: QuoteEvm = Evm::builder()
-        let mut evm = Evm::<EthereumWiring<&mut AlloyCacheDB, ()>>::builder()
+        let mut evm = Evm::builder()
             .with_db(&mut db)
-            .with_default_ext_ctx()
             .build();
         evm.cfg_mut().disable_nonce_check = true;
         evm.tx_mut().caller = account;

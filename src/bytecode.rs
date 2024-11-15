@@ -1,7 +1,7 @@
 use alloy::primitives::B256;
 use lazy_static::lazy_static;
 use revm::primitives::Bytes;
-use revm::state::Bytecode;
+use revm::primitives::Bytecode;
 use std::str::FromStr;
 
 lazy_static! {

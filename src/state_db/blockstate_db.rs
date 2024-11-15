@@ -1,4 +1,5 @@
-use alloy::network::{BlockResponse, HeaderResponse, Network};
+use alloy::network::primitives::HeaderResponse;
+use alloy::network::{BlockResponse, Network};
 use alloy::primitives::{Address, BlockNumber, B256, U256};
 use alloy::providers::Provider;
 use alloy::rpc::types::trace::geth::AccountState as GethAccountState;
@@ -7,10 +8,10 @@ use alloy::transports::{Transport, TransportError};
 use anyhow::Result;
 use log::{debug, trace, warn};
 use pool_sync::PoolInfo;
+use revm::db::AccountState;
 use revm::primitives::{Log, KECCAK_EMPTY};
-use revm::state::{Account, AccountInfo, Bytecode};
+use revm::primitives::{Account, AccountInfo, Bytecode};
 use revm::{Database, DatabaseCommit, DatabaseRef};
-use revm_database::AccountState;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::future::IntoFuture;
@@ -478,7 +479,7 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> DatabaseRef for BlockS
                 );
                 let block = self
                     .runtime
-                    .block_on(self.provider.get_block_by_number(number.into(), false))?;
+                    .block_on(self.provider.get_block_by_number(number.into(), false.into()))?;
                 match block {
                     Some(block_data) => {
                         let hash = B256::new(*block_data.header().hash());
@@ -499,7 +500,7 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> DatabaseRef for BlockS
 }
 
 impl<T: Transport + Clone, N: Network, P: Provider<T, N>> DatabaseCommit for BlockStateDB<T, N, P> {
-    fn commit(&mut self, changes: HashMap<Address, Account>) {
+    fn commit(&mut self, changes: HashMap<Address, Account, foldhash::fast::RandomState>) {
         for (address, mut account) in changes {
             if !account.is_touched() {
                 continue;

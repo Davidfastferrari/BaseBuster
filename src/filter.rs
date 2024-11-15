@@ -1,4 +1,4 @@
-use crate::gen::ERC20Token::approveCall;
+use crate::gen::ERC20Token::{self, approveCall};
 use crate::gen::{V2Aerodrome, V2Swap, V3Swap, V3SwapDeadline, V3SwapDeadlineTick};
 use crate::AMOUNT;
 use alloy::primitives::{address, Address, U160, U256};
@@ -11,16 +11,16 @@ use node_db::{InsertionType, NodeDB};
 use pool_sync::{Chain, Pool, PoolInfo, PoolType};
 use reqwest::header::{HeaderMap, HeaderValue};
 use revm::primitives::keccak256;
-use revm::primitives::Bytes;
-use revm::wiring::default::TransactTo;
-use revm::wiring::result::ExecutionResult;
-use revm::wiring::EthereumWiring;
-use revm::Evm;
+use revm::primitives::{Bytes, TransactTo, ExecutionResult};
+use revm::{inspector_handle_register, Evm};
 use serde::{Deserialize, Serialize};
 use std::fs::{create_dir_all, File};
 use std::io::{BufReader, BufWriter};
 use std::path::Path;
 use std::str::FromStr;
+use revm::primitives::FixedBytes;
+use std::collections::{HashSet, HashMap};
+use revm_inspectors::access_list::AccessListInspector;
 
 // Blacklisted tokens we dont want to consider
 lazy_static! {
@@ -82,11 +82,81 @@ pub async fn filter_pools(pools: Vec<Pool>, num_results: usize, chain: Chain) ->
 
     debug!("Pool count after token match filter: {}", pools.len());
 
+    let slot_map = construct_slot_map(&pools);
+
     // simulate swap on every pool that we have, this will filter out pools that have a pair we
     // want but dont have any liq to swap with
-    let pools = filter_by_swap(pools).await;
+    let pools = filter_by_swap(pools, slot_map).await;
+    println!("dont");
     debug!("Pool count after swap filter: {}", pools.len());
     pools
+}
+
+fn construct_slot_map(pools: &Vec<Pool>) -> HashMap<Address, FixedBytes<32>> {
+    // get a list of all the tokens
+    let tokens: Vec<Address> = pools.iter()
+        .flat_map(|p| vec![p.token0_address(), p.token1_address()])
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .collect();
+
+    // nodedb for the provider
+    let database_path = std::env::var("DB_PATH").unwrap();
+    let mut nodedb = NodeDB::new(database_path).unwrap();
+
+    // dummy account w/ calldata
+    let account = address!("0000000000000000000000000000000000000001");
+    let calldata = ERC20Token::balanceOfCall {
+        account
+    }.abi_encode();
+
+
+    // get the balance slot for all tokens by simulating a balance of call with an access list
+    let mut slot_map: HashMap<Address, FixedBytes<32>> = HashMap::new();
+
+    for token in tokens {
+        let mut insp = AccessListInspector::default();
+
+        let mut evm = Evm::builder()
+            .with_db(&mut nodedb)
+            .with_external_context(&mut insp)
+            .modify_tx_env(|tx| {
+                tx.caller = account;
+                tx.transact_to = TransactTo::Call(token);
+                tx.data = calldata.clone().into();
+            })
+            .append_handler_register(inspector_handle_register)
+            .build();
+        let _ = evm.transact();
+        drop(evm);
+        let access_list = insp.access_list().0;
+
+        if token == address!("5ca0c41a50fcfec85b91bb4ca5b024b36d9bb120") {
+            println!("{:?}", access_list);
+        }
+
+        if access_list.len() == 1 && access_list[0].storage_keys.len() == 1{
+            let slot = access_list[0].storage_keys[0];
+            slot_map.insert(token, slot);
+        } else {
+            /* 
+            for item in access_list {
+                for key in &item.storage_keys {
+                    if *key == FixedBytes::<32>::from_str("ada5013122d395ba3c54772283fb069b10426056ef8ca54750cb9bb552a59e7d").unwrap() ||
+                       *key == FixedBytes::<32>::from_str("70a08231b98ef4ca268c9cc3f6b4590e4bfec28280db06bb5d45e689f2a360be").unwrap() ||
+                       *key == FixedBytes::<32>::from_str("8a35acfbc15ff81a39ae7d344fd709f28e8600b4aa8c65c6b64bfe7fe36bd19b").unwrap() {
+                        slot_map.insert(token, *key);
+                        println!("yes");
+                        break;
+                    }
+                }
+            }
+            */
+        }
+    }
+
+    slot_map
+
 }
 
 // ---------------------------------------------------
@@ -183,7 +253,7 @@ async fn fetch_top_volume_tokens(num_results: usize, chain: Chain) -> Vec<Addres
 
 // Go through the pools and try to perform a swap on it. This is to test liquidity depth as we
 // dont want to include paths that dont have enough liq for a swap
-async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
+async fn filter_by_swap(pools: Vec<Pool>, slot_map: HashMap<Address, FixedBytes<32>>) -> Vec<Pool> {
     // pools that pass through swap filter
     let mut filtered_pools: Vec<Pool> = vec![];
 
@@ -197,6 +267,14 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
 
     // go through all the pools and try a swap on each one
     for pool in pools {
+        /* 
+        if pool.token0_address() == address!("5ca0c41a50fcfec85b91bb4ca5b024b36d9bb120") {
+            continue;
+        }
+        if pool.token1_address() == address!("5ca0c41a50fcfec85b91bb4ca5b024b36d9bb120") {
+            continue;
+        }
+        */
         // get the router address
         let (router_address, swap_type) = match pool.pool_type() {
             PoolType::UniswapV2 => (
@@ -277,53 +355,46 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
             true
         };
 
-        let balance_slots = [
-            keccak256((account, U256::from(0)).abi_encode()),
-            keccak256((account, U256::from(1)).abi_encode()),
-            keccak256((account, U256::from(2)).abi_encode()),
-            keccak256((account, U256::from(3)).abi_encode()),
-            keccak256((account, U256::from(4)).abi_encode()),
-            keccak256((account, U256::from(5)).abi_encode()),
-            //keccak256((account, U256::from(6)).abi_encode()),
-            keccak256((account, U256::from(7)).abi_encode()),
-            keccak256((account, U256::from(8)).abi_encode()),
-            keccak256((account, U256::from(9)).abi_encode()),
-        ];
 
-        // give everyone lots of tokens, diff contracts have difference balance slots,
-        // so it it just easiest to insert into all slots and have approval commit change
-        // anything
-        for slot in balance_slots {
-            // give everyone lots of tokens
-            nodedb
-                .insert_account_storage(
-                    pool.token0_address(),
-                    slot.into(),
-                    lots_of_tokens,
-                    InsertionType::OnChain,
-                )
-                .unwrap();
-            nodedb
-                .insert_account_storage(
-                    pool.token1_address(),
-                    slot.into(),
-                    lots_of_tokens,
-                    InsertionType::OnChain,
-                )
-                .unwrap();
-        }
 
+        let t0_slot = match slot_map.get(&pool.token0_address()) {
+            Some(slot) => *slot,
+            None => {
+                continue;
+            }
+        };
+        
+        let t1_slot = match slot_map.get(&pool.token1_address()) {
+            Some(slot) => *slot,
+            None => {
+                continue;
+            }
+        };
+
+        nodedb
+            .insert_account_storage(
+                pool.token0_address(),
+                t0_slot.into(),
+                lots_of_tokens,
+                InsertionType::OnChain,
+            )
+            .unwrap();
+        nodedb
+            .insert_account_storage(
+                pool.token1_address(),
+                t1_slot.into(),
+                lots_of_tokens,
+                InsertionType::OnChain,
+            )
+            .unwrap();
 
         // construct a new evm instance
-        let mut evm = Evm::<EthereumWiring<&mut NodeDB, ()>>::builder()
+        let mut evm = Evm::builder()
             .with_db(&mut nodedb)
-            .with_default_ext_ctx()
-            .modify_cfg_env(|env| {
-                env.disable_nonce_check = true;
-            })
             .modify_tx_env(|tx| {
                 tx.caller = account;
                 tx.value = U256::ZERO;
+                tx.gas_limit = 500000;
             })
             .build();
 
@@ -349,6 +420,7 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
             .unwrap();
         evm.tx_mut().transact_to = TransactTo::Call(router_address);
 
+
         // First swap (WETH -> Token for WETH pools)
         let (first_swap_calldata, vec_ret) =
             setup_router_calldata(pool.clone(), account, amt, swap_type, zero_to_one);
@@ -372,13 +444,13 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
             let output = result.output().unwrap();
             decode_swap_return(output, vec_ret)
         } else {
-            println!("Failed here amt {} {:#?} {:#?}", amt, pool, result);
+            //println!("Failed here amt {} {:#?} {:#?}", amt, pool, result);
             continue;
         };
 
         // confirm that the output amount is within our reasonable error bounds
         if amt >= lower_bound {
-            //println!("{:#?}", pool);
+            //println!("{amt}");
             filtered_pools.push(pool.clone());
         }
     }

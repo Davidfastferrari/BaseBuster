@@ -20,6 +20,7 @@ sol!(
     #[sol(rpc)]
     contract ERC20Token {
         function approve(address spender, uint256 amount) external returns (bool success);
+        function balanceOf(address account) external view returns (uint256);
     }
 );
 

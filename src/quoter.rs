@@ -5,21 +5,13 @@ use alloy::sol_types::SolCall;
 use alloy::sol_types::SolValue;
 use alloy::transports::http::{Client, Http};
 use anyhow::{anyhow, Result};
-use revm::wiring::default::TransactTo;
-use revm::wiring::result::ExecutionResult;
-use revm::wiring::EthereumWiring;
+use revm::primitives::{TransactTo, ExecutionResult};
 use revm::Evm;
 use std::sync::Arc;
 
 use crate::gen::FlashQuoter;
 use crate::market_state::MarketState;
 use crate::state_db::BlockStateDB;
-
-// type to make our life easier
-type QuoteEvm<'a> = Evm<
-    'a,
-    EthereumWiring<&'a mut BlockStateDB<Http<Client>, Ethereum, RootProvider<Http<Client>>>, ()>,
->;
 
 // Quoter. This is used to get a simulation quote before sending off a transaction.
 // This will confirm that our offchain calculations are reasonable and make sure we can swap the tokens
@@ -33,11 +25,9 @@ impl Quoter {
     ) -> Result<Vec<U256>> {
         let mut guard = market_state.db.write().unwrap();
         // need to pass this as mut somehow
-        let mut evm: QuoteEvm = Evm::builder()
+        let mut evm = Evm::builder()
             .with_db(&mut *guard)
-            .with_default_ext_ctx()
             .build();
-        evm.cfg_mut().disable_nonce_check = true;
         evm.tx_mut().caller = address!("d8da6bf26964af9d7eed9e03e53415d37aa96045");
         evm.tx_mut().transact_to =
             TransactTo::Call(address!("0000000000000000000000000000000000001000"));

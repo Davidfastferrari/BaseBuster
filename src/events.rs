@@ -1,6 +1,6 @@
 use alloy::primitives::Address;
 use alloy::primitives::U256;
-use alloy::rpc::types::Block;
+use alloy::rpc::types::Header;
 use std::collections::HashSet;
 
 use crate::swap::SwapPath;
@@ -9,5 +9,5 @@ use crate::swap::SwapPath;
 pub enum Event {
     ArbPath((SwapPath, U256, u64)),
     PoolsTouched(HashSet<Address>, u64),
-    NewBlock(Block),
+    NewBlock(Header),
 }

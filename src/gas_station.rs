@@ -30,10 +30,10 @@ impl GasStation {
     pub async fn update_gas(&self, mut block_rx: Receiver<Event>) {
         let base_fee_params = BaseFeeParams::optimism_canyon();
 
-        while let Ok(Event::NewBlock(block)) = block_rx.recv().await {
-            let base_fee = block.header.base_fee_per_gas.unwrap();
-            let gas_used = block.header.gas_used;
-            let gas_limit = block.header.gas_limit;
+        while let Ok(Event::NewBlock(header)) = block_rx.recv().await {
+            let base_fee = header.inner.base_fee_per_gas.unwrap();
+            let gas_used = header.inner.gas_used;
+            let gas_limit = header.inner.gas_limit;
 
             let next_base_fee = calc_next_block_base_fee(gas_used, gas_limit, base_fee, base_fee_params);
 

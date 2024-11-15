@@ -5,19 +5,16 @@ pub mod utils {
     use alloy::sol_types::SolCall;
     use alloy::transports::http::{Client, Http};
     use pool_sync::*;
-    use revm::wiring::default::TransactTo;
     use std::sync::atomic::AtomicBool;
     use std::sync::Arc;
     use alloy::sol_types::SolValue;
     use std::collections::HashMap;
     use tokio::sync::broadcast;
     use std::sync::mpsc;
-    use alloy_eips::BlockId;
-    use revm_database::{AlloyDB, CacheDB};
+    use alloy::eips::BlockId;
+    use revm::db::{AlloyDB, CacheDB};
     use alloy::primitives::Address;
-    use revm::database_interface::WrapDatabaseAsync;
-    use revm::primitives::{address, U256, keccak256};
-    use revm::wiring::EthereumWiring;
+    use revm::primitives::{address, U256, keccak256, TransactTo};
     use revm::Evm;
 
     use super::super::test_gen::ERC20;
@@ -26,15 +23,15 @@ pub mod utils {
     use crate::market_state::MarketState;
     use crate::stream::stream_new_blocks;
 
-    type AlloyCacheDB = CacheDB<WrapDatabaseAsync<AlloyDB<Http<Client>, Ethereum, RootProvider<Http<Client>>>>>;
-    type WethEvm<'a> = Evm<'a, EthereumWiring<CacheDB<WrapDatabaseAsync<AlloyDB<Http<Client>, Ethereum, RootProvider<Http<Client>>>>>, ()>>;
+    //type AlloyCacheDB = CacheDB<WrapDatabaseAsync<AlloyDB<Http<Client>, Ethereum, RootProvider<Http<Client>>>>>;
+    type WethEvm<'a> = Evm<'a, (), CacheDB<AlloyDB<Http<Client>, Ethereum, RootProvider<Http<Client>>>>>;
 
     // Setup evm instance with and router approved
     pub fn evm_with_balance_and_approval(router: Address, token: Address) -> WethEvm<'static> {
         let rpc_url = std::env::var("FULL").unwrap().parse().unwrap();
         let client = ProviderBuilder::new().on_http(rpc_url);
 
-        let alloy = WrapDatabaseAsync::new(AlloyDB::new(client, BlockId::latest())).unwrap();
+        let alloy = AlloyDB::new(client, BlockId::latest()).unwrap();
         let mut cache_db = CacheDB::new(alloy);
     
         let account = address!("18B06aaF27d44B756FCF16Ca20C1f183EB49111f");
@@ -46,12 +43,8 @@ pub mod utils {
             .insert_account_storage(token, hashed_acc_balance_slot.into(), one_ether)
             .unwrap();
 
-        let mut evm = Evm::<EthereumWiring<AlloyCacheDB, ()>>::builder()
+        let mut evm = Evm::builder()
             .with_db(cache_db)
-            .with_default_ext_ctx()
-            .modify_cfg_env(|env| {
-                env.disable_nonce_check = true;
-            })
             .modify_tx_env(|tx| {
                 tx.caller = account;
                 tx.value = U256::ZERO;

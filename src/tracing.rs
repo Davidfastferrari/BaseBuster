@@ -25,6 +25,8 @@ pub async fn debug_trace_block<T: Transport + Clone, N: Network, P: Provider<T, 
     .with_tracer(BuiltInTracer(PreStateTracer))
     .with_prestate_config(PreStateConfig {
         diff_mode: Some(diff_mode),
+        disable_code: Some(false),
+        disable_storage: Some(false),
     });
     let results = client
         .debug_trace_block_by_number(block_tag, tracer_opts)
