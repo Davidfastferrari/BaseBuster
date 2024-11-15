@@ -48,10 +48,22 @@ async fn main() -> Result<()> {
     info!("Loading and syncing pools...");
     let pool_sync = PoolSync::builder()
         .add_pools(&[
-            PoolType::UniswapV2,
-            //PoolType::UniswapV3,
-            PoolType::SushiSwapV2,
-            PoolType::PancakeSwapV2,
+            //PoolType::UniswapV2,
+            PoolType::UniswapV3,
+            // PoolType::SushiSwapV2,
+            // PoolType::PancakeSwapV2,
+            // PoolType::BaseSwapV2,
+            // PoolType::DackieSwapV2,
+            // PoolType::AlienBaseV2,
+            // PoolType::SwapBasedV2,
+            // PoolType::UniswapV3,
+            // PoolType::Slipstream,
+            // PoolType::SushiSwapV3,
+            // PoolType::BaseSwapV3,
+            // PoolType::DackieSwapV3,
+            // PoolType::SwapBasedV2,
+            // PoolType::AlienBaseV3,
+            //PoolType::PancakeSwapV3,
         ])
         .chain(Chain::Base)
         .rate_limit(1000)

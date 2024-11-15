@@ -62,7 +62,7 @@ pub async fn simulate_paths(
                     }
                 }
                 Err(quote_err) => {
-                    warn!("Failed to simulate quote {}, {:#?} ", quote_err, arb_path.hash);
+                    info!("Failed to simulate quote {}, {:#?} ", quote_err, arb_path.hash);
                     blacklisted_paths.insert(arb_path.hash);
                 }
             }

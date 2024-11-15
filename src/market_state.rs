@@ -68,7 +68,6 @@ where
         });
 
         // start the state updater
-        /*
         tokio::spawn(Self::state_updater(
             market_state.clone(),
             block_rx,
@@ -76,7 +75,6 @@ where
             last_synced_block,
             caught_up,
         ));
-        */
 
         Ok(market_state)
     }

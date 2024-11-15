@@ -192,7 +192,6 @@ where
         let token0 = pool.token0_address();
         let token1 = pool.token1_address();
 
-        println!("{pool_address} {token0} {token1}");
         // insert the decimals
         self.token_decimals
             .insert(token0, pool.token0_decimals().into());
@@ -216,14 +215,12 @@ where
             pool.fee(),
             input,
         );
-        println!("Inputting {} weth gave {}", input, alt_output);
 
         // Get decimals for both tokens
         let weth_decimals = self.token_decimals.get(&weth).unwrap_or(&18);
         let alt_decimals = self.token_decimals.get(&alt).unwrap_or(&18);
 
 
-        //println!("Alt input is {} for {} {}", alt_output, alt, pool_address);
         let other_output = self.calculator.compute_pool_output(
             pool_address,
             alt,
@@ -231,52 +228,12 @@ where
             pool.fee(),
             alt_output
         );
-        println!("Inputting {} alt gave {}", alt_output, other_output);
 
         // Calculate rates with proper scaling
         let zero_one_rate =
             self.calculate_rate(input, alt_output, *weth_decimals, *alt_decimals);
         let one_zero_rate =
             self.calculate_rate(alt_output, other_output, *alt_decimals, *weth_decimals);
-        println!("Zero to one rate: {zero_one_rate}");
-        println!("One to zero rate: {one_zero_rate}");
-
-        // compute with a differenet input
-        println!("computing new rates");
-
-        let input = U256::from(1e17);
-        // get the output quote and then determine the rates
-        let alt_output = self.calculator.compute_pool_output(
-            pool_address,
-            weth,
-            pool.pool_type(),
-            pool.fee(),
-            input,
-        );
-        println!("Inputting {} weth gave {}", input, alt_output);
-
-        // Get decimals for both tokens
-        let weth_decimals = self.token_decimals.get(&weth).unwrap_or(&18);
-        let alt_decimals = self.token_decimals.get(&alt).unwrap_or(&18);
-
-
-        //println!("Alt input is {} for {} {}", alt_output, alt, pool_address);
-        let other_output = self.calculator.compute_pool_output(
-            pool_address,
-            alt,
-            pool.pool_type(),
-            pool.fee(),
-            alt_output
-        );
-        println!("Inputting {} alt gave {}", alt_output, other_output);
-
-        // Calculate rates with proper scaling
-        let zero_one_rate =
-            self.calculate_rate(input, alt_output, *weth_decimals, *alt_decimals);
-        let one_zero_rate =
-            self.calculate_rate(alt_output, other_output, *alt_decimals, *weth_decimals);
-        println!("Zero to one rate 2 : {zero_one_rate}");
-        println!("One to zero rate 2: {one_zero_rate}");
 
         // Store rates
         self.rates

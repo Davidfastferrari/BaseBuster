@@ -53,7 +53,7 @@ where
             } else {
                 // compute the output amount and then store it in cache
                 
-                println!("Calculator: input {amount}");
+                //println!("Calculator: input {amount}");
                 let output_amount = self.compute_amount_out(
                     amount,
                     pool_address,
@@ -61,7 +61,7 @@ where
                     swap_step.protocol,
                     swap_step.fee,
                 );
-                println!("Calculator: output {output_amount}");
+                //println!("Calculator: output {output_amount}");
                 //self.cache.set(amount, pool_address, output_amount);
                 amount = output_amount;
             }

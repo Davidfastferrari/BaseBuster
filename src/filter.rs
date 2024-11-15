@@ -266,37 +266,53 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
             _ => panic!("will not reach here"),
         };
 
-        // Handle token0
-        let token0_slot = if pool.token0_address() == *WETH_ADDRESS {
-            keccak256((account, U256::from(3)).abi_encode())
+        // Determine if this is a WETH pool and set swap direction
+        let is_weth_pool =
+            pool.token0_address() == *WETH_ADDRESS || pool.token1_address() == *WETH_ADDRESS;
+        let zero_to_one = if is_weth_pool {
+            // If WETH pool, first swap should be WETH -> Token
+            pool.token0_address() == *WETH_ADDRESS
         } else {
-            keccak256((account, U256::from(0)).abi_encode())
-        };
-        
-        // Handle token1
-        let token1_slot = if pool.token1_address() == *WETH_ADDRESS {
-            keccak256((account, U256::from(3)).abi_encode())
-        } else {
-            keccak256((account, U256::from(0)).abi_encode())
+            // For non-WETH pools, keep original direction
+            true
         };
 
+        let balance_slots = [
+            keccak256((account, U256::from(0)).abi_encode()),
+            keccak256((account, U256::from(1)).abi_encode()),
+            keccak256((account, U256::from(2)).abi_encode()),
+            keccak256((account, U256::from(3)).abi_encode()),
+            keccak256((account, U256::from(4)).abi_encode()),
+            keccak256((account, U256::from(5)).abi_encode()),
+            //keccak256((account, U256::from(6)).abi_encode()),
+            keccak256((account, U256::from(7)).abi_encode()),
+            keccak256((account, U256::from(8)).abi_encode()),
+            keccak256((account, U256::from(9)).abi_encode()),
+        ];
 
-        nodedb
-            .insert_account_storage(
-                pool.token0_address(),
-                token0_slot.into(),
-                lots_of_tokens,
-                InsertionType::OnChain,
-            )
-            .unwrap();
-        nodedb
-            .insert_account_storage(
-                pool.token1_address(),
-                token1_slot.into(),
-                lots_of_tokens,
-                InsertionType::OnChain,
-            )
-            .unwrap();
+        // give everyone lots of tokens, diff contracts have difference balance slots,
+        // so it it just easiest to insert into all slots and have approval commit change
+        // anything
+        for slot in balance_slots {
+            // give everyone lots of tokens
+            nodedb
+                .insert_account_storage(
+                    pool.token0_address(),
+                    slot.into(),
+                    lots_of_tokens,
+                    InsertionType::OnChain,
+                )
+                .unwrap();
+            nodedb
+                .insert_account_storage(
+                    pool.token1_address(),
+                    slot.into(),
+                    lots_of_tokens,
+                    InsertionType::OnChain,
+                )
+                .unwrap();
+        }
+
 
         // construct a new evm instance
         let mut evm = Evm::<EthereumWiring<&mut NodeDB, ()>>::builder()
@@ -325,15 +341,18 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
 
         // we now have some of the input token and we have approved the router to spend it
         // try a swap to see if if it is valid
-        //let amt = U256::from(1e18);
-        let amt = *AMOUNT;
-        let lower_bound = amt.checked_mul(U256::from(95)).unwrap().checked_div(U256::from(100)).unwrap();
+        let amt = U256::from(1e18);
+        let lower_bound = amt
+            .checked_mul(U256::from(90))
+            .unwrap()
+            .checked_div(U256::from(100))
+            .unwrap();
         evm.tx_mut().transact_to = TransactTo::Call(router_address);
 
-        // setup zero to one and get the amount out to swap for one to zero
-        let (zero_one_calldata, vec_ret) =
-            setup_router_calldata(pool.clone(), account, amt, swap_type, true);
-        evm.tx_mut().data = zero_one_calldata.into();
+        // First swap (WETH -> Token for WETH pools)
+        let (first_swap_calldata, vec_ret) =
+            setup_router_calldata(pool.clone(), account, amt, swap_type, zero_to_one);
+        evm.tx_mut().data = first_swap_calldata.into();
         let ref_tx = evm.transact().unwrap();
         let result = ref_tx.result;
         let amt = if let ExecutionResult::Success { .. } = result {
@@ -343,21 +362,23 @@ async fn filter_by_swap(pools: Vec<Pool>) -> Vec<Pool> {
             continue;
         };
 
-        // swap one to zero with the amount from the previous swap
-        let (one_zero_calldata, vec_ret) =
-            setup_router_calldata(pool.clone(), account, amt, swap_type, false);
-        evm.tx_mut().data = one_zero_calldata.into();
+        // Second swap (Token -> WETH for WETH pools)
+        let (second_swap_calldata, vec_ret) =
+            setup_router_calldata(pool.clone(), account, amt, swap_type, !zero_to_one);
+        evm.tx_mut().data = second_swap_calldata.into();
         let ref_tx = evm.transact().unwrap();
         let result = ref_tx.result;
         let amt = if let ExecutionResult::Success { .. } = result {
             let output = result.output().unwrap();
             decode_swap_return(output, vec_ret)
         } else {
+            println!("Failed here amt {} {:#?} {:#?}", amt, pool, result);
             continue;
         };
 
         // confirm that the output amount is within our reasonable error bounds
         if amt >= lower_bound {
+            //println!("{:#?}", pool);
             filtered_pools.push(pool.clone());
         }
     }

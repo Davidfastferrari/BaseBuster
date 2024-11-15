@@ -16,8 +16,25 @@ mod estimation {
         dotenv::dotenv().ok();
         // load pools and get cycles
         let (pools, last_synced_block) =
-            load_and_filter_pools(vec![PoolType::UniswapV2, PoolType::SushiSwapV2]).await;
+            load_and_filter_pools(vec![
+                PoolType::UniswapV2,
+                PoolType::SushiSwapV2,
+                PoolType::PancakeSwapV2,
+                PoolType::BaseSwapV2,
+                PoolType::DackieSwapV2,
+                PoolType::AlienBaseV2,
+                PoolType::SwapBasedV2,
+                PoolType::UniswapV3,
+                PoolType::Slipstream,
+                PoolType::SushiSwapV3,
+                PoolType::BaseSwapV3,
+                PoolType::DackieSwapV3,
+                PoolType::SwapBasedV2,
+                PoolType::AlienBaseV3,
+                ]).await;
         let cycles = ArbGraph::generate_cycles(pools.clone()).await;
+        println!("{:#?}", cycles);
+        println!("Generated {} cycles", cycles.len());
 
         // init a market state with the new relevant pools
         let (market, address_rx) = construct_market(pools.clone(), last_synced_block).await;
@@ -30,6 +47,7 @@ mod estimation {
         // while we get an update (new block), test onchain and offchain for all pools
         while let Ok(Event::PoolsTouched(addresses, _)) = address_rx.recv() {
             estimator.update_rates(&addresses);
+            println!("Touched {} addresses", addresses.len());
             for path in &cycles {
                 let offchain_amt = calculator.calculate_output(&path.clone());
                 let est_amt = estimator.estimate_output_amount(path);
