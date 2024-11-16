@@ -54,9 +54,11 @@ pub async fn simulate_paths(
                         }
                     } else {
                         info!("Sim successful... Estimated output: {}, Block {}", expected_out, block_number);
-                        // send the optimize path to the tx sender
-                        let optimized_input = *AMOUNT;
-                        match tx_sender.send(Event::ArbPath((arb_path, optimized_input, block_number))) {
+                        // now optimize the input
+                        let optimized_input = Quoter::optimize_input(converted_path, market_state.clone()).unwrap();
+                        println!("Optimized input {}", optimized_input.0);
+
+                        match tx_sender.send(Event::ArbPath((arb_path, optimized_input.0, block_number))) {
                             Ok(_) => debug!("Simulator sent path to Tx Sender"),
                             Err(_) => warn!("Simulator: failed to send path to tx sender"),
                         }
