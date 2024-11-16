@@ -417,7 +417,6 @@ mod test_db_v2 {
         let mut evm = Evm::builder()
             .with_db(&mut db)
             .build();
-        evm.cfg_mut().disable_nonce_check = true;
         evm.tx_mut().caller = account;
         evm.tx_mut().transact_to =
         TransactTo::Call(address!("0000000000000000000000000000000000001000"));

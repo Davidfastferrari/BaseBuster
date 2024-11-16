@@ -28,7 +28,7 @@ pub async fn start_workers(pools: Vec<Pool>, last_synced_block: u64) {
 
     // filter the pools here to smartly select the working set
     info!("Pool count before filter {}", pools.len());
-    let pools = filter_pools(pools, 1000, Chain::Base).await;
+    let pools = filter_pools(pools, 4000, Chain::Base).await;
     info!("Pool count after filter {}", pools.len());
 
     // start the block stream so we dont miss any blocks
@@ -75,6 +75,7 @@ pub async fn start_workers(pools: Vec<Pool>, last_synced_block: u64) {
     info!("Generating cycles...");
     let cycles = ArbGraph::generate_cycles(pools.clone()).await;
     info!("Generated {} cycles", cycles.len());
+    println!("{:#?}", cycles);
 
     // start the simulator
     info!("Starting the simulator...");

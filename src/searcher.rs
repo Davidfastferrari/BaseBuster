@@ -77,12 +77,12 @@ where
             info!("Searching for arbs in block {}...", block_number);
             let res = Instant::now();
 
+            // invalidate all updated pools in the cache
+            self.calculator.invalidate_cache(&pools);
+
             // update all the rates for the pools that were touched
             self.estimator.update_rates(&pools);
             info!("Updated estimations");
-
-            // invalidate all updated pools in the cache
-            self.calculator.invalidate_cache(&pools);
 
             // from the updated pools, get all paths that we want to recheck
             let affected_paths: HashSet<&SwapPath> = pools
@@ -124,7 +124,7 @@ where
                         block_number,
                     ))) {
                         Ok(_) => debug!("Sent path"),
-                        Err(_) => warn!("Failed to send path"),
+                        Err(_) => debug!("Failed to send path"),
                     }
                 }
             }

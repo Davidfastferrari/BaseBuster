@@ -33,7 +33,6 @@ mod estimation {
                 PoolType::AlienBaseV3,
                 ]).await;
         let cycles = ArbGraph::generate_cycles(pools.clone()).await;
-        println!("{:#?}", cycles);
         println!("Generated {} cycles", cycles.len());
 
         // init a market state with the new relevant pools

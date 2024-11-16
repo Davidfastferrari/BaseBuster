@@ -6,6 +6,7 @@ use lazy_static::lazy_static;
 use pool_sync::{Pool, PoolInfo};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use log::debug;
 
 use crate::calculation::Calculator;
 use crate::market_state::MarketState;
@@ -156,6 +157,7 @@ where
             .iter()
             .filter(|p| p.token0_address() == weth || p.token1_address() == weth)
         {
+            debug!("Processing pool {}", pool.address());
             self.weth_based.insert(pool.address(), true);
             self.process_eth_pool(pool, weth, *AMOUNT, &mut alt_tokens, &mut weth_alt_cnt);
         }
@@ -174,6 +176,7 @@ where
             .iter()
             .filter(|p| p.token0_address() != weth && p.token1_address() != weth)
         {
+            debug!("Processing pool {}", pool.address());
             self.process_nonweth_pool(pool, eth_input);
         }
         // calculate every pool that is

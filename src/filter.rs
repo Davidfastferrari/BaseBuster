@@ -5,22 +5,20 @@ use alloy::primitives::{address, Address, U160, U256};
 use alloy::sol_types::{SolCall, SolValue};
 use anyhow::Result;
 use lazy_static::lazy_static;
-use log::debug;
-use log::trace;
+use log::{info, debug};
 use node_db::{InsertionType, NodeDB};
 use pool_sync::{Chain, Pool, PoolInfo, PoolType};
 use reqwest::header::{HeaderMap, HeaderValue};
-use revm::primitives::keccak256;
-use revm::primitives::{Bytes, TransactTo, ExecutionResult};
+use revm::primitives::{Bytes, TransactTo, ExecutionResult, FixedBytes};
 use revm::{inspector_handle_register, Evm};
 use serde::{Deserialize, Serialize};
 use std::fs::{create_dir_all, File};
 use std::io::{BufReader, BufWriter};
 use std::path::Path;
 use std::str::FromStr;
-use revm::primitives::FixedBytes;
 use std::collections::{HashSet, HashMap};
 use revm_inspectors::access_list::AccessListInspector;
+use rayon::prelude::*;
 
 // Blacklisted tokens we dont want to consider
 lazy_static! {
@@ -59,7 +57,7 @@ enum SwapType {
 
 // Given a set of pools, filter them down to a proper working set
 pub async fn filter_pools(pools: Vec<Pool>, num_results: usize, chain: Chain) -> Vec<Pool> {
-    debug!("Initial pool count before filter: {}", pools.len());
+    info!("Initial pool count before filter: {}", pools.len());
 
     // get all of the top volume tokens from birdeye, we imply volume = volatility
     let top_volume_tokens = get_top_volume_tokens(chain, num_results)
@@ -69,7 +67,7 @@ pub async fn filter_pools(pools: Vec<Pool>, num_results: usize, chain: Chain) ->
     // cross match top volume tokens to all pools, we want to only keep a pool if its pair exists
     // in the top volume tokens
     let pools: Vec<Pool> = pools
-        .into_iter()
+        .into_par_iter()
         .filter(|pool| {
             let token0 = pool.token0_address();
             let token1 = pool.token1_address();
@@ -79,85 +77,19 @@ pub async fn filter_pools(pools: Vec<Pool>, num_results: usize, chain: Chain) ->
                 && !BLACKLIST.contains(&token1)
         })
         .collect();
+    info!("Pool count after token match filter: {}", pools.len());
 
-    debug!("Pool count after token match filter: {}", pools.len());
-
+    // There are lots of token contracts with various different balance slots,
+    // try to figure out the balance slot for each token
     let slot_map = construct_slot_map(&pools);
 
     // simulate swap on every pool that we have, this will filter out pools that have a pair we
     // want but dont have any liq to swap with
     let pools = filter_by_swap(pools, slot_map).await;
-    println!("dont");
     debug!("Pool count after swap filter: {}", pools.len());
     pools
 }
 
-fn construct_slot_map(pools: &Vec<Pool>) -> HashMap<Address, FixedBytes<32>> {
-    // get a list of all the tokens
-    let tokens: Vec<Address> = pools.iter()
-        .flat_map(|p| vec![p.token0_address(), p.token1_address()])
-        .collect::<HashSet<_>>()
-        .into_iter()
-        .collect();
-
-    // nodedb for the provider
-    let database_path = std::env::var("DB_PATH").unwrap();
-    let mut nodedb = NodeDB::new(database_path).unwrap();
-
-    // dummy account w/ calldata
-    let account = address!("0000000000000000000000000000000000000001");
-    let calldata = ERC20Token::balanceOfCall {
-        account
-    }.abi_encode();
-
-
-    // get the balance slot for all tokens by simulating a balance of call with an access list
-    let mut slot_map: HashMap<Address, FixedBytes<32>> = HashMap::new();
-
-    for token in tokens {
-        let mut insp = AccessListInspector::default();
-
-        let mut evm = Evm::builder()
-            .with_db(&mut nodedb)
-            .with_external_context(&mut insp)
-            .modify_tx_env(|tx| {
-                tx.caller = account;
-                tx.transact_to = TransactTo::Call(token);
-                tx.data = calldata.clone().into();
-            })
-            .append_handler_register(inspector_handle_register)
-            .build();
-        let _ = evm.transact();
-        drop(evm);
-        let access_list = insp.access_list().0;
-
-        if token == address!("5ca0c41a50fcfec85b91bb4ca5b024b36d9bb120") {
-            println!("{:?}", access_list);
-        }
-
-        if access_list.len() == 1 && access_list[0].storage_keys.len() == 1{
-            let slot = access_list[0].storage_keys[0];
-            slot_map.insert(token, slot);
-        } else {
-            /* 
-            for item in access_list {
-                for key in &item.storage_keys {
-                    if *key == FixedBytes::<32>::from_str("ada5013122d395ba3c54772283fb069b10426056ef8ca54750cb9bb552a59e7d").unwrap() ||
-                       *key == FixedBytes::<32>::from_str("70a08231b98ef4ca268c9cc3f6b4590e4bfec28280db06bb5d45e689f2a360be").unwrap() ||
-                       *key == FixedBytes::<32>::from_str("8a35acfbc15ff81a39ae7d344fd709f28e8600b4aa8c65c6b64bfe7fe36bd19b").unwrap() {
-                        slot_map.insert(token, *key);
-                        println!("yes");
-                        break;
-                    }
-                }
-            }
-            */
-        }
-    }
-
-    slot_map
-
-}
 
 // ---------------------------------------------------
 // Helper functions to get all data and filter the pools
@@ -267,14 +199,6 @@ async fn filter_by_swap(pools: Vec<Pool>, slot_map: HashMap<Address, FixedBytes<
 
     // go through all the pools and try a swap on each one
     for pool in pools {
-        /* 
-        if pool.token0_address() == address!("5ca0c41a50fcfec85b91bb4ca5b024b36d9bb120") {
-            continue;
-        }
-        if pool.token1_address() == address!("5ca0c41a50fcfec85b91bb4ca5b024b36d9bb120") {
-            continue;
-        }
-        */
         // get the router address
         let (router_address, swap_type) = match pool.pool_type() {
             PoolType::UniswapV2 => (
@@ -355,22 +279,15 @@ async fn filter_by_swap(pools: Vec<Pool>, slot_map: HashMap<Address, FixedBytes<
             true
         };
 
-
-
+        // make sure the balance slots even exits, then insert
         let t0_slot = match slot_map.get(&pool.token0_address()) {
             Some(slot) => *slot,
-            None => {
-                continue;
-            }
+            None => continue,
         };
-        
         let t1_slot = match slot_map.get(&pool.token1_address()) {
             Some(slot) => *slot,
-            None => {
-                continue;
-            }
+            None => continue, 
         };
-
         nodedb
             .insert_account_storage(
                 pool.token0_address(),
@@ -412,16 +329,16 @@ async fn filter_by_swap(pools: Vec<Pool>, slot_map: HashMap<Address, FixedBytes<
 
         // we now have some of the input token and we have approved the router to spend it
         // try a swap to see if if it is valid
-        let amt = U256::from(1e18);
+        //let amt = U256::from(1e18);
+        let amt = *AMOUNT;
         let lower_bound = amt
-            .checked_mul(U256::from(90))
+            .checked_mul(U256::from(95))
             .unwrap()
             .checked_div(U256::from(100))
             .unwrap();
         evm.tx_mut().transact_to = TransactTo::Call(router_address);
 
-
-        // First swap (WETH -> Token for WETH pools)
+        // First swap (A -> B)
         let (first_swap_calldata, vec_ret) =
             setup_router_calldata(pool.clone(), account, amt, swap_type, zero_to_one);
         evm.tx_mut().data = first_swap_calldata.into();
@@ -434,7 +351,7 @@ async fn filter_by_swap(pools: Vec<Pool>, slot_map: HashMap<Address, FixedBytes<
             continue;
         };
 
-        // Second swap (Token -> WETH for WETH pools)
+        // Second swap (B -> A)
         let (second_swap_calldata, vec_ret) =
             setup_router_calldata(pool.clone(), account, amt, swap_type, !zero_to_one);
         evm.tx_mut().data = second_swap_calldata.into();
@@ -444,13 +361,11 @@ async fn filter_by_swap(pools: Vec<Pool>, slot_map: HashMap<Address, FixedBytes<
             let output = result.output().unwrap();
             decode_swap_return(output, vec_ret)
         } else {
-            //println!("Failed here amt {} {:#?} {:#?}", amt, pool, result);
             continue;
         };
 
         // confirm that the output amount is within our reasonable error bounds
         if amt >= lower_bound {
-            //println!("{amt}");
             filtered_pools.push(pool.clone());
         }
     }
@@ -561,4 +476,94 @@ fn setup_router_calldata(
             )
         }
     }
+}
+
+// For each token, determine the balance slot 
+fn construct_slot_map(pools: &Vec<Pool>) -> HashMap<Address, FixedBytes<32>> {
+    // Known common slots with their semantic meaning
+    let known_slots = [
+        FixedBytes::<32>::from_str("bbc70db1b6c7afd11e79c0fb0051300458f1a3acb8ee9789d9b6b26c61ad9bc7").unwrap(),
+        FixedBytes::<32>::from_str("3b19ce585aeabdba87215c3de2f24f560a092ab3ca77d32c61679d43ab8fcc47").unwrap(),
+        FixedBytes::<32>::from_str("8ba0ed1f62da1d3048614c2c1feb566f041c8467eb00fb8294776a9179dc1643").unwrap(),
+        FixedBytes::<32>::from_str("ad67d757c34507f157cacfa2e3153e9f260a2244f30428821be7be64587ac55f").unwrap(),
+        FixedBytes::<32>::from_str("1471eb6eb2c5e789fc3de43f8ce62938c7d1836ec861730447e2ada8fd81017b").unwrap(), // Most common balance slot
+        FixedBytes::<32>::from_str("a3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50").unwrap(), // Alternative balance slot
+        FixedBytes::<32>::from_str("10f6f77027d502f219862b0303542eb5dd005b06fa23ff4d1775aaa45bbf9477").unwrap(), // Another common balance slot
+        FixedBytes::<32>::from_str("cc69885fda6bcc1a4ace058b4a62bf5e179ea78fd58a1ccd71c22cc9b688792f").unwrap(), // Balance slot
+    ];
+
+    // Implementation slot - usually indicates proxy contracts
+    let implementation_slot = FixedBytes::<32>::from_str(
+        "360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"
+    ).unwrap();
+
+    // get a list of all the tokens
+    let tokens: Vec<Address> = pools.iter()
+        .flat_map(|p| vec![p.token0_address(), p.token1_address()])
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .collect();
+
+    // nodedb for the provider
+    let database_path = std::env::var("DB_PATH").unwrap();
+    let mut nodedb = NodeDB::new(database_path).unwrap();
+
+    // dummy account w/ calldata
+    let account = address!("0000000000000000000000000000000000000001");
+    let calldata = ERC20Token::balanceOfCall {
+        account
+    }.abi_encode();
+
+    // get the balance slot for all tokens by simulating a balance of call with an access list
+    let mut slot_map: HashMap<Address, FixedBytes<32>> = HashMap::new();
+
+    for token in tokens {
+        let mut insp = AccessListInspector::default();
+
+        // Populate inspector via transact
+        let mut evm = Evm::builder()
+            .with_db(&mut nodedb)
+            .with_external_context(&mut insp)
+            .modify_tx_env(|tx| {
+                tx.caller = account;
+                tx.transact_to = TransactTo::Call(token);
+                tx.data = calldata.clone().into();
+            })
+            .append_handler_register(inspector_handle_register)
+            .build();
+        let _ = evm.transact();
+        drop(evm);
+        let access_list = insp.access_list().0;
+
+        // Process access list to find balance slot
+        for item in &access_list {
+            if item.address == token {
+                // Case 1: Single storage key that's not implementation slot
+                if item.storage_keys.len() == 1 && !item.storage_keys.contains(&implementation_slot) {
+                    slot_map.insert(token, item.storage_keys[0]);
+                    break;
+                }
+
+                // Case 2: Multiple storage keys - look for known slots first
+                for &known_slot in &known_slots {
+                    if item.storage_keys.contains(&known_slot) {
+                        slot_map.insert(token, known_slot);
+                        break;
+                    }
+                }
+
+                // Case 3: Take first non-implementation slot if no known slots found
+                if !slot_map.contains_key(&token) {
+                    for &slot in &item.storage_keys {
+                        if slot != implementation_slot {
+                            slot_map.insert(token, slot);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    slot_map
 }

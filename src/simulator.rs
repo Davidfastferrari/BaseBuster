@@ -28,6 +28,7 @@ pub async fn simulate_paths(
 
     // recieve new paths from the searcher
     while let Ok(Event::ArbPath((arb_path, expected_out, block_number))) = arb_receiver.recv() {
+        info!("Got a new path");
         // convert from searcher format into quoter format
         let converted_path: Vec<FlashQuoter::SwapStep> = arb_path.clone().into();
 
