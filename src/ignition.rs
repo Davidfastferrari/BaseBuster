@@ -75,7 +75,6 @@ pub async fn start_workers(pools: Vec<Pool>, last_synced_block: u64) {
     info!("Generating cycles...");
     let cycles = ArbGraph::generate_cycles(pools.clone()).await;
     info!("Generated {} cycles", cycles.len());
-    println!("{:#?}", cycles);
 
     // start the simulator
     info!("Starting the simulator...");

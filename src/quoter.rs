@@ -11,7 +11,6 @@ use std::sync::Arc;
 
 use crate::gen::FlashQuoter;
 use crate::market_state::MarketState;
-use crate::state_db::BlockStateDB;
 use crate::AMOUNT;
 
 // Quoter. This is used to get a simulation quote before sending off a transaction.

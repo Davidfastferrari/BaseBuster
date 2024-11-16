@@ -6,23 +6,28 @@ use alloy::hex;
 use alloy::network::{EthereumWallet, TransactionBuilder};
 use alloy::primitives::Address;
 use alloy::primitives::Bytes as AlloyBytes;
-use alloy::providers::{Provider, ProviderBuilder};
+use alloy::primitives::FixedBytes;
+use alloy::providers::{Provider, ProviderBuilder, RootProvider};
 use alloy::rpc::types::TransactionRequest;
 use alloy::signers::k256::SecretKey;
 use alloy::signers::local::PrivateKeySigner;
 use alloy::sol_types::SolCall;
+use alloy::transports::http::{Client as AlloyClient, Http};
 use log::info;
 use reqwest::Client;
+use serde_json::Value;
+use std::str::FromStr;
 use std::sync::mpsc::Receiver;
 use std::sync::Arc;
-use std::time::Instant;
 use std::time::Duration;
+use std::time::Instant;
 
 pub struct TransactionSender {
     wallet: EthereumWallet,
     gas_station: Arc<GasStation>,
     contract_address: Address,
-    client: Client,
+    client: Arc<Client>,
+    provider: Arc<RootProvider<Http<AlloyClient>>>,
     nonce: u64,
 }
 
@@ -45,7 +50,6 @@ impl TransactionSender {
             .connect_timeout(Duration::from_secs(5))
             .build()
             .expect("Failed to create HTTP client");
-
         // Warm up connection by sending a simple eth_blockNumber request
         let warmup_json = serde_json::json!({
             "jsonrpc": "2.0",
@@ -60,9 +64,10 @@ impl TransactionSender {
             .await
             .unwrap();
 
-        // get our starting nonce
-        let provider =
-            ProviderBuilder::new().on_http(std::env::var("FULL").unwrap().parse().unwrap());
+        // construct a provider for tx receipts and nonce
+        let provider = Arc::new(
+            ProviderBuilder::new().on_http(std::env::var("FULL").unwrap().parse().unwrap()),
+        );
         let nonce = provider
             .get_transaction_count(std::env::var("ACCOUNT").unwrap().parse().unwrap())
             .await
@@ -72,7 +77,8 @@ impl TransactionSender {
             wallet,
             gas_station,
             contract_address: std::env::var("SWAP_CONTRACT").unwrap().parse().unwrap(),
-            client,
+            client: Arc::new(client),
+            provider,
             nonce,
         }
     }
@@ -81,8 +87,6 @@ impl TransactionSender {
         while let Ok(Event::ArbPath((arb_path, optimized_input, block_number))) = tx_receiver.recv()
         {
             info!("Sending path...");
-            let start = Instant::now();
-
             // construct the calldata/input
             let converted_path: Vec<FlashSwap::SwapStep> = arb_path.clone().into();
             let calldata = FlashSwap::executeArbitrageCall {
@@ -115,18 +119,50 @@ impl TransactionSender {
                 "id": 1
             });
 
-            let res = self
-                .client
-                .post("https://mainnet-sequencer.base.org")
-                .json(&json)
-                .send()
-                .await
-                .unwrap();
-            info!("Time to send {:?}, {}", start.elapsed(), block_number);
-            println!("Time to send {:?}, {}", start.elapsed(), block_number);
-            let body = res.text().await.unwrap();
-            println!("Response: {}", body);
+            // Send the transaciton off and monitor its status
+            let client = self.client.clone();
+            let provider = self.provider.clone();
+            tokio::spawn(async move {
+                Self::send_and_monitor(client, provider, json, block_number).await;
+            });
+            tokio::time::sleep(Duration::from_secs(5)).await;
         }
+    }
+
+    // Send the transaction and monitor its status
+    pub async fn send_and_monitor(
+        client: Arc<Client>,
+        provider: Arc<RootProvider<Http<AlloyClient>>>,
+        tx_data: Value,
+        block_number: u64,
+    ) {
+        info!("Sending on block {}", block_number);
+        let start = Instant::now();
+
+        // construct the request and send it
+        let req = client
+            .post("https://mainnet-sequencer.base.org")
+            .json(&tx_data)
+            .send()
+            .await
+            .unwrap();
+        let req_response: Value = req.json().await.unwrap();
+        println!("Took {:?} to send tx and receive response", start.elapsed());
+        let tx_hash = FixedBytes::<32>::from_str(req_response["result"].as_str().unwrap()).unwrap();
+
+        // loop while waiting for tx receipt
+        let mut attempts = 0;
+        while attempts < 10 {
+            // try to fetch the receipt
+            let receipt = provider.get_transaction_receipt(tx_hash).await;
+            if let Ok(Some(inner)) = receipt {
+                println!("Landed on block {:?}", inner.block_number.unwrap());
+            }
+
+            tokio::time::sleep(Duration::from_secs(2)).await;
+            attempts += 1;
+        }
+
     }
 }
 
@@ -210,7 +246,6 @@ mod tx_signing_tests {
             .max_fee_per_gas(max_fee)
             .max_priority_fee_per_gas(priority_fee)
             .chain_id(8453)
-            // Increase gas limit to ensure it doesn't fail
             .gas(4_000_000)
             .into_transaction_request();
         println!("Tx construction took {:?}", tx_time.elapsed());
@@ -221,8 +256,7 @@ mod tx_signing_tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_send_tx() {
         // init environment
-        env_logger::builder()  
-            .filter_level(log::LevelFilter::Info);
+        env_logger::builder().filter_level(log::LevelFilter::Info);
         dotenv::dotenv().ok();
 
         // Create gas station
@@ -238,8 +272,8 @@ mod tx_signing_tests {
         let swap_path = dummy_swap_path();
         let test_event = Event::ArbPath((
             swap_path,
-            alloy::primitives::U256::from(1000000), // test input amount
-            100u64,                                 // dummy block number
+            alloy::primitives::U256::from(10000000), // test input amount
+            100u64,                                  // dummy block number
         ));
 
         tx.send(test_event).unwrap();
@@ -248,3 +282,4 @@ mod tx_signing_tests {
         tx_sender.send_transactions(rx).await;
     }
 }
+
