@@ -1,7 +1,7 @@
 // All offchain calculation tests
 #[cfg(test)]
 mod estimation {
-    use super::super::test_utils::utils::{construct_market, load_and_filter_pools};
+    use super::super::helpers::test_utils::utils::{construct_market, load_and_filter_pools};
     use crate::calculation::Calculator;
     use crate::estimator::Estimator;
     use crate::events::Event;

@@ -32,7 +32,7 @@ pub async fn start_workers(pools: Vec<Pool>, last_synced_block: u64) {
     info!("Pool count after filter {}", pools.len());
 
     // start the block stream so we dont miss any blocks
-    tokio::task::spawn(stream_new_blocks(block_sender));
+    tokio::spawn(stream_new_blocks(block_sender));
 
     // Construct and start the gas station
     let gas_station = Arc::new(GasStation::new());
@@ -42,7 +42,7 @@ pub async fn start_workers(pools: Vec<Pool>, last_synced_block: u64) {
         async move { gas_station.update_gas(block_rx).await }
     });
 
-    // Signal for it the blocks are caught up
+    // Signal for if the blocks are caught up 
     let caught_up = Arc::new(AtomicBool::new(false));
 
     // Initialize our market state, this is a wrapper over the REVM database with all our pool state

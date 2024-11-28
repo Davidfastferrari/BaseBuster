@@ -37,11 +37,6 @@ async fn main() -> Result<()> {
     dotenv::dotenv().ok();
     env_logger::Builder::new()
         .filter_module("BaseBuster", LevelFilter::Info)
-        .format(|buf, record| {
-            use std::io::Write;
-            let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
-            writeln!(buf, "{} {} - {}", timestamp, record.level(), record.args())
-        })
         .init();
 
     // Load in all the pools
@@ -50,20 +45,8 @@ async fn main() -> Result<()> {
         .add_pools(&[
             PoolType::UniswapV2,
             PoolType::UniswapV3,
-            //PoolType::UniswapV3,
-            //PoolType::SushiSwapV2,
-            //PoolType::PancakeSwapV2,
-            //PoolType::BaseSwapV2,
-            //PoolType::DackieSwapV2,
-            //PoolType::AlienBaseV2,
-            //PoolType::SwapBasedV2,
-            //PoolType::Slipstream,
-            //PoolType::SushiSwapV3,
-            //PoolType::BaseSwapV3,
-            //PoolType::DackieSwapV3,
-            //PoolType::SwapBasedV2,
-            //PoolType::AlienBaseV3,
-            //PoolType::PancakeSwapV3,
+            PoolType::SushiSwapV2,
+            PoolType::PancakeSwapV2,
         ])
         .chain(Chain::Base)
         .rate_limit(1000)

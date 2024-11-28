@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod offchain_calculations {
-    use super::super::offchain_quote::offchain_quote::offchain_quote;
-    use super::super::onchain_quote::onchain::onchain_quote;
-    use super::super::test_utils::utils::{construct_market, construct_pool_map, load_and_filter_pools};
+    use super::super::helpers::offchain_quote::offchain_quote::offchain_quote;
+    use super::super::helpers::onchain_quote::onchain::onchain_quote;
+    use super::super::helpers::test_utils::utils::{construct_market, construct_pool_map, load_and_filter_pools};
     use crate::events::Event;
 
     use pool_sync::PoolType;
@@ -23,6 +23,7 @@ mod offchain_calculations {
                     println!("{} touched pools", addresses.len());
                     for address in addresses {
                         let pool = pool_map.get(&address).unwrap();
+                        // Get both and offchain and an onchain amount out, they should be the same
                         let offchain = offchain_quote(&pool, market.clone());
                         let onchain = onchain_quote(&pool).await;
                         assert_eq!(offchain, onchain, "failed with pool {:#?}", pool);

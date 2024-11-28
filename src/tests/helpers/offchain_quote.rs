@@ -17,7 +17,6 @@ pub mod offchain_quote {
     // Calcualte the output amount via offchain infra
     pub fn offchain_quote(pool: &Pool, market: Market) -> U256 {
         let calculator = Calculator::new(market);
-        let start = Instant::now();
         let res = calculator.compute_amount_out(
             *AMOUNT,
             pool.address(),
@@ -25,7 +24,6 @@ pub mod offchain_quote {
             pool.pool_type(),
             pool.fee()
         );
-        println!("{:?}", start.elapsed());
         res
     }
 }

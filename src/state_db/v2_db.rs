@@ -135,7 +135,7 @@ mod test_db_v2 {
     use alloy::sol;
     use alloy::sol_types::{SolCall, SolValue};
     use alloy::transports::http::{Client, Http};
-    use alloy::eips::BlockId;
+    use node_db::{NodeDB, InsertionType};
     use revm::primitives::{AccountInfo, Bytecode, TransactTo};
     use revm::db::{AlloyDB, CacheDB};
     use crate::gen::FlashQuoter::{self, SwapStep};
@@ -323,12 +323,10 @@ mod test_db_v2 {
         let weth = address!("4200000000000000000000000000000000000006");
         let quoter: Address = address!("0000000000000000000000000000000000001000");
 
-        // Set up the database with a provide backend
-        let rpc_url = std::env::var("FULL").unwrap().parse().unwrap();
+        dotenv::dotenv().ok();
+        let database_path = std::env::var("DB_PATH").unwrap();
+        let mut db = NodeDB::new(database_path).unwrap();
 
-        let client = ProviderBuilder::new().on_http(rpc_url);
-        let alloy = AlloyDB::new(client, BlockId::latest()).unwrap();
-        let mut db = CacheDB::new(alloy);
         //let provider = ProviderBuilder::new().on_http(url);
         //let mut db = BlockStateDB::new(provider.clone()).unwrap();
 
@@ -344,8 +342,8 @@ mod test_db_v2 {
         let _ = db.insert_account_storage(
             weth,
             hashed_acc_balance_slot.into(),
-            one_ether//,
-            //InsertionType::OnChain
+            one_ether,
+            InsertionType::OnChain
         );
 
         // insert the quoter bytecode
@@ -356,7 +354,7 @@ mod test_db_v2 {
             code_hash: keccak256(&quoter_bytecode),
             code: Some(Bytecode::new_raw(quoter_bytecode)),
         };
-        db.insert_account_info(quoter, quoter_acc_info);//, InsertionType::Custom);
+        db.insert_account_info(quoter, quoter_acc_info, InsertionType::Custom);
 
         //let mut evm = Evm::<EthereumWiring<&mut BlockStateDB<Http<Client>, Ethereum, RootProvider<Http<Client>>>, ()>>::builder()
         let mut evm = Evm::builder()

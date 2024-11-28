@@ -7,7 +7,7 @@ pub mod onchain {
     use pool_sync::{Pool, PoolInfo, PoolType, UniswapV2Pool, UniswapV3Pool};
     use revm::primitives::TransactTo;
 
-    use super::super::test_gen::*;
+    use super::super::contract_gen::*;
     use super::super::test_utils::utils::evm_with_balance_and_approval;
     use crate::AMOUNT;
 

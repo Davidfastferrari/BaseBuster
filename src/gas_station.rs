@@ -15,8 +15,7 @@ impl GasStation {
     pub fn new() -> Self {
         Self {
             base_fee: AtomicU64::new(0),
-            //priority_fee: AtomicU64::new(40000000),
-            priority_fee: AtomicU64::new(10000000),
+            priority_fee: AtomicU64::new(40000000),
         }
     }
 

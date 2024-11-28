@@ -15,19 +15,17 @@ anyhow = "1.0.89"
 env_logger = "0.11.5"
 futures = { version = "0.3.31", features = ["executor"] }
 pool-sync = { path = "../PoolSync" }
-node-db = { path = "../node-db"}
+node-db = { path = "../NodeDB"}
 log = "0.4.22"
 petgraph = "0.6.5"
 rayon = "1.10.0"
-revm = { path = "../revm/crates/revm", features = ["alloydb"]}
 serde = { version = "1.0.210", features = ["derive"] }
 serde_json = "1.0.129"
 sha2 = "0.10.8"
 dashmap = "6.1.0"
 tokio = { version = "1.40.0", features = ["full"] }
 lazy_static = "1.5.0"
-uniswap_v3_math = { path = "../uniswap-v3-math" } 
-revm-inspectors = { path = "../revm-inspectors" }
+uniswap_v3_math = "0.5.2" 
 dotenv = "0.15.0"
 reqwest = "0.12.8"
 zerocopy = "0.8.6"
@@ -41,3 +39,5 @@ http-body-util = "0.1.2"
 bytes = "1.8.0"
 foldhash = "0.1.3"
 eyre = "0.6.12"
+revm-inspectors = "0.12.0"
+revm = { version = "18.0.0", features = ["alloydb"] }
