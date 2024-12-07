@@ -231,17 +231,20 @@ where
             evm.transact_commit().unwrap();
 
             // Try to do the swap from input to output token
-            let quote_path = vec![FlashQuoter::SwapStep {
-                poolAddress: pool.address(),
-                tokenIn: pool.token0_address(),
-                tokenOut: pool.token1_address(),
-                protocol: 0,
-                fee: 0.try_into().unwrap(),
-            }];
+            let is_v3 = if pool.is_v3() {
+                1
+            } else {
+                0
+            };
+
+            let quote_path = FlashQuoter::SwapParams {
+                pools: vec![pool.address()],
+                poolVersions: vec![is_v3],
+                amountIn: *AMOUNT
+            };
 
             let quote_calldata = FlashQuoter::quoteArbitrageCall {
-                steps: quote_path,
-                amount: *AMOUNT,
+                params: quote_path
             }
             .abi_encode()
             .abi_encode();

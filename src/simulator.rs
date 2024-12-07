@@ -28,13 +28,13 @@ pub async fn simulate_paths(
 
     // recieve new paths from the searcher
     while let Ok(Event::ArbPath((arb_path, expected_out, block_number))) = arb_receiver.recv() {
-        info!("Got a new path");
         // convert from searcher format into quoter format
-        let converted_path: Vec<FlashQuoter::SwapStep> = arb_path.clone().into();
+        let converted_path: FlashQuoter::SwapParams = arb_path.clone().into();
 
         // get the quote for the path and handle it appropriately
         // if we have not blacklisted the path
         if !blacklisted_paths.contains(&arb_path.hash) {
+            info!("Simulating a new path...");
             // get an initial quote to see if we can swap
             // get read access to the db so we can quote the path
             match Quoter::quote_path(converted_path.clone(), *AMOUNT, market_state.clone()) {
@@ -53,19 +53,25 @@ pub async fn simulate_paths(
                             let output = calculator.debug_calculation(&arb_path);
                         }
                     } else {
-                        info!("Sim successful... Estimated output: {}, Block {}", expected_out, block_number);
+                        info!(
+                            "Sim successful... Estimated output: {}, Block {}",
+                            expected_out, block_number
+                        );
                         // now optimize the input
-                        let optimized_input = Quoter::optimize_input(converted_path, market_state.clone()).unwrap();
-                        println!("Optimized input {}", optimized_input.0);
+                        //let optimized_amounts = Quoter::optimize_input(converted_path, market_state.clone()).unwrap();
+                        //info!("Optimized input: {}. Optimized output: {}", optimized_amounts.0, optimized_amounts.1);
 
-                        match tx_sender.send(Event::ArbPath((arb_path, optimized_input.0, block_number))) {
+                        match tx_sender.send(Event::ValidPath((converted_path, block_number))) {
                             Ok(_) => debug!("Simulator sent path to Tx Sender"),
                             Err(_) => warn!("Simulator: failed to send path to tx sender"),
                         }
                     }
                 }
                 Err(quote_err) => {
-                    info!("Failed to simulate quote {}, {:#?} ", quote_err, arb_path.hash);
+                    info!(
+                        "Failed to simulate quote {}, {:#?} ",
+                        quote_err, arb_path.hash
+                    );
                     blacklisted_paths.insert(arb_path.hash);
                 }
             }

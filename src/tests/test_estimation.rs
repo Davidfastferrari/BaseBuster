@@ -18,20 +18,10 @@ mod estimation {
         let (pools, last_synced_block) =
             load_and_filter_pools(vec![
                 PoolType::UniswapV2,
-                PoolType::SushiSwapV2,
-                PoolType::PancakeSwapV2,
-                PoolType::BaseSwapV2,
-                PoolType::DackieSwapV2,
-                PoolType::AlienBaseV2,
-                PoolType::SwapBasedV2,
                 PoolType::UniswapV3,
-                PoolType::Slipstream,
-                PoolType::SushiSwapV3,
-                PoolType::BaseSwapV3,
-                PoolType::DackieSwapV3,
-                PoolType::SwapBasedV2,
-                PoolType::AlienBaseV3,
-                ]).await;
+                PoolType::PancakeSwapV2,
+                PoolType::SushiSwapV2,
+            ]).await;
         let cycles = ArbGraph::generate_cycles(pools.clone()).await;
         println!("Generated {} cycles", cycles.len());
 

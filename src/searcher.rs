@@ -2,7 +2,7 @@ use alloy::network::Network;
 use alloy::primitives::{Address, U256};
 use alloy::providers::Provider;
 use alloy::transports::Transport;
-use log::{debug, info, warn};
+use log::{debug, info};
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::{Receiver, Sender};
@@ -114,10 +114,9 @@ where
                 // get the best estimated quote and confirm that it is actual in profit
                 let best_path = profitable_paths.iter().max_by_key(|(_, amt)| amt).unwrap();
                 let calculated_out = self.calculator.calculate_output(&best_path.0);
-                info!("Estimated {}. Calculated {}", best_path.1, calculated_out);
 
                 if calculated_out >= self.min_profit {
-                    info!("{} expected profit from path", calculated_out);
+                    info!("Estimated {}. Calculated {}", best_path.1, calculated_out);
                     match paths_tx.send(Event::ArbPath((
                         best_path.0.clone(),
                         calculated_out,

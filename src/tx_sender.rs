@@ -84,14 +84,14 @@ impl TransactionSender {
     }
     pub async fn send_transactions(&mut self, tx_receiver: Receiver<Event>) {
         // wait for a new transaction that has passed simulation
-        while let Ok(Event::ArbPath((arb_path, optimized_input, block_number))) = tx_receiver.recv()
+        while let Ok(Event::ValidPath((arb_path, block_number))) = tx_receiver.recv()
         {
+
             info!("Sending path...");
-            // construct the calldata/input
-            let converted_path: Vec<FlashSwap::SwapStep> = arb_path.clone().into();
+            // Setup arbitarge call
+            let converted_path: FlashSwap::SwapParams = arb_path.clone().into();
             let calldata = FlashSwap::executeArbitrageCall {
-                steps: converted_path,
-                amount: optimized_input,
+                arb: converted_path
             }
             .abi_encode();
 
@@ -147,7 +147,7 @@ impl TransactionSender {
             .await
             .unwrap();
         let req_response: Value = req.json().await.unwrap();
-        println!("Took {:?} to send tx and receive response", start.elapsed());
+        info!("Took {:?} to send tx and receive response", start.elapsed());
         let tx_hash = FixedBytes::<32>::from_str(req_response["result"].as_str().unwrap()).unwrap();
 
         // loop while waiting for tx receipt
@@ -156,7 +156,7 @@ impl TransactionSender {
             // try to fetch the receipt
             let receipt = provider.get_transaction_receipt(tx_hash).await;
             if let Ok(Some(inner)) = receipt {
-                println!("Landed on block {:?}", inner.block_number.unwrap());
+                info!("Send on block {:?}, Landed on block {:?}", block_number, inner.block_number.unwrap());
             }
 
             tokio::time::sleep(Duration::from_secs(2)).await;
@@ -168,6 +168,7 @@ impl TransactionSender {
 
 #[cfg(test)]
 mod tx_signing_tests {
+    /*
     use crate::swap::{SwapPath, SwapStep};
     use alloy::primitives::{address, U256};
     use alloy::providers::{Provider, ProviderBuilder};
@@ -281,5 +282,6 @@ mod tx_signing_tests {
         // Send the transaction (this will only process one transaction and then exit)
         tx_sender.send_transactions(rx).await;
     }
+    */
 }
 

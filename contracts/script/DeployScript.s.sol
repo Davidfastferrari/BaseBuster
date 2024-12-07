@@ -9,39 +9,34 @@ contract DeployFlashSwap is Script {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
 
-        address[] memory routers = new address[](17);
+        // Set up factory addresses
+        address[] memory factories = new address[](7);
+        factories[0] = 0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6;  // 0.3%
+        factories[1] = 0x71524B4f93c58fcbF659783284E38825f0622859;  // 0.3%
+        factories[2] = 0x02a84c1b3BBD7401a5f7fa98a384EBC70bB5749E;  // 0.25%
+        factories[3] = 0x04C9f118d21e8B767D2e50C946f0cC9F6C367300;  // 0.3%
+        factories[4] = 0xFDa619b6d20975be80A10332cD39b9a4b0FAa8BB;  // 0.25%
+        factories[5] = 0x591f122D1df761E616c13d265006fcbf4c6d6551;  // 0.25%
+        factories[6] = 0x3E84D913803b02A4a7f027165E8cA42C14C0FdE7;  // 0.16%
+
+        // Set up corresponding fees (10000 = 100%)
+        uint16[] memory fees = new uint16[](7);
+        fees[0] = 9970; // 0.3%
+        fees[1] = 9970; // 0.3%
+        fees[2] = 9975; // 0.25%
+        fees[3] = 9970; // 0.3%
+        fees[4] = 9975; // 0.25%
+        fees[5] = 9975; // 0.25%
+        fees[6] = 9984; // 0.16%
+
+        // Deploy with WETH address for Base
+        address WETH = 0x4200000000000000000000000000000000000006;
         
-        // V2 VARIATIONS
-        routers[0] = 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24; // UNISWAP_V2_ROUTER
-        routers[1] = 0x6BDED42c6DA8FBf0d2bA55B2fa120C5e0c8D7891; // SUSHISWAP_V2_ROUTER
-        routers[2] = 0x8cFe327CEc66d1C090Dd72bd0FF11d690C33a2Eb; // PANCAKESWAP_V2_ROUTER
-        routers[3] = 0x327Df1E6de05895d2ab08513aaDD9313Fe505d86; // BASESWAP_V2_ROUTER
-        routers[4] = 0xaaa3b1F1bd7BCc97fD1917c18ADE665C5D31F066; // SWAPBASED_V2_ROUTER
-        routers[5] = 0x8c1A3cF8f83074169FE5D7aD50B978e1cD6b37c7; // ALIENBASE_V2_ROUTER
-        routers[6] = 0xCa4EAa32E7081b0c4Ba47e2bDF9B7163907Fe56f; // DACKIESWAP_V2_ROUTER
-
-        // V3 VARIATIONS (NO DEADLINE)
-        routers[7] = 0x2626664c2603336E57B271c5C0b26F421741e481; // UNISWAP_V3_ROUTER
-        routers[8] = 0xB20C411FC84FBB27e78608C24d0056D974ea9411; // ALIENBASE_V3_ROUTER
-        routers[9] = 0x195FBc5B8Fbd5Ac739C1BA57D4Ef6D5a704F34f7; // DACKIESWAP_V3_ROUTER
-        routers[10] = 0x678Aa4bF4E210cf2166753e054d5b7c31cc7fa86; // PANCAKESWAP_V3_ROUTER
-
-        // V3 VARIATIONS (WITH DEADLINE)
-        routers[11] = 0xFB7eF66a7e61224DD6FcD0D7d9C3be5C8B049b9f; // SUSHISWAP_V3_ROUTER
-        routers[12] = 0x756C6BbDd915202adac7beBB1c6C89aC0886503f; // SWAPBASED_V3_ROUTER
-        routers[13] = 0x1B8eea9315bE495187D873DA7773a874545D9D48; // BASESWAP_V3_ROUTER
-
-        // SLIPSTREAM
-        routers[14] = 0xBE6D8f0d05cC4be24d5167a3eF062215bE6D18a5; // SLIPSTREAM_ROUTER
-
-        // AERODROME
-        routers[15] = 0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43; // AERODOME_ROUTER
-
-        // BALANCER
-        routers[16] = 0xBA12222222228d8Ba445958a75a0704d566BF2C8;
-
-
-        FlashSwap flashSwap = new FlashSwap(routers);
+        FlashSwap flashSwap = new FlashSwap(
+            WETH,
+            factories,
+            fees
+        );
 
         console.log("FlashSwap deployed at:", address(flashSwap));
 

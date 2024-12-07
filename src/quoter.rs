@@ -5,7 +5,7 @@ use alloy::sol_types::SolCall;
 use alloy::sol_types::SolValue;
 use alloy::transports::http::{Client, Http};
 use anyhow::{anyhow, Result};
-use revm::primitives::{TransactTo, ExecutionResult};
+use revm::primitives::{ExecutionResult, TransactTo};
 use revm::Evm;
 use std::sync::Arc;
 
@@ -19,23 +19,22 @@ pub struct Quoter;
 impl Quoter {
     // get a quote for the path
     pub fn quote_path(
-        quote_path: Vec<FlashQuoter::SwapStep>,
+        mut quote_params: FlashQuoter::SwapParams,
         amount_in: U256,
         market_state: Arc<MarketState<Http<Client>, Ethereum, RootProvider<Http<Client>>>>,
     ) -> Result<Vec<U256>> {
         let mut guard = market_state.db.write().unwrap();
         // need to pass this as mut somehow
-        let mut evm = Evm::builder()
-            .with_db(&mut *guard)
-            .build();
+        let mut evm = Evm::builder().with_db(&mut *guard).build();
         evm.tx_mut().caller = address!("d8da6bf26964af9d7eed9e03e53415d37aa96045");
         evm.tx_mut().transact_to =
             TransactTo::Call(address!("0000000000000000000000000000000000001000"));
         // get read access to the db
         // setup the calldata
+        
+        quote_params.amountIn = amount_in;
         let quote_calldata = FlashQuoter::quoteArbitrageCall {
-            steps: quote_path,
-            amount: amount_in,
+            params: quote_params,
         }
         .abi_encode();
         evm.tx_mut().data = quote_calldata.into();
@@ -60,51 +59,42 @@ impl Quoter {
     /// Optimizes the input amount using binary search to find the maximum profitable input
     /// Returns the optimal input amount and its corresponding output amounts
     pub fn optimize_input(
-        quote_path: Vec<FlashQuoter::SwapStep>,
+        quote_path: FlashQuoter::SwapParams,
         market_state: Arc<MarketState<Http<Client>, Ethereum, RootProvider<Http<Client>>>>,
     ) -> Result<(U256, U256)> {
         let mut left = *AMOUNT;
         let mut right = U256::from(1e18);
-        let tolerance = U256::from(1e16);
         let mut best_input = U256::ZERO;
         let mut best_output = U256::ZERO;
-        let max_iterations = 8;
+
         let mut iterations = 0;
-
-        while left <= right && (right - left) > tolerance && iterations < max_iterations {
-            iterations += 1;
-            let mid = (left + right) / U256::from(2);
-            
-            let amounts = match Self::quote_path(quote_path.clone(), mid, Arc::clone(&market_state)) {
-                Ok(amounts) => amounts,
-                Err(_) => {
-                    right = mid - tolerance;
-                    continue;
-                }
-            };
-            
-            let larger = mid + tolerance;
-            let amounts_larger = match Self::quote_path(quote_path.clone(), larger, Arc::clone(&market_state)) {
-                Ok(amounts) => amounts,
-                Err(_) => {
-                    best_input = mid;
-                    best_output = *amounts.last().unwrap_or(&U256::ZERO);
-                    break;
-                }
-            };
-
-            let current_profit = amounts.last().ok_or(anyhow!("Empty amounts"))? - mid;
-            let larger_profit = amounts_larger.last().ok_or(anyhow!("Empty amounts"))? - larger;
-
-            if larger_profit > current_profit {
-                left = mid + tolerance;
-                best_input = larger;
-                best_output = *amounts_larger.last().unwrap_or(&U256::ZERO);
+        while iterations < 12 {
+            let mid = if iterations == 0 {
+                *AMOUNT
             } else {
-                right = mid - tolerance;
+                (left + right) / U256::from(2)
+            };
+
+            let current_amounts =
+                match Self::quote_path(quote_path.clone(), mid, Arc::clone(&market_state)) {
+                    Ok(amounts) => amounts,
+                    Err(_) => {
+                        right = mid;
+                        iterations += 1;
+                        continue;
+                    }
+                };
+
+            let current_output = *current_amounts.last().unwrap_or(&U256::ZERO);
+            if best_output == U256::ZERO || current_output > best_output {
+                best_output = current_output;
                 best_input = mid;
-                best_output = *amounts.last().unwrap_or(&U256::ZERO);
+                left = mid;
+            } else {
+                right = mid;
             }
+
+            iterations += 1;
         }
 
         if best_input == U256::ZERO {

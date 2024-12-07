@@ -3,142 +3,74 @@ pragma solidity ^0.8.0;
 import "@aave/core-v3/contracts/flashloan/base/FlashLoanSimpleReceiverBase.sol";
 
 interface IERC20 {
+    function transfer(address, uint256) external returns (bool);
+    function transferFrom(address, address, uint256) external returns (bool);
+    function approve(address, uint256) external returns (bool);
     function balanceOf(address account) external view returns (uint256);
-    function transfer(address recipient, uint256 amount) external returns (bool);
-    function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
-    function approve(address spender, uint256 amount) external returns (bool);
 }
 
-interface IWETH is IERC20 {
-    function deposit() external payable;
-    function withdraw(uint256 amount) external;
-}
-
-interface IUniswapV2Router {
-    function swapExactTokensForTokens(
-        uint256 amountIn,
-        uint256 amountOutMin,
-        address[] calldata path,
-        address to,
-        uint256 deadline
-    ) external returns (uint256[] memory amounts);
-}
-
-interface IV3SwapRouterWithDeadline {
-    struct ExactInputSingleParams {
-        address tokenIn;
-        address tokenOut;
-        uint24 fee;
-        address recipient;
-        uint256 deadline;
-        uint256 amountIn;
-        uint256 amountOutMinimum;
-        uint160 sqrtPriceLimitX96;
-    }
-    function exactInputSingle(ExactInputSingleParams calldata params) external returns (uint256 amountOut);
-}
-
-interface IV3SwapRouterNoDeadline {
-    struct ExactInputSingleParams {
-        address tokenIn;
-        address tokenOut;
-        uint24 fee;
-        address recipient;
-        uint256 amountIn;
-        uint256 amountOutMinimum;
-        uint160 sqrtPriceLimitX96;
-    }
-    function exactInputSingle(ExactInputSingleParams calldata params) external returns (uint256 amountOut);
-}
-
-interface ISlipstream {
-    struct ExactInputSingleParams {
-        address tokenIn;
-        address tokenOut;
-        int24 tickSpacing;
-        address recipient;
-        uint256 deadline;
-        uint256 amountIn;
-        uint256 amountOutMinimum;
-        uint160 sqrtPriceLimitX96;
-    }
-    function exactInputSingle(ExactInputSingleParams calldata params) external payable returns (uint256 amountOut);
-}
-
-interface ISlipstreamPool {
-    function tickSpacing() external view returns (int24);
-}
-
-interface IAerodromeRouter {
-    struct Route {
-        address from;
-        address to;
-        bool stable;
-        address factory;
-    }
-    function swapExactTokensForTokens(
-        uint256 amountIn,
-        uint256 amountOutMin,
-        Route[] calldata routes,
-        address to,
-        uint256 deadline
-    ) external returns (uint256[] memory amounts);
-}
-
-interface IAerodromePool {
-    function stable() external view returns (bool);
+interface IUniswapV2Pair {
+    function getReserves() external view returns (uint112, uint112, uint32);
+    function token0() external view returns (address);
+    function token1() external view returns (address);
+    function swap(uint, uint, address, bytes calldata) external;
     function factory() external view returns (address);
 }
 
-interface IBalancerVault {
-    enum SwapKind { GIVEN_IN, GIVEN_OUT }
-    struct SingleSwap {
-        bytes32 poolId;
-        SwapKind kind;
-        address assetIn;
-        address assetOut;
-        uint256 amount;
-        bytes userData;
-    }
-    struct FundManagement {
-        address sender;
-        bool fromInternalBalance;
-        address payable recipient;
-        bool toInternalBalance;
-    }
-    function swap(
-        SingleSwap memory singleSwap,
-        FundManagement memory funds,
-        uint256 limit,
-        uint256 deadline
-    ) external returns (uint256);
+interface IUniswapV3Pool {
+    function slot0() external view returns (uint160, int24, uint16, uint16, uint16, uint8, bool);
+    function token0() external view returns (address);
+    function token1() external view returns (address);
+    function swap(address, bool, int256, uint160, bytes calldata) external returns (int256, int256);
 }
 
 address constant AAVE_ADDRESS_PROVIDER = 0xe20fCBdBfFC4Dd138cE8b2E6FBb6CB49777ad64D;
 error InsufficientFundsToRepayFlashLoan(uint256 finalBalance);
 
 contract FlashSwap is FlashLoanSimpleReceiverBase {
-    event Amount(string message);
-    struct SwapStep {
-        address poolAddress;
-        address tokenIn;
-        address tokenOut;
-        uint8 protocol;
-        uint24 fee;
+
+    struct SwapParams {
+        address[] pools;        // Array of pool addresses in swap order
+        uint8[] poolVersions;   // 0 = V2, 1 = V3
+        uint256 amountIn;
     }
-    address[] private routers;
+
+    // Mapping from a factory to its fee
+    mapping(address => uint16) private factoryFees;
+    address private immutable WETH;
     address public owner;
 
-    constructor(address[] memory _routers) FlashLoanSimpleReceiverBase(IPoolAddressesProvider(AAVE_ADDRESS_PROVIDER)) {
-        routers = _routers;
+    // Constants to avoid multiple memory allocations
+    bytes private constant EMPTY_BYTES = new bytes(0);
+    uint256 private constant PRECISION = 10000;
+    uint160 constant MIN_SQRT_RATIO = 4295128739;
+    uint160 constant MAX_SQRT_RATIO = 1461446703485210103287273052203988822378723970342;
+
+    // Construct a new flashswap contract. This will take in weth, the factories of the protoocls and their respective fees
+    constructor(
+        address weth, 
+        address[] memory factories,
+        uint16[] memory fees
+    ) FlashLoanSimpleReceiverBase(IPoolAddressesProvider(AAVE_ADDRESS_PROVIDER)) {
+        WETH = weth;
+        unchecked {
+            // assign all the factories and their fees
+            for (uint256 i = 0; i < factories.length; i++) {
+                factoryFees[factories[i]] = fees[i];
+            }
+        }
         owner = msg.sender;
     }
 
-    function executeArbitrage(SwapStep[] calldata steps, uint256 amount) external {
-        bytes memory params = abi.encode(steps, msg.sender);
-        POOL.flashLoanSimple(address(this), steps[0].tokenIn, amount, params, 0);
+
+    /// Top level function to execute an arbitrage
+    function executeArbitrage(SwapParams calldata arb) external {
+        // Encode the params of the swap
+        bytes memory params = abi.encode(arb, msg.sender);
+        POOL.flashLoanSimple(address(this), WETH, arb.amountIn, params, 0);
     }
 
+    // Callback from the flashswap
     function executeOperation(
         address asset,
         uint256 amount,
@@ -148,20 +80,50 @@ contract FlashSwap is FlashLoanSimpleReceiverBase {
     ) external returns (bool) {
         require(msg.sender == address(POOL), "Caller must be lending pool");
 
-        (SwapStep[] memory steps, address caller) = abi.decode(params, (SwapStep[], address));
+        (SwapParams memory arb, address caller) = abi.decode(params, (SwapParams, address));
 
-        uint256 amountIn = amount;
-        uint256 len = steps.length;
+        uint256[] memory amounts = new uint256[](arb.pools.length + 1);
+        amounts[0] = arb.amountIn;
 
-        for (uint256 i = 0; i < len;) {
-            amountIn = _swap(steps[i], amountIn);
-            unchecked { ++i; }
+         // Track the input token for each swap
+        address currentTokenIn = WETH;
+
+        unchecked {
+            for (uint256 i = 0; i < arb.pools.length; i++) {
+                address pool = arb.pools[i];
+                bool isV3 = arb.poolVersions[i] == 1;
+                
+                address token0;
+                address token1;
+                if (isV3) {
+                    IUniswapV3Pool v3Pool = IUniswapV3Pool(pool);
+                    token0 = v3Pool.token0();
+                    token1 = v3Pool.token1();
+                } else {
+                    IUniswapV2Pair v2Pool = IUniswapV2Pair(pool);
+                    token0 = v2Pool.token0();
+                    token1 = v2Pool.token1();
+                }
+                
+                // Determine if we're going token0 -> token1
+                bool zeroForOne = currentTokenIn == token0;
+                
+                // Approve and swap
+                IERC20(currentTokenIn).approve(pool, amounts[i]);
+                
+                amounts[i + 1] = isV3 ? 
+                    _swapV3(pool, amounts[i], currentTokenIn, zeroForOne) : 
+                    _swapV2(pool, amounts[i], zeroForOne);
+                
+                // Set up the input token for the next swap
+                currentTokenIn = zeroForOne ? token1 : token0;
+            }
         }
 
         uint256 amountToRepay = amount + premium;
         uint256 finalBalance = IERC20(asset).balanceOf(address(this));
         if (finalBalance < amountToRepay) {
-            revert InsufficientFundsToRepayFlashLoan(finalBalance);
+            revert();
         }
 
         IERC20(asset).approve(address(POOL), amountToRepay);
@@ -170,118 +132,73 @@ contract FlashSwap is FlashLoanSimpleReceiverBase {
         return true;
     }
 
-    function _swap(SwapStep memory step, uint256 amountIn) private returns (uint256) {
-        IERC20(step.tokenIn).approve(routers[step.protocol], amountIn);
-        if (step.protocol <= 6) {
-            return _swapV2(step, amountIn);
-        } else if (step.protocol <= 13) {
-            return _swapV3(step, amountIn);
-        } else if (step.protocol == 14) {
-            return _swapSlipstream(step, amountIn);
-        } else if (step.protocol == 15) {
-            return _swapAerodrome(step, amountIn);
-        } else if (step.protocol == 16) {
-            return _swapBalancer(step, amountIn);
-        } else {
-            revert("Unsupported protocol");
+    function _swapV2(
+        address poolAddress, 
+        uint256 amountIn,
+        bool zeroForOne
+    ) private returns (uint256 amountOut) {
+        IUniswapV2Pair pair = IUniswapV2Pair(poolAddress);
+        
+        // Load reserves
+        (uint112 reserve0, uint112 reserve1,) = pair.getReserves();
+        
+        // Get fee and transfer tokens
+        uint16 fee = factoryFees[pair.factory()];
+        address tokenIn = zeroForOne ? pair.token0() : pair.token1();
+        IERC20(tokenIn).transfer(poolAddress, amountIn);
+        
+        // Calculate amount out using unchecked math where safe
+        unchecked {
+            uint256 reserveIn = uint256(zeroForOne ? reserve0 : reserve1);
+            uint256 reserveOut = uint256(zeroForOne ? reserve1 : reserve0);
+            
+            uint256 amountInWithFee = amountIn * fee;
+            amountOut = (amountInWithFee * reserveOut) / (reserveIn * PRECISION + amountInWithFee);
         }
 
-    }
-
-    function _swapV2(SwapStep memory step, uint256 amountIn) private returns (uint256) {
-        address[] memory path = new address[](2);
-        path[0] = step.tokenIn;
-        path[1] = step.tokenOut;
-        return IUniswapV2Router(routers[step.protocol]).swapExactTokensForTokens(
-            amountIn, 0, path, address(this), block.timestamp
-        )[1];
-    }
-
-    function _swapV3(SwapStep memory step, uint256 amountIn) private returns (uint256) {
-        if (step.protocol <= 10) {
-            return IV3SwapRouterNoDeadline(routers[step.protocol]).exactInputSingle(
-                IV3SwapRouterNoDeadline.ExactInputSingleParams({
-                    tokenIn: step.tokenIn,
-                    tokenOut: step.tokenOut,
-                    fee: step.fee,
-                    recipient: address(this),
-                    amountIn: amountIn,
-                    amountOutMinimum: 0,
-                    sqrtPriceLimitX96: 0
-                })
-            );
-        } else {
-            return IV3SwapRouterWithDeadline(routers[step.protocol]).exactInputSingle(
-                IV3SwapRouterWithDeadline.ExactInputSingleParams({
-                    tokenIn: step.tokenIn,
-                    tokenOut: step.tokenOut,
-                    fee: step.fee,
-                    recipient: address(this),
-                    deadline: block.timestamp,
-                    amountIn: amountIn,
-                    amountOutMinimum: 0,
-                    sqrtPriceLimitX96: 0
-                })
-            );
-        }
-    }
-
-    function _swapSlipstream(SwapStep memory step, uint256 amountIn) private returns (uint256) {
-
-        int24 tick_spacing = ISlipstreamPool(step.poolAddress).tickSpacing();
-        return ISlipstream(routers[step.protocol]).exactInputSingle(
-           ISlipstream.ExactInputSingleParams({
-               tokenIn: step.tokenIn,
-               tokenOut: step.tokenOut,
-               tickSpacing: tick_spacing,
-               recipient: address(this),
-               deadline: block.timestamp,
-               amountIn: amountIn,
-               amountOutMinimum: 0,
-               sqrtPriceLimitX96: 0
-           })
+        // Perform swap
+        pair.swap(
+            zeroForOne ? 0 : amountOut,
+            zeroForOne ? amountOut : 0,
+            address(this),
+            EMPTY_BYTES
         );
     }
 
-    function _swapAerodrome(SwapStep memory step, uint256 amountIn) private returns (uint256) {
-        IAerodromeRouter.Route[] memory routes = new IAerodromeRouter.Route[](1);
-        bool isStable = IAerodromePool(step.poolAddress).stable();
-        routes[0] = IAerodromeRouter.Route({
-            from: step.tokenIn,
-            to: step.tokenOut,
-            stable: isStable,
-            factory: address(0)
-        });
-        return IAerodromeRouter(routers[step.protocol]).swapExactTokensForTokens(
-            amountIn, 0, routes, address(this), block.timestamp
-        )[1];
-    }
+    function _swapV3(
+        address poolAddress,
+        uint256 amountIn,
+        address tokenIn,
+        bool zeroForOne
+    ) private returns (uint256) {
+        IUniswapV3Pool pool = IUniswapV3Pool(poolAddress);
+        
+        uint160 sqrtPriceLimitX96 = zeroForOne ? 
+            MIN_SQRT_RATIO + 1 : 
+            MAX_SQRT_RATIO - 1;
 
-    function _swapBalancer(SwapStep memory step, uint256 amountIn) private returns (uint256) {
-        return IBalancerVault(routers[step.protocol]).swap(
-            IBalancerVault.SingleSwap({
-                poolId: bytes32(uint256(uint160(step.poolAddress))),
-                kind: IBalancerVault.SwapKind.GIVEN_IN,
-                assetIn: step.tokenIn,
-                assetOut: step.tokenOut,
-                amount: amountIn,
-                userData: ""
-            }),
-            IBalancerVault.FundManagement({
-                sender: address(this),
-                fromInternalBalance: false,
-                recipient: payable(address(this)),
-                toInternalBalance: false
-            }),
-            0,
-            block.timestamp
+        (int256 amount0, int256 amount1) = pool.swap(
+            address(this),             // recipient
+            zeroForOne,               // direction
+            int256(amountIn),         // amount
+            sqrtPriceLimitX96,        // price limit
+            abi.encode(               // callback data
+                poolAddress,          // to
+                tokenIn              // tokenIn
+            )
         );
+
+        return uint256(-(zeroForOne ? amount1 : amount0));
     }
 
-    function rescueTokens(address token) external {
-        uint256 balance = IERC20(token).balanceOf(address(this));
-        require(balance > 0, "No tokens to rescue");
-        IERC20(token).transfer(msg.sender, balance);
+    function uniswapV3SwapCallback(
+        int256 amount0Delta,
+        int256 amount1Delta,
+        bytes calldata data
+    ) external {
+        (address to, address tokenIn) = abi.decode(data, (address, address));
+        uint256 amountToSend = uint256(amount0Delta > 0 ? amount0Delta : amount1Delta);
+        IERC20(tokenIn).transfer(to, amountToSend);
     }
 
     receive() external payable {}

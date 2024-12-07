@@ -1,422 +1,169 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+// Interface definitions
 interface IERC20 {
+    function transfer(address, uint256) external returns (bool);
+    function transferFrom(address, address, uint256) external returns (bool);
+    function approve(address, uint256) external returns (bool);
     function balanceOf(address account) external view returns (uint256);
-    function transfer(address recipient, uint256 amount) external returns (bool);
-    function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
-    function approve(address spender, uint256 amount) external returns (bool);
 }
+
 interface IUniswapV2Pair {
-    function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast);
+    function getReserves() external view returns (uint112, uint112, uint32);
     function token0() external view returns (address);
     function token1() external view returns (address);
-    function swap(uint amount0Out, uint amount1Out, address to, bytes calldata data) external;
+    function swap(uint, uint, address, bytes calldata) external;
     function factory() external view returns (address);
 }
 
-
-
-interface IWETH is IERC20 {
-    function deposit() external payable;
-    function withdraw(uint256 amount) external;
+interface IUniswapV3Pool {
+    function slot0() external view returns (uint160, int24, uint16, uint16, uint16, uint8, bool);
+    function token0() external view returns (address);
+    function token1() external view returns (address);
+    function swap(address, bool, int256, uint160, bytes calldata) external returns (int256, int256);
 }
-
-interface IUniswapV2Router {
-    function swapExactTokensForTokens(
-        uint256 amountIn,
-        uint256 amountOutMin,
-        address[] calldata path,
-        address to,
-        uint256 deadline
-    ) external returns (uint256[] memory amounts);
-}
-
-interface IV3SwapRouterWithDeadline {
-    struct ExactInputSingleParams {
-        address tokenIn;
-        address tokenOut;
-        uint24 fee;
-        address recipient;
-        uint256 deadline;
-        uint256 amountIn;
-        uint256 amountOutMinimum;
-        uint160 sqrtPriceLimitX96;
-    }
-    function exactInputSingle(ExactInputSingleParams calldata params) external returns (uint256 amountOut);
-}
-
-interface IV3SwapRouterNoDeadline {
-    struct ExactInputSingleParams {
-        address tokenIn;
-        address tokenOut;
-        uint24 fee;
-        address recipient;
-        uint256 amountIn;
-        uint256 amountOutMinimum;
-        uint160 sqrtPriceLimitX96;
-    }
-    function exactInputSingle(ExactInputSingleParams calldata params) external returns (uint256 amountOut);
-}
-
-interface ISlipstream {
-    struct ExactInputSingleParams {
-        address tokenIn;
-        address tokenOut;
-        int24 tickSpacing;
-        address recipient;
-        uint256 deadline;
-        uint256 amountIn;
-        uint256 amountOutMinimum;
-        uint160 sqrtPriceLimitX96;
-    }
-    function exactInputSingle(ExactInputSingleParams calldata params) external payable returns (uint256 amountOut);
-}
-
-interface ISlipstreamPool {
-    function tickSpacing() external view returns (int24);
-}
-
-
-interface IAerodromeRouter {
-    struct Route {
-        address from;
-        address to;
-        bool stable;
-        address factory;
-    }
-    function swapExactTokensForTokens(
-        uint256 amountIn,
-        uint256 amountOutMin,
-        Route[] calldata routes,
-        address to,
-        uint256 deadline
-    ) external returns (uint256[] memory amounts);
-}
-
-interface IAerodromePool {
-    function stable() external view returns (bool);
-    function factory() external view returns (address);
-}
-
-interface IBalancerVault {
-    enum SwapKind { GIVEN_IN, GIVEN_OUT }
-    struct SingleSwap {
-        bytes32 poolId;
-        SwapKind kind;
-        address assetIn;
-        address assetOut;
-        uint256 amount;
-        bytes userData;
-    }
-    struct FundManagement {
-        address sender;
-        bool fromInternalBalance;
-        address payable recipient;
-        bool toInternalBalance;
-    }
-    function swap(
-        SingleSwap memory singleSwap,
-        FundManagement memory funds,
-        uint256 limit,
-        uint256 deadline
-    ) external returns (uint256);
-}
-
-interface IBalancerPool {
-    function getPoolId() external view returns (bytes32);
-}
-
 
 contract FlashQuoter {
-    struct SwapStep {
-        address poolAddress;
-        address tokenIn;
-        address tokenOut;
-        uint8 protocol;
-        uint24 fee;
+    struct SwapParams {
+        address[] pools;
+        uint8[] poolVersions;  // 0 for V2, 1 for V3
+        uint256 amountIn;
     }
 
-    // Router addresses group by interface/swap method
-    // V2 VARIATIONS
-    address constant UNISWAP_V2_ROUTER = 0x4752ba5DBc23f44D87826276BF6Fd6b1C372aD24; 
-    address constant SUSHISWAP_V2_ROUTER = 0x6BDED42c6DA8FBf0d2bA55B2fa120C5e0c8D7891;
+    // Constants to avoid multiple memory allocations
+    bytes private constant EMPTY_BYTES = new bytes(0);
+    uint256 private constant PRECISION = 10000;
+    address private constant WETH = 0x4200000000000000000000000000000000000006;
+    uint160 constant MIN_SQRT_RATIO = 4295128739;
+    uint160 constant MAX_SQRT_RATIO = 1461446703485210103287273052203988822378723970342;
 
-    address constant PANCAKESWAP_V2_ROUTER = 0x8cFe327CEc66d1C090Dd72bd0FF11d690C33a2Eb; 
-    address constant BASESWAP_V2_ROUTER = 0x327Df1E6de05895d2ab08513aaDD9313Fe505d86; 
-    address constant SWAPBASED_V2_ROUTER = 0xaaa3b1F1bd7BCc97fD1917c18ADE665C5D31F066;
-    address constant ALIENBASE_V2_ROUTER = 0x8c1A3cF8f83074169FE5D7aD50B978e1cD6b37c7;
-    address constant DACKIESWAP_V2_ROUTER = 0xCa4EAa32E7081b0c4Ba47e2bDF9B7163907Fe56f;
+    // Top function that is called to quote an arbitarge path. The path is a valid path that is starting and ending in WETH
+    function quoteArbitrage(SwapParams calldata params) external returns (uint256[] memory) {
+        IERC20(WETH).transferFrom(msg.sender, address(this), params.amountIn);
 
-    // V3 VARIATION
+        uint256[] memory amounts = new uint256[](params.pools.length + 1);
+        amounts[0] = params.amountIn;
+        
+        // Track the input token for each swap
+        address currentTokenIn = WETH;
 
-    // NODEADLINE
-    address constant UNISWAP_V3_ROUTER = 0x2626664c2603336E57B271c5C0b26F421741e481; 
-    address constant ALIENBASE_V3_ROUTER = 0xB20C411FC84FBB27e78608C24d0056D974ea9411;
-    address constant DACKIESWAP_V3_ROUTER = 0x195FBc5B8Fbd5Ac739C1BA57D4Ef6D5a704F34f7;
-    address constant PANCAKESWAP_V3_ROUTER = 0x678Aa4bF4E210cf2166753e054d5b7c31cc7fa86; 
-
-    // DEADLINE
-    address constant SUSHISWAP_V3_ROUTER = 0xFB7eF66a7e61224DD6FcD0D7d9C3be5C8B049b9f; 
-    address constant SWAPBASED_V3_ROUTER = 0x756C6BbDd915202adac7beBB1c6C89aC0886503f;
-    address constant BASESWAP_V3_ROUTER = 0x1B8eea9315bE495187D873DA7773a874545D9D48; 
-
-    // SLIPSTREAM
-    address constant SLIPSTREAM_ROUTER = 0xBE6D8f0d05cC4be24d5167a3eF062215bE6D18a5;
-
-    // AERODROME
-    address constant AERODOME_ROUTER = 0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43; 
-
-    // BALANCER
-    address constant BALANCER_VAULT = 0xBA12222222228d8Ba445958a75a0704d566BF2C8;
-
-
-    // TOADD
-    // Mavirkc v1, v2, curve two and tri
-
-    IWETH public constant WETH = IWETH(0x4200000000000000000000000000000000000006);
-
-    function quoteArbitrage(SwapStep[] calldata steps, uint256 amount) external returns (uint256[] memory) {
-        require(steps.length > 0, "Invalid path");
-        require(amount > 0, "Invalid amount");
-
-        // Transfer WETH from sender to this contract
-        require(WETH.transferFrom(msg.sender, address(this), amount), "WETH transfer failed");
-
-        uint256[] memory amounts = new uint256[](steps.length + 1);
-        amounts[0] = amount;
-        uint256 amountIn = amount;
-
-        for (uint256 i = 0; i < steps.length; i++) {
-            uint256 balance = IERC20(steps[i].tokenIn).balanceOf(address(this));
-            IERC20(steps[i].tokenIn).approve(_getRouter(steps[i].protocol), balance);
-            amountIn = _swap(steps[i], balance);
-            amounts[i + 1] = amountIn;
+        unchecked {
+            for (uint256 i = 0; i < params.pools.length; i++) {
+                address pool = params.pools[i];
+                bool isV3 = params.poolVersions[i] == 1;
+                
+                address token0;
+                address token1;
+                if (isV3) {
+                    IUniswapV3Pool v3Pool = IUniswapV3Pool(pool);
+                    token0 = v3Pool.token0();
+                    token1 = v3Pool.token1();
+                } else {
+                    IUniswapV2Pair v2Pool = IUniswapV2Pair(pool);
+                    token0 = v2Pool.token0();
+                    token1 = v2Pool.token1();
+                }
+                
+                // Determine if we're going token0 -> token1
+                bool zeroForOne = currentTokenIn == token0;
+                
+                // Approve and swap
+                IERC20(currentTokenIn).approve(pool, amounts[i]);
+                
+                amounts[i + 1] = isV3 ? 
+                    _swapV3(pool, amounts[i], currentTokenIn, zeroForOne) : 
+                    _swapV2(pool, amounts[i], zeroForOne);
+                
+                // Set up the input token for the next swap
+                currentTokenIn = zeroForOne ? token1 : token0;
+            }
         }
 
         return amounts;
     }
 
-    function _getRouter(uint8 protocol) private pure returns (address) {
-        // V2 Variants
-        if (protocol == 0) return UNISWAP_V2_ROUTER;
-        if (protocol == 1) return SUSHISWAP_V2_ROUTER;
-        if (protocol == 2) return PANCAKESWAP_V2_ROUTER;
-        if (protocol == 3) return BASESWAP_V2_ROUTER;
-        if (protocol == 4) return SWAPBASED_V2_ROUTER;
-        if (protocol == 5) return ALIENBASE_V2_ROUTER;
-        if (protocol == 6) return DACKIESWAP_V2_ROUTER;
-
-        // V3 Variants (No Deadline)
-        if (protocol == 7) return UNISWAP_V3_ROUTER;
-        if (protocol == 8) return ALIENBASE_V3_ROUTER;
-        if (protocol == 9) return DACKIESWAP_V3_ROUTER;
-        if (protocol == 10) return PANCAKESWAP_V3_ROUTER;
-
-        // V3 Variants (With Deadline)
-        if (protocol == 11) return SUSHISWAP_V3_ROUTER;
-        if (protocol == 12) return SWAPBASED_V3_ROUTER;
-        if (protocol == 13) return BASESWAP_V3_ROUTER;
-
-        // Other protocols
-        if (protocol == 14) return SLIPSTREAM_ROUTER;
-        if (protocol == 15) return AERODOME_ROUTER;
-        if (protocol == 16) return BALANCER_VAULT;
-
-        // TODO: Implement these protocols
-        // if (protocol == 17) return MAVERICK_V1_ROUTER;
-        // if (protocol == 18) return MAVERICK_V2_ROUTER;
-        // if (protocol == 19) return CURVE_TWO_CRYPTO_ROUTER;
-        // if (protocol == 20) return CURVE_TRI_CRYPTO_ROUTER;
-
-        revert("Invalid protocol");
-    }
-
-    function _swap(SwapStep memory step, uint256 amountIn) private returns (uint256) {
-        if (step.protocol <= 6) {
-            return _swapV2(step, amountIn);
-        } else if (step.protocol <= 13) {
-            return _swapV3(step, amountIn);
-        } else if (step.protocol == 14) {
-            return _swapSlipstream(step, amountIn);
-        } else if (step.protocol == 15) {
-            return _swapAerodrome(step, amountIn);
-        } else if (step.protocol == 16) {
-            return _swapBalancer(step, amountIn);
-        } else {
-            revert("Unsupported protocol");
-        }
-    }
-
-/*
-    function _swapV2(SwapStep memory step, uint256 amountIn) private returns (uint256) {
-        address[] memory path = new address[](2);
-        path[0] = step.tokenIn;
-        path[1] = step.tokenOut;
-        uint256[] memory amounts = IUniswapV2Router(_getRouter(step.protocol)).swapExactTokensForTokens(
-            amountIn, 0, path, address(this), block.timestamp
-        );
-        require(amounts.length > 1, "Invalid swap result");
-        return amounts[1];
-    }
-    */
-
-    function _swapV2(SwapStep memory step, uint256 amountIn) private returns (uint256) {
-        IUniswapV2Pair pair = IUniswapV2Pair(step.poolAddress);
+    function _swapV2(
+        address poolAddress, 
+        uint256 amountIn,
+        bool zeroForOne
+    ) private returns (uint256 amountOut) {
+        IUniswapV2Pair pair = IUniswapV2Pair(poolAddress);
+        
+        // Load reserves
         (uint112 reserve0, uint112 reserve1,) = pair.getReserves();
-        address token0 = pair.token0();
-        address factory = pair.factory();
-
-        uint256 fee = 0;
-
-        if (factory == 0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6) {
-            fee = 9970;
-        } else if (factory == 0x71524B4f93c58fcbF659783284E38825f0622859) {
-            fee = 9970;
-        } else if (factory == 0x02a84c1b3BBD7401a5f7fa98a384EBC70bB5749E) {
-            fee = 9975;
-        } else if (factory == 0x04C9f118d21e8B767D2e50C946f0cC9F6C367300) {
-            fee = 9970;
-        } else if (factory == 0xFDa619b6d20975be80A10332cD39b9a4b0FAa8BB) {
-            fee = 9975;
-        } else if (factory == 0x591f122D1df761E616c13d265006fcbf4c6d6551) {
-            fee = 9975;
-        } else if (factory == 0x3E84D913803b02A4a7f027165E8cA42C14C0FdE7) {
-            fee = 9984;
-        }
         
-        // First transfer the tokens to the pair
-        IERC20(step.tokenIn).transfer(step.poolAddress, amountIn);
+        // Get fee and transfer tokens
+        uint16 fee = _getFee(pair.factory());
+        address tokenIn = zeroForOne ? pair.token0() : pair.token1();
+        IERC20(tokenIn).transfer(poolAddress, amountIn);
         
-        uint256 amountOut;
-        uint256 amount0Out;
-        uint256 amount1Out;
-        
-        if (step.tokenIn == token0) {
-            amountOut = _getAmountOut(amountIn, uint256(reserve0), uint256(reserve1), fee);
-            amount0Out = 0;
-            amount1Out = amountOut;
-        } else {
-            amountOut = _getAmountOut(amountIn, uint256(reserve1), uint256(reserve0), fee);
-            amount0Out = amountOut;
-            amount1Out = 0;
+        // Calculate amount out using unchecked math where safe
+        unchecked {
+            uint256 reserveIn = uint256(zeroForOne ? reserve0 : reserve1);
+            uint256 reserveOut = uint256(zeroForOne ? reserve1 : reserve0);
+            
+            uint256 amountInWithFee = amountIn * fee;
+            amountOut = (amountInWithFee * reserveOut) / (reserveIn * PRECISION + amountInWithFee);
         }
 
-        // Perform the swap
+        // Perform swap
         pair.swap(
-            amount0Out,
-            amount1Out,
+            zeroForOne ? 0 : amountOut,
+            zeroForOne ? amountOut : 0,
             address(this),
-            new bytes(0)
-        );
-
-        return amountOut;
-    }
-
-    function _swapV3(SwapStep memory step, uint256 amountIn) private returns (uint256) {
-        if (step.protocol <= 10 ) {
-            return IV3SwapRouterNoDeadline(_getRouter(step.protocol)).exactInputSingle(
-                IV3SwapRouterNoDeadline.ExactInputSingleParams({
-                    tokenIn: step.tokenIn,
-                    tokenOut: step.tokenOut,
-                    fee: step.fee,
-                    recipient: address(this),
-                    amountIn: amountIn,
-                    amountOutMinimum: 0,
-                    sqrtPriceLimitX96: 0
-                })
-            );
-        } else {
-            return IV3SwapRouterWithDeadline(_getRouter(step.protocol)).exactInputSingle(
-                IV3SwapRouterWithDeadline.ExactInputSingleParams({
-                    tokenIn: step.tokenIn,
-                    tokenOut: step.tokenOut,
-                    fee: step.fee,
-                    recipient: address(this),
-                    deadline: block.timestamp,
-                    amountIn: amountIn,
-                    amountOutMinimum: 0,
-                    sqrtPriceLimitX96: 0
-                })
-            );
-        }
-    }
-
-    function _swapSlipstream(SwapStep memory step, uint256 amountIn) private returns (uint256) {
-        int24 tick_spacing = ISlipstreamPool(step.poolAddress).tickSpacing();
-        return ISlipstream(_getRouter(step.protocol)).exactInputSingle(
-           ISlipstream.ExactInputSingleParams({
-               tokenIn: step.tokenIn,
-               tokenOut: step.tokenOut,
-               tickSpacing: tick_spacing,
-               recipient: address(this),
-               deadline: block.timestamp,
-               amountIn: amountIn,
-               amountOutMinimum: 0,
-               sqrtPriceLimitX96: 0
-           })
+            EMPTY_BYTES
         );
     }
 
-    function _swapAerodrome(SwapStep memory step, uint256 amountIn) private returns (uint256) {
-        IAerodromeRouter.Route[] memory routes = new IAerodromeRouter.Route[](1);
-        bool isStable = IAerodromePool(step.poolAddress).stable();
-        address factory = IAerodromePool(step.poolAddress).factory();
-        routes[0] = IAerodromeRouter.Route({
-            from: step.tokenIn,
-            to: step.tokenOut,
-            stable: isStable,
-            factory: factory
-        });
-        uint256[] memory amounts = IAerodromeRouter(_getRouter(step.protocol)).swapExactTokensForTokens(
-            amountIn, 0, routes, address(this), block.timestamp
-        );
-        require(amounts.length > 1, "Invalid swap result");
-        return amounts[1];
-    }
-
-    function _swapBalancer(SwapStep memory step, uint256 amountIn) private returns (uint256) {
-        bytes32 poolId = IBalancerPool(step.poolAddress).getPoolId(); 
-        return IBalancerVault(_getRouter(step.protocol)).swap(
-            IBalancerVault.SingleSwap({
-                poolId: poolId,
-                kind: IBalancerVault.SwapKind.GIVEN_IN,
-                assetIn: step.tokenIn,
-                assetOut: step.tokenOut,
-                amount: amountIn,
-                userData: ""
-            }),
-            IBalancerVault.FundManagement({
-                sender: address(this),
-                fromInternalBalance: false,
-                recipient: payable(address(this)),
-                toInternalBalance: false
-            }),
-            0,
-            block.timestamp
-        );
-    }
-
-    // Function to rescue tokens sent to the contract by mistake
-    function rescueTokens(address token) external {
-        uint256 balance = IERC20(token).balanceOf(address(this));
-        require(balance > 0, "No tokens to rescue");
-        IERC20(token).transfer(msg.sender, balance);
-    }
-
-
-    function _getAmountOut(uint256 amountIn, uint256 reserveIn, uint256 reserveOut, uint256 fee) internal pure returns (uint256) {
-        require(amountIn > 0, 'INSUFFICIENT_INPUT_AMOUNT');
-        require(reserveIn > 0 && reserveOut > 0, 'INSUFFICIENT_LIQUIDITY');
+    function _swapV3(
+        address poolAddress,
+        uint256 amountIn,
+        address tokenIn,
+        bool zeroForOne
+    ) private returns (uint256) {
+        IUniswapV3Pool pool = IUniswapV3Pool(poolAddress);
         
-        uint256 amountInWithFee = amountIn * fee;
-        uint256 numerator = amountInWithFee * reserveOut;
-        uint256 denominator = (reserveIn * 10000) + amountInWithFee;
-        
-        return numerator / denominator;
+        uint160 sqrtPriceLimitX96 = zeroForOne ? 
+            MIN_SQRT_RATIO + 1 : 
+            MAX_SQRT_RATIO - 1;
+
+        (int256 amount0, int256 amount1) = pool.swap(
+            address(this),             // recipient
+            zeroForOne,               // direction
+            int256(amountIn),         // amount
+            sqrtPriceLimitX96,        // price limit
+            abi.encode(               // callback data
+                poolAddress,          // to
+                tokenIn              // tokenIn
+            )
+        );
+
+        return uint256(-(zeroForOne ? amount1 : amount0));
+    }
+
+    function uniswapV3SwapCallback(
+        int256 amount0Delta,
+        int256 amount1Delta,
+        bytes calldata data
+    ) external {
+        (address to, address tokenIn) = abi.decode(data, (address, address));
+        uint256 amountToSend = uint256(amount0Delta > 0 ? amount0Delta : amount1Delta);
+        IERC20(tokenIn).transfer(to, amountToSend);
     }
 
 
-    // Function to receive ETH
+    // Get the fee for the factory
+    function _getFee(address factory) private pure returns (uint16) {
+        if (factory == 0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6) return 9970;
+        if (factory == 0x71524B4f93c58fcbF659783284E38825f0622859) return 9970;
+        if (factory == 0x02a84c1b3BBD7401a5f7fa98a384EBC70bB5749E) return 9975;
+        if (factory == 0x04C9f118d21e8B767D2e50C946f0cC9F6C367300) return 9970;
+        if (factory == 0xFDa619b6d20975be80A10332cD39b9a4b0FAa8BB) return 9975;
+        if (factory == 0x591f122D1df761E616c13d265006fcbf4c6d6551) return 9975;
+        if (factory == 0x3E84D913803b02A4a7f027165E8cA42C14C0FdE7) return 9984;
+        return 9970; // Default fee
+    }
+
     receive() external payable {}
 }
