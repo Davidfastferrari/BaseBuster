@@ -35,10 +35,6 @@ impl ArbGraph {
                 }
             })
             .collect();
-
-        // if this is executing, then we know we do not have a cached cycle file
-        // so we want to write the cycles out
-
         swappaths
     }
 

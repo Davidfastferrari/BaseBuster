@@ -4,9 +4,8 @@ use crate::gen::FlashSwap;
 use alloy::eips::eip2718::Encodable2718;
 use alloy::hex;
 use alloy::network::{EthereumWallet, TransactionBuilder};
-use alloy::primitives::Address;
+use alloy::primitives::{Address, FixedBytes};
 use alloy::primitives::Bytes as AlloyBytes;
-use alloy::primitives::FixedBytes;
 use alloy::providers::{Provider, ProviderBuilder, RootProvider};
 use alloy::rpc::types::TransactionRequest;
 use alloy::signers::k256::SecretKey;
@@ -19,9 +18,10 @@ use serde_json::Value;
 use std::str::FromStr;
 use std::sync::mpsc::Receiver;
 use std::sync::Arc;
-use std::time::Duration;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
+
+// Handles sending transactions
 pub struct TransactionSender {
     wallet: EthereumWallet,
     gas_station: Arc<GasStation>,
@@ -82,13 +82,16 @@ impl TransactionSender {
             nonce,
         }
     }
+
+
+    // Receive a path that has passed simulation to be sent to the sequencer
     pub async fn send_transactions(&mut self, tx_receiver: Receiver<Event>) {
         // wait for a new transaction that has passed simulation
-        while let Ok(Event::ValidPath((arb_path, block_number))) = tx_receiver.recv()
+        while let Ok(Event::ValidPath((arb_path, profit, block_number))) = tx_receiver.recv()
         {
-
             info!("Sending path...");
-            // Setup arbitarge call
+
+            // Setup the calldata
             let converted_path: FlashSwap::SwapParams = arb_path.clone().into();
             let calldata = FlashSwap::executeArbitrageCall {
                 arb: converted_path
@@ -96,7 +99,7 @@ impl TransactionSender {
             .abi_encode();
 
             // Construct, sign, and encode transaction
-            let (max_fee, priority_fee) = self.gas_station.get_gas_fees();
+            let (max_fee, priority_fee) = self.gas_station.get_gas_fees(profit);
             let tx = TransactionRequest::default()
                 .with_to(self.contract_address)
                 .with_nonce(self.nonce)
@@ -166,43 +169,33 @@ impl TransactionSender {
     }
 }
 
+
+
+// Test transaction sending functionality
 #[cfg(test)]
 mod tx_signing_tests {
-    /*
-    use crate::swap::{SwapPath, SwapStep};
     use alloy::primitives::{address, U256};
     use alloy::providers::{Provider, ProviderBuilder};
     use env_logger;
+    use crate::gen::FlashQuoter;
     use pool_sync::PoolType;
     use std::time::Instant;
-
+    use crate::AMOUNT;
     use super::*;
 
-    // Create a mock swappath
-    fn dummy_swap_path() -> SwapPath {
-        // Create a dummy swap path
-        let dummy_path = vec![
-            SwapStep {
-                pool_address: address!("4C36388bE6F416A29C8d8Eee81C771cE6bE14B18"),
-                token_in: address!("d9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA"),
-                token_out: address!("4200000000000000000000000000000000000006"),
-                protocol: PoolType::UniswapV2,
-                fee: 0,
-            },
-            SwapStep {
-                pool_address: address!("9A834b70C07C81a9FCB695573D9008d0eF23A998"),
-                token_in: address!("4200000000000000000000000000000000000006"),
-                token_out: address!("d9aAEc86B65D86f6A7B5B1b0c42FFA531710b6CA"),
-                protocol: PoolType::UniswapV2,
-                fee: 0,
-            },
-        ];
-        SwapPath {
-            steps: dummy_path,
-            hash: 0,
+    // Create mock swap params
+    fn dummy_swap_params() ->  FlashQuoter::SwapParams {
+        let p1 = address!("4C36388bE6F416A29C8d8Eee81C771cE6bE14B18");
+        let p2 = address!("9A834b70C07C81a9FCB695573D9008d0eF23A998");
+        FlashQuoter::SwapParams {
+            pools: vec![p1, p2],
+            poolVersions: vec![0, 0],
+            amountIn: *AMOUNT
         }
     }
 
+
+    // Test the time it takes to create a transaction
     #[tokio::test(flavor = "multi_thread")]
     async fn test_sign() {
         // init and get all dummy state
@@ -223,35 +216,22 @@ mod tx_signing_tests {
         );
         let contract_address = std::env::var("SWAP_CONTRACT").unwrap();
         let contract = FlashSwap::new(contract_address.parse().unwrap(), wallet_provider.clone());
-        let swap_path = dummy_swap_path();
-
-        let total_time = Instant::now();
-
-        // benchmark conversion time
-        let convertion_time = Instant::now();
-        let converted_path: Vec<FlashSwap::SwapStep> = swap_path.clone().into();
-        println!("Path convertion took {:?}", convertion_time.elapsed());
-
-        // benchmark gas est time
-        let gas_time = Instant::now();
-        let gas = wallet_provider.estimate_eip1559_fees(None).await.unwrap();
-        println!("Gas estimation took {:?}", gas_time.elapsed());
+        let path: FlashSwap::SwapParams = dummy_swap_params().into();
 
         // benchmark tx construction
+        let gas = wallet_provider.estimate_eip1559_fees(None).await.unwrap();
         let tx_time = Instant::now();
         let max_fee = gas.max_fee_per_gas * 5; // 3x the suggested max fee
         let priority_fee = gas.max_priority_fee_per_gas * 30; // 20x the suggested priority fee
 
         let _ = contract
-            .executeArbitrage(converted_path, U256::from(10))
+            .executeArbitrage(path)
             .max_fee_per_gas(max_fee)
             .max_priority_fee_per_gas(priority_fee)
             .chain_id(8453)
             .gas(4_000_000)
             .into_transaction_request();
         println!("Tx construction took {:?}", tx_time.elapsed());
-
-        println!("Total time {:?}", total_time.elapsed());
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -270,8 +250,8 @@ mod tx_signing_tests {
         let (tx, rx) = std::sync::mpsc::channel();
 
         // Create and send a test event
-        let swap_path = dummy_swap_path();
-        let test_event = Event::ArbPath((
+        let swap_path = dummy_swap_params();
+        let test_event = Event::ValidPath((
             swap_path,
             alloy::primitives::U256::from(10000000), // test input amount
             100u64,                                  // dummy block number
@@ -282,6 +262,5 @@ mod tx_signing_tests {
         // Send the transaction (this will only process one transaction and then exit)
         tx_sender.send_transactions(rx).await;
     }
-    */
 }
 

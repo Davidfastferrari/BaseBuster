@@ -46,11 +46,11 @@ async fn main() -> Result<()> {
             PoolType::UniswapV2,
             PoolType::PancakeSwapV2,
             PoolType::SushiSwapV2,
-            PoolType::BaseSwapV2,
-            PoolType::AlienBaseV2,
-            PoolType::DackieSwapV2,
-            PoolType::SwapBasedV2,
             PoolType::UniswapV3,
+            PoolType::SushiSwapV3,
+            PoolType::PancakeSwapV3,
+            PoolType::BaseSwapV2,
+            PoolType::BaseSwapV3,
         ])
         .chain(Chain::Base)
         .rate_limit(1000)

@@ -37,7 +37,7 @@ pub async fn simulate_paths(
             info!("Simulating a new path...");
             // get an initial quote to see if we can swap
             // get read access to the db so we can quote the path
-            match Quoter::quote_path(converted_path.clone(), *AMOUNT, market_state.clone()) {
+            match Quoter::quote_path(converted_path.clone(), market_state.clone()) {
                 Ok(quote) => {
                     // if we are just simulated, compare to the expected amount
                     if sim {
@@ -50,7 +50,7 @@ pub async fn simulate_paths(
                         } else {
                             // get a full debug quote path
                             let calculator = Calculator::new(market_state.clone());
-                            let output = calculator.debug_calculation(&arb_path);
+                            calculator.debug_calculation(&arb_path);
                         }
                     } else {
                         info!(
@@ -60,8 +60,9 @@ pub async fn simulate_paths(
                         // now optimize the input
                         //let optimized_amounts = Quoter::optimize_input(converted_path, market_state.clone()).unwrap();
                         //info!("Optimized input: {}. Optimized output: {}", optimized_amounts.0, optimized_amounts.1);
+                        let profit = expected_out - *AMOUNT;
 
-                        match tx_sender.send(Event::ValidPath((converted_path, block_number))) {
+                        match tx_sender.send(Event::ValidPath((converted_path, profit, block_number))) {
                             Ok(_) => debug!("Simulator sent path to Tx Sender"),
                             Err(_) => warn!("Simulator: failed to send path to tx sender"),
                         }

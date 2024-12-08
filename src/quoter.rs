@@ -19,8 +19,7 @@ pub struct Quoter;
 impl Quoter {
     // get a quote for the path
     pub fn quote_path(
-        mut quote_params: FlashQuoter::SwapParams,
-        amount_in: U256,
+        quote_params: FlashQuoter::SwapParams,
         market_state: Arc<MarketState<Http<Client>, Ethereum, RootProvider<Http<Client>>>>,
     ) -> Result<Vec<U256>> {
         let mut guard = market_state.db.write().unwrap();
@@ -32,7 +31,6 @@ impl Quoter {
         // get read access to the db
         // setup the calldata
         
-        quote_params.amountIn = amount_in;
         let quote_calldata = FlashQuoter::quoteArbitrageCall {
             params: quote_params,
         }
@@ -58,10 +56,11 @@ impl Quoter {
 
     /// Optimizes the input amount using binary search to find the maximum profitable input
     /// Returns the optimal input amount and its corresponding output amounts
-    pub fn optimize_input(
+    pub fn _optimize_input(
         quote_path: FlashQuoter::SwapParams,
         market_state: Arc<MarketState<Http<Client>, Ethereum, RootProvider<Http<Client>>>>,
     ) -> Result<(U256, U256)> {
+        let mut sim_path = quote_path.clone();
         let mut left = *AMOUNT;
         let mut right = U256::from(1e18);
         let mut best_input = U256::ZERO;
@@ -75,8 +74,10 @@ impl Quoter {
                 (left + right) / U256::from(2)
             };
 
+
+            sim_path.amountIn = mid;
             let current_amounts =
-                match Self::quote_path(quote_path.clone(), mid, Arc::clone(&market_state)) {
+                match Self::quote_path(sim_path.clone(), Arc::clone(&market_state)) {
                     Ok(amounts) => amounts,
                     Err(_) => {
                         right = mid;

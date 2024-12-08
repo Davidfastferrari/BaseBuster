@@ -3,8 +3,10 @@ use alloy::primitives::Address;
 use alloy::providers::ext::DebugApi;
 use alloy::providers::Provider;
 use alloy::rpc::types::trace::common::TraceResult;
-use alloy::rpc::types::trace::geth::GethDebugBuiltInTracerType::PreStateTracer;
-use alloy::rpc::types::trace::geth::GethDebugTracerType::BuiltInTracer;
+use alloy::rpc::types::trace::geth::{
+    GethDebugBuiltInTracerType::PreStateTracer,
+    GethDebugTracerType::BuiltInTracer
+};
 use alloy::rpc::types::trace::geth::*;
 use alloy::rpc::types::BlockNumberOrTag;
 use alloy::transports::Transport;
