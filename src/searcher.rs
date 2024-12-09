@@ -99,7 +99,7 @@ where
                 .filter_map(|path| {
                     // estimate if the path is profitable
                     let output_est = self.estimator.estimate_output_amount(path);
-                    if output_est >= self.min_profit {
+                    if output_est >= self.min_profit && output_est < U256::from(1e18) {
                         Some(((*path).clone(), output_est))
                     } else {
                         None

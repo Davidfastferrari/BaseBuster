@@ -66,24 +66,54 @@ mod offchain_calculations {
         evm.transact_commit().unwrap();
 
         // Setup SwapParams and do call
-        let weth_usdc_v2_uni = address!("88A43bbDF9D098eEC7bCEda4e2494615dfD9bB9C");
-        let weth_usdc_v3_uni = address!("b4CB800910B228ED3d0834cF79D697127BBB00e5");
-        let weth_usdc_v3_sushi = address!("57713F7716e0b0F65ec116912F834E49805480d2");
 
-        let swap_params = FlashQuoter::SwapParams {
-            pools: vec![weth_usdc_v3_uni, weth_usdc_v2_uni],
-            poolVersions: vec![1, 0],
-            amountIn: U256::from(1e16),
-        };
-        let quote_call = FlashQuoter::quoteArbitrageCall {
-            params: swap_params,
+        // weth_usdc pool for all of the protocols we support. Test all permuatations
+        let uni_v2 = (address!("88A43bbDF9D098eEC7bCEda4e2494615dfD9bB9C"), 0);
+        let uni_v3 = (address!("b4CB800910B228ED3d0834cF79D697127BBB00e5"), 1);
+
+        let pancake_v2 = (address!("79474223AEdD0339780baCcE75aBDa0BE84dcBF9"), 0);
+        let pancake_v3 = (address!("B775272E537cc670C65DC852908aD47015244EaF"), 1);
+
+        let sushi_v2 = (address!("2F8818D1B0f3e3E295440c1C0cDDf40aAA21fA87"), 0);
+        let sushi_v3 = (address!("57713F7716e0b0F65ec116912F834E49805480d2"), 1);
+
+        let slipstream = (address!("b2cc224c1c9feE385f8ad6a55b4d94E92359DC59"), 1);
+        //let aerodrome = address!("cDAC0d6c6C59727a65F871236188350531885C43");
+
+        // alienbase
+        let alienbase_v2 = (address!("B16D2257643fdBB32d12b9d73faB784eB4f1Bee4"), 0);
+        let alienbase_v3 = (address!("0a13F0a67583dEFFf04b734c34975e6BDCF6736D"), 1);
+
+        // base swap
+        //SwapParams { pools: [0x359ade7d59b13b5a3fc12a389969a509e043885a, 0xe782b72a1157b7bea1a9452835cce214962ad43b], poolVersions: [1, 1], amountIn: 10000000000000000 }0
+        // 0x359ade7d59b13b5a3fc12a389969a509e043885a, 0xe782b72a1157b7bea1a9452835cce214962ad43b
+
+        let pools = [
+            uni_v2, uni_v3, pancake_v2, pancake_v2, sushi_v2, sushi_v3, slipstream, alienbase_v3, alienbase_v2
+        ];
+
+        for i in 0..pools.len() {
+            for j in 0..pools.len() {
+                if i != j {
+                    let swap_params = FlashQuoter::SwapParams {
+                        pools: vec![pools[i].0, pools[j].0],
+                        poolVersions: vec![pools[i].1, pools[j].1],
+                        amountIn: U256::from(1e16),
+                    };
+                    let quote_call = FlashQuoter::quoteArbitrageCall {
+                        params: swap_params.clone(),
+                    }
+                    .abi_encode();
+
+                    evm.tx_mut().data = quote_call.into();
+                    evm.tx_mut().transact_to = TransactTo::Call(quoter);
+                    let output = evm.transact().unwrap().result;
+                    if !output.is_success() {
+                        println!("{:#?}", swap_params);
+                    }
+                }
+            }
         }
-        .abi_encode();
-
-        evm.tx_mut().data = quote_call.into();
-        evm.tx_mut().transact_to = TransactTo::Call(quoter);
-        let output = evm.transact().unwrap().result;
-        println!("{:#?}", output);
     }
 
     // Test the outputs for all pools

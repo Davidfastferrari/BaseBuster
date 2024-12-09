@@ -1,6 +1,7 @@
 use alloy::network::Ethereum;
 use alloy::providers::RootProvider;
 use alloy::transports::http::{Client, Http};
+use alloy::primitives::U256;
 use log::{debug, info, warn};
 use std::collections::HashSet;
 use std::sync::mpsc::{Receiver, Sender};
@@ -29,7 +30,8 @@ pub async fn simulate_paths(
     // recieve new paths from the searcher
     while let Ok(Event::ArbPath((arb_path, expected_out, block_number))) = arb_receiver.recv() {
         // convert from searcher format into quoter format
-        let converted_path: FlashQuoter::SwapParams = arb_path.clone().into();
+        let mut converted_path: FlashQuoter::SwapParams = arb_path.clone().into();
+        println!("{:?}", converted_path);
 
         // get the quote for the path and handle it appropriately
         // if we have not blacklisted the path
@@ -53,14 +55,22 @@ pub async fn simulate_paths(
                             calculator.debug_calculation(&arb_path);
                         }
                     } else {
+                        if *quote.last().unwrap() > U256::from(1e18) {
+                            continue;
+                        };
+
                         info!(
                             "Sim successful... Estimated output: {}, Block {}",
                             expected_out, block_number
                         );
+
+
+
                         // now optimize the input
-                        //let optimized_amounts = Quoter::optimize_input(converted_path, market_state.clone()).unwrap();
-                        //info!("Optimized input: {}. Optimized output: {}", optimized_amounts.0, optimized_amounts.1);
+                        let optimized_amounts = Quoter::optimize_input(converted_path.clone(), *quote.last().unwrap(), market_state.clone());
+                        info!("Optimized input: {}. Optimized output: {}", optimized_amounts.0, optimized_amounts.1);
                         let profit = expected_out - *AMOUNT;
+                        converted_path.amountIn = optimized_amounts.0;
 
                         match tx_sender.send(Event::ValidPath((converted_path, profit, block_number))) {
                             Ok(_) => debug!("Simulator sent path to Tx Sender"),

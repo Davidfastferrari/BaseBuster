@@ -115,7 +115,7 @@ impl TransactionSender {
             tx_envelope.encode_2718(&mut encoded_tx);
             let rlp_hex = hex::encode_prefixed(encoded_tx);
 
-            let json = serde_json::json!({
+            let tx_data = serde_json::json!({
                 "jsonrpc": "2.0",
                 "method": "eth_sendRawTransaction",
                 "params": [rlp_hex],
@@ -123,36 +123,33 @@ impl TransactionSender {
             });
 
             // Send the transaciton off and monitor its status
-            let client = self.client.clone();
+            info!("Sending on block {}", block_number);
+            let start = Instant::now();
+
+            // construct the request and send it
+            let req = self.client
+                .post("https://mainnet-sequencer.base.org")
+                .json(&tx_data)
+                .send()
+                .await
+                .unwrap();
+            let req_response: Value = req.json().await.unwrap();
+            info!("Took {:?} to send tx and receive response", start.elapsed());
+            let tx_hash = FixedBytes::<32>::from_str(req_response["result"].as_str().unwrap()).unwrap();
+
             let provider = self.provider.clone();
             tokio::spawn(async move {
-                Self::send_and_monitor(client, provider, json, block_number).await;
+                Self::send_and_monitor(provider,tx_hash, block_number).await;
             });
-            tokio::time::sleep(Duration::from_secs(5)).await;
         }
     }
 
     // Send the transaction and monitor its status
     pub async fn send_and_monitor(
-        client: Arc<Client>,
         provider: Arc<RootProvider<Http<AlloyClient>>>,
-        tx_data: Value,
+        tx_hash: FixedBytes<32>,
         block_number: u64,
     ) {
-        info!("Sending on block {}", block_number);
-        let start = Instant::now();
-
-        // construct the request and send it
-        let req = client
-            .post("https://mainnet-sequencer.base.org")
-            .json(&tx_data)
-            .send()
-            .await
-            .unwrap();
-        let req_response: Value = req.json().await.unwrap();
-        info!("Took {:?} to send tx and receive response", start.elapsed());
-        let tx_hash = FixedBytes::<32>::from_str(req_response["result"].as_str().unwrap()).unwrap();
-
         // loop while waiting for tx receipt
         let mut attempts = 0;
         while attempts < 10 {
@@ -160,6 +157,7 @@ impl TransactionSender {
             let receipt = provider.get_transaction_receipt(tx_hash).await;
             if let Ok(Some(inner)) = receipt {
                 info!("Send on block {:?}, Landed on block {:?}", block_number, inner.block_number.unwrap());
+                return;
             }
 
             tokio::time::sleep(Duration::from_secs(2)).await;

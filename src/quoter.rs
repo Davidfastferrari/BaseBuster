@@ -56,52 +56,33 @@ impl Quoter {
 
     /// Optimizes the input amount using binary search to find the maximum profitable input
     /// Returns the optimal input amount and its corresponding output amounts
-    pub fn _optimize_input(
+    pub fn optimize_input(
         quote_path: FlashQuoter::SwapParams,
+        initial_out: U256,
         market_state: Arc<MarketState<Http<Client>, Ethereum, RootProvider<Http<Client>>>>,
-    ) -> Result<(U256, U256)> {
-        let mut sim_path = quote_path.clone();
-        let mut left = *AMOUNT;
-        let mut right = U256::from(1e18);
-        let mut best_input = U256::ZERO;
-        let mut best_output = U256::ZERO;
+    ) -> (U256, U256) {
+        let mut quote_path = quote_path.clone();
+        let mut curr_input = *AMOUNT;
+        let mut best_input = *AMOUNT;
+        let mut best_output = initial_out;
 
-        let mut iterations = 0;
-        while iterations < 12 {
-            let mid = if iterations == 0 {
-                *AMOUNT
-            } else {
-                (left + right) / U256::from(2)
-            };
+        for _ in 0..50 {
+            curr_input = curr_input + U256::from(2e14);
+            quote_path.amountIn = curr_input;
 
-
-            sim_path.amountIn = mid;
-            let current_amounts =
-                match Self::quote_path(sim_path.clone(), Arc::clone(&market_state)) {
-                    Ok(amounts) => amounts,
-                    Err(_) => {
-                        right = mid;
-                        iterations += 1;
-                        continue;
+            match Self::quote_path(quote_path.clone(), market_state.clone()) {
+                Ok(amounts) => {
+                    let output = *amounts.last().unwrap();
+                    if output > curr_input && output > best_output {
+                        best_output = output;
+                        best_input = curr_input;
+                    } else {
+                        break;
                     }
-                };
-
-            let current_output = *current_amounts.last().unwrap_or(&U256::ZERO);
-            if best_output == U256::ZERO || current_output > best_output {
-                best_output = current_output;
-                best_input = mid;
-                left = mid;
-            } else {
-                right = mid;
+                } 
+                Err(_) => break
             }
-
-            iterations += 1;
         }
-
-        if best_input == U256::ZERO {
-            Err(anyhow!("Could not find optimal input"))
-        } else {
-            Ok((best_input, best_output))
-        }
+        (best_input, best_output)
     }
 }
