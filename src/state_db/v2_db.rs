@@ -63,18 +63,6 @@ where
         Address::from_word(token1.into())
     }
 
-    pub fn get_decimals(&self, _pool: &Address) -> (u8, u8) {
-        todo!()
-    }
-
-    pub fn get_fee(&self, _pool: &Address) -> U256 {
-        todo!()
-    }
-
-    pub fn get_stable(&self, _pool: &Address) -> bool {
-        todo!()
-    }
-
     #[warn(dead_code)]
     pub fn get_tokens(&self, _pool: &Address) -> (Address, Address) {
         todo!()
@@ -127,7 +115,6 @@ where
 
 #[cfg(test)]
 mod test_db_v2 {
-    /*
     use super::*;
     use alloy::network::Ethereum;
     use alloy::primitives::address;
@@ -328,14 +315,14 @@ mod test_db_v2 {
         let database_path = std::env::var("DB_PATH").unwrap();
         let mut db = NodeDB::new(database_path).unwrap();
 
-        //let provider = ProviderBuilder::new().on_http(url);
-        //let mut db = BlockStateDB::new(provider.clone()).unwrap();
+        let provider = ProviderBuilder::new().on_http(url);
+        let mut db = BlockStateDB::new(provider.clone()).unwrap();
 
-        // insert some pools 
-        //let uni_pool = uni_v2_weth_usdc();
-        //db.insert_v2(uni_pool);
-        //let sushi_pool = sushi_v2_weth_usdc();
-        //db.insert_v2(sushi_pool);
+        //insert some pools 
+        let uni_pool = uni_v2_weth_usdc();
+        db.insert_v2(uni_pool);
+        let sushi_pool = sushi_v2_weth_usdc();
+        db.insert_v2(sushi_pool);
 
         // give the account some weth
         let one_ether = U256::from(1_000_000_000_000_000_000u128);
@@ -357,7 +344,6 @@ mod test_db_v2 {
         };
         db.insert_account_info(quoter, quoter_acc_info, InsertionType::Custom);
 
-        //let mut evm = Evm::<EthereumWiring<&mut BlockStateDB<Http<Client>, Ethereum, RootProvider<Http<Client>>>, ()>>::builder()
         let mut evm = Evm::builder()
             .with_db(&mut db)
             .modify_tx_env(|tx| {
@@ -396,13 +382,6 @@ mod test_db_v2 {
                 protocol: 0,
                 fee: 0.try_into().unwrap(),
             },
-            //SwapStep {
-                //poolAddress: address!("7c327d692b72f60b28aecedbcc1ba784712fe7b2"),
-                //tokenIn: address!("4ed4e862860bed51a9570b96d89af5e1b0efefed"),
-                //tokenOut: address!("4200000000000000000000000000000000000006"),
-                //protocol: 0,
-                //fee: 0.try_into().unwrap(),
-            //},
         ];
 
         let quote_calldata = FlashQuoter::quoteArbitrageCall {
@@ -411,8 +390,6 @@ mod test_db_v2 {
         }
         .abi_encode();
 
-        //let mut guard = db.write().unwrap();
-        //let mut evm: QuoteEvm = Evm::builder()
         let mut evm = Evm::builder()
             .with_db(&mut db)
             .build();
@@ -426,25 +403,7 @@ mod test_db_v2 {
         let ref_tx = evm.transact().unwrap();
         let result = ref_tx.result;
         println!("{:?}", result);
-        //let decoded_outputs = <Vec<U256>>::abi_decode(output, false).unwrap();
-        //println!("First time took {:?}", start.elapsed());
-        //println!("{:#?}", decoded_outputs);
-        //let start = Instant::now();
-
-        /* 
-        let pool_addr = address!("88A43bbDF9D098eEC7bCEda4e2494615dfD9bB9C");
-        evm.db_mut().insert_reserves(pool_addr, U256::from(4098445218255314839_u128), U256::from(94038111875_u128));
-
-
-        let ref_tx = evm.transact().unwrap();
-        let result = ref_tx.result;
-        let output = result.output().unwrap();
-        let decoded_outputs = <Vec<U256>>::abi_decode(output, false).unwrap();
-        println!("Second time took {:?}", start.elapsed());
-        println!("{:#?}", decoded_outputs);
-        */
     }
-    */
 
 
 }

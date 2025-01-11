@@ -83,8 +83,8 @@ impl DatabaseRef for HistoryDB {
     type Error = eyre::Error;
 
     fn basic_ref(&self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
-        let account = self.db_provider.basic_account(address).unwrap_or_default().unwrap_or_default();
-        let code = self.db_provider.account_code(address).unwrap_or_default();
+        let account = self.db_provider.basic_account(&address).unwrap_or_default().unwrap_or_default();
+        let code = self.db_provider.account_code(&address).unwrap_or_default();
         let account_info = if let Some(code) = code {
             AccountInfo::new(
                 account.balance,

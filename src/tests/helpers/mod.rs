@@ -6,3 +6,5 @@ pub mod offchain_quote;
 pub mod onchain_quote;
 #[cfg(test)]
 pub mod test_utils;
+#[cfg(test)]
+pub mod state;

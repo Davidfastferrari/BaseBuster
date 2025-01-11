@@ -32,7 +32,6 @@ impl Calculator {
         let exponent = Self::div_down(weight_in, weight_out);
         let power = Self::pow_up(base, exponent);
 
-        //let power = U256::from(999976340295933562_u128);
         Self::mul_down(balance_out, Self::complement(power))
     }
 
@@ -80,9 +79,6 @@ impl Calculator {
     fn mul_down(a: U256, b: U256) -> U256 {
         let one = U256::from(1e18);
         let product = a * b;
-        //if a != U256::ZERO || product / a != b {
-        //return U256::ZERO;
-        //};
         product / one
     }
 
@@ -465,33 +461,3 @@ impl LogExpMath {
         series_sum * I256::from_raw(U256::from(2))
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -32,7 +32,7 @@ impl HandleOrRuntime {
     {
         match self {
             Self::Handle(handle) => tokio::task::block_in_place(move || handle.block_on(f)),
-            //Self::Runtime(rt) => rt.block_on(f),
+            Self::Runtime(rt) => rt.block_on(f),
         }
     }
 }
@@ -64,8 +64,8 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> BlockStateDB<T, N, P> 
     pub fn new(provider: P) -> Option<Self> {
         debug!("Creating new BlockStateDB");
         let contracts = HashMap::new();
-        //contracts.insert(KECCAK_EMPTY, Bytecode::default());
-        //contracts.insert(B256::ZERO, Bytecode::default());
+        contracts.insert(KECCAK_EMPTY, Bytecode::default());
+        contracts.insert(B256::ZERO, Bytecode::default());
 
         // get our runtime handle
         let rt = match Handle::try_current() {
@@ -364,10 +364,7 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> DatabaseRef for BlockS
         if let Some(account) = self.accounts.get(&address) {
             trace!("Database Basic Ref: Account {} found in database", address);
             return Ok(Some(account.info.clone()));
-            //if account.insertion_type == InsertionType::Custom {
-           // }
         }
-
 
         // we do not have the account, fetch from the provider
         trace!(

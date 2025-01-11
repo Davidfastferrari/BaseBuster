@@ -1,5 +1,3 @@
-
-/*
 #[cfg(test)]
 mod state {
 
@@ -36,4 +34,3 @@ mod state {
 
     test_v2_state!(test_uniswapv2_state, UniswapV2);
 }
-*/

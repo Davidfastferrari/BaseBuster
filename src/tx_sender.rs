@@ -203,9 +203,7 @@ mod tx_signing_tests {
         let key = SecretKey::from_bytes((&key_hex[..]).into()).unwrap();
         let signer = PrivateKeySigner::from(key);
         let wallet = EthereumWallet::from(signer);
-        let url = "https://mempool.merkle.io/rpc/base/pk_mbs_323cf6b720ba9734112249c7eff2b88d"
-            .parse()
-            .unwrap();
+        let url = std::env::var("FULL").unwrap();
         let wallet_provider = Arc::new(
             ProviderBuilder::new()
                 .with_recommended_fillers()

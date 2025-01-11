@@ -78,15 +78,11 @@ mod offchain_calculations {
         let sushi_v3 = (address!("57713F7716e0b0F65ec116912F834E49805480d2"), 1);
 
         let slipstream = (address!("b2cc224c1c9feE385f8ad6a55b4d94E92359DC59"), 1);
-        //let aerodrome = address!("cDAC0d6c6C59727a65F871236188350531885C43");
+        let aerodrome = address!("cDAC0d6c6C59727a65F871236188350531885C43");
 
         // alienbase
         let alienbase_v2 = (address!("B16D2257643fdBB32d12b9d73faB784eB4f1Bee4"), 0);
         let alienbase_v3 = (address!("0a13F0a67583dEFFf04b734c34975e6BDCF6736D"), 1);
-
-        // base swap
-        //SwapParams { pools: [0x359ade7d59b13b5a3fc12a389969a509e043885a, 0xe782b72a1157b7bea1a9452835cce214962ad43b], poolVersions: [1, 1], amountIn: 10000000000000000 }0
-        // 0x359ade7d59b13b5a3fc12a389969a509e043885a, 0xe782b72a1157b7bea1a9452835cce214962ad43b
 
         let pools = [
             uni_v2, uni_v3, pancake_v2, pancake_v2, sushi_v2, sushi_v3, slipstream, alienbase_v3, alienbase_v2

@@ -46,7 +46,7 @@ where
 {
     // constuct the market state with a populated db
     pub async fn init_state_and_start_stream(
-        pools: Vec<Pool>,          // the pools we are serching over
+        pools: Vec<Pool>,          // the pools we are searching over
         block_rx: Receiver<Event>, // receiver for new blocks
         address_tx: Sender<Event>, // sender for touched addresses in a block
         last_synced_block: u64,    // the last block that was synced too

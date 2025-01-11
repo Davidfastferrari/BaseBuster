@@ -23,8 +23,6 @@ impl GasStation {
         let base_fee = self.base_fee.load(Ordering::Relaxed) as u128;
         let max_total_gas_spend: u128 = (profit / U256::from(2)).try_into().unwrap();
         let priority_fee = max_total_gas_spend / 350_000;
-        println!("Calculated prio fee {:?} for profit {}", priority_fee, profit);
-        let priority_fee = 150000000;
         
         (base_fee + priority_fee, priority_fee)
     }

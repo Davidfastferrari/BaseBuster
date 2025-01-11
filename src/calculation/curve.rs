@@ -15,7 +15,6 @@ sol!(
 
 impl Calculator {
     pub fn curve_out(&self, index_in: U256, index_out: U256, amount_in: U256, pool: Address) -> U256 {
-        /* 
         // the function calldata
         let calldata = CurveOut::get_dyCall {
             i: index_in,
@@ -55,7 +54,5 @@ impl Calculator {
             }
             _=> U256::ZERO
         }
-        */
-        todo!()
     }
 }
