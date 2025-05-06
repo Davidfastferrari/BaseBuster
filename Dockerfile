@@ -2,7 +2,8 @@
 FROM rust:latest AS builder
 
 # Set the working directory for the application
-WORKDIR /usr/src/app
+WORKDIR /usr
+#/src/app
 
 # Copy the entire project context
 # This will place NodeDB at /usr/src/app/NodeDB, PoolSync at /usr/src/app/PoolSync,
