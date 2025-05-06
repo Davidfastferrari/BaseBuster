@@ -1,0 +1,11 @@
+# Ignore everything
+**
+
+# But include these directories and files
+!Cargo.toml
+!Cargo.lock
+!src/
+!NodeDB/
+!PoolSync/
+!contracts/
+!.gitignore
