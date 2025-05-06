@@ -1,6 +1,12 @@
 # Build stage
 FROM rust:latest AS builder
 
+WORKDIR /usr/src
+
+# Copy NodeDB and PoolSync dependencies explicitly
+COPY NodeDB ./NodeDB
+COPY PoolSync ./PoolSync
+
 WORKDIR /usr/src/app
 
 # Copy entire project directory
