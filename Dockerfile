@@ -1,18 +1,17 @@
-# Build stage
+# Stage 1: Builder
 FROM rust:latest AS builder
 
-WORKDIR /usr/src
-
-# Copy NodeDB and PoolSync dependencies explicitly
-COPY NodeDB ./NodeDB
-COPY PoolSync ./PoolSync
-
+# Set the working directory for the application
 WORKDIR /usr/src/app
 
-# Copy entire project directory
+# Copy the entire project context
+# This will place NodeDB at /usr/src/app/NodeDB, PoolSync at /usr/src/app/PoolSync,
+# the main Cargo.toml at /usr/src/app/Cargo.toml, and src at /usr/src/app/src.
 COPY . .
 
-# Build release binary
+# Build the release binary
+# This assumes your BaseBuster/Cargo.toml (now at /usr/src/app/Cargo.toml)
+# defines dependencies like: node-db = { path = "NodeDB" }
 RUN cargo build --release
 
 # Runtime stage
