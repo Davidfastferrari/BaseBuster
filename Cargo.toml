@@ -3,6 +3,13 @@ name = "BaseBuster"
 version = "0.1.0"
 edition = "2024"
 
+[workspace]
+members = [
+    "BaseBuster",
+    "NodeDB",
+    "PoolSync",
+]
+
 [profile.release]
 debug = true
 
@@ -15,8 +22,8 @@ anyhow = "1.0.89"
 env_logger = "0.11.5"
 futures = { version = "0.3.31", features = ["executor"] }
 # In your BaseBuster/Cargo.toml (or equivalent main project Cargo.toml)
-node-db = { path = "../NodeDB" }
-pool-sync = { path = "../PoolSync" }
+node-db = { version = "*" }
+pool-sync = { version = "*" }
 log = "0.4.22"
 petgraph = "0.8.1"
 rayon = "1.10.0"
