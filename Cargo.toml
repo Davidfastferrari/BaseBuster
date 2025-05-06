@@ -50,7 +50,7 @@ reth-node-ethereum = { git = "https://github.com/paradigmxyz/reth",tag = "v1.3.8
 
 [workspace]
 members = [
-    "NodeDB",
-    "PoolSync",
+    "../NodeDB",
+    "../PoolSync",
 ]
 
